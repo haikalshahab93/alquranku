@@ -309,45 +309,32 @@ export default function SurahDetailScreen({ route, navigation }) {
                 const nextExpanded = !isTafsirExpanded;
                 setExpandedTafsirAyahs((prev) => ({ ...prev, [ayahNumber]: nextExpanded }));
                 if (nextExpanded) {
-                  setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: 0 }));
+                  // setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: 0 })); // pagination dihapus karena konten tafsir ditampilkan penuh
                 }
               }}
             >
               <Text style={[styles.tafsirToggleText, isTafsirExpanded && styles.tafsirToggleTextActive]}>{isTafsirExpanded ? `Tutup Tafsir Ayat ${ayahNumber}` : `Lihat Tafsir Ayat ${ayahNumber}`}</Text>
             </TouchableOpacity>
             {isTafsirExpanded && (
-              <View style={[styles.tafsirBox, { maxHeight: Math.floor(Dimensions.get('window').height * 0.6), overflow: 'hidden' }]}>
-                <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{currentChunk}</Text>
-                 {/* navigasi halaman tafsir */}
-                 <View style={styles.pageNavRow}>
-                   <TouchableOpacity
-                     style={styles.pageBtn}
-                     onPress={() => setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: Math.max(0, (prev[ayahNumber] ?? 0) - 1) }))}
-                     disabled={currentPage <= 0}
-                   >
-                     <Text style={[styles.pageBtnText, currentPage <= 0 && styles.pageBtnTextDisabled]}>Halaman Sebelumnya</Text>
-                   </TouchableOpacity>
-                   <TouchableOpacity
-                     style={styles.pageBtn}
-                     onPress={() => setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: Math.min(maxPageIndex, (prev[ayahNumber] ?? 0) + 1) }))}
-                     disabled={currentPage >= maxPageIndex}
-                   >
-                     <Text style={[styles.pageBtnText, currentPage >= maxPageIndex && styles.pageBtnTextDisabled]}>Halaman Berikutnya</Text>
-                   </TouchableOpacity>
-                 </View>
-                 <Text style={styles.pageIndicator}>{`Halaman ${Math.min(currentPage + 1, Math.max(1, tafsirChunks.length || 1))}/${Math.max(1, tafsirChunks.length || 1)}`}</Text>
-                  {tafsirMap[ayahNumber - 1] ? (
-                    <View style={styles.contextBox}>
-                      <Text style={styles.contextLabel}>Sebelum</Text>
-                      <Text style={styles.tafsirContextText}>{tafsirMap[ayahNumber - 1]}</Text>
-                    </View>
-                  ) : null}
+              <View style={styles.tafsirBox}>
+                <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{tafsirForAyah}</Text>
+                {/* navigasi halaman tafsir dinonaktifkan: konten ditampilkan penuh */}
+                {/* sebelumnya: pagination per halaman Halaman Sebelumnya/Berikutnya dan indikator halaman */}
+              
+                {tafsirMap[ayahNumber - 1] ? (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={[styles.tafsirContent, { fontWeight: '700', marginBottom: 4 }]}>Tafsir ayat sebelumnya</Text>
+                    <Text style={styles.tafsirContextText}>{tafsirMap[ayahNumber - 1]}</Text>
+                  </View>
+                ) : null}
+              
                 {tafsirMap[ayahNumber + 1] ? (
-                  <View style={styles.contextBox}>
-                    <Text style={styles.contextLabel}>Sesudah</Text>
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={[styles.tafsirContent, { fontWeight: '700', marginBottom: 4 }]}>Tafsir ayat sesudahnya</Text>
                     <Text style={styles.tafsirContextText}>{tafsirMap[ayahNumber + 1]}</Text>
                   </View>
                 ) : null}
+              
                 <View style={styles.tafsirNavRow}>
                   <TouchableOpacity style={styles.navBtn} onPress={() => navigateTafsir(ayahNumber, 'prev')} disabled={ayahNumber <= 1}>
                     <Text style={[styles.navText, ayahNumber <= 1 && styles.navTextDisabled]}>Sebelumnya</Text>
@@ -411,7 +398,7 @@ export default function SurahDetailScreen({ route, navigation }) {
     if (direction === 'prev') target = Math.max(1, currentAyah - 1);
     if (direction === 'next') target = Math.min(total, currentAyah + 1);
     setExpandedTafsirAyahs((prev) => ({ ...prev, [currentAyah]: false, [target]: true }));
-    setTafsirPageIndexByAyah((prev) => ({ ...prev, [target]: 0 }));
+    setTafsirPageIndexByAyah((prev) => ({ ...prev, [target]: 0 })); // pagination dihapus ketika navigasi antar ayat
     const idx = target - 1;
     flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 });
   };
