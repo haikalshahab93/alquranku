@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getSuratDetail, getTafsir } from '../api/equran';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,6 +28,9 @@ export default function SurahDetailScreen({ route, navigation }) {
   const [qariDropdownOpen, setQariDropdownOpen] = useState(false);
   const [tafsirPageIndexByAyah, setTafsirPageIndexByAyah] = useState({});
   const [textScale, setTextScale] = useState(1);
+  // Tambahan untuk paging horizontal tafsir
+  const [tafsirBoxWidths, setTafsirBoxWidths] = useState({});
+  const tafsirScrollRefs = useRef({});
   const flatListRef = useRef(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
@@ -316,26 +319,68 @@ export default function SurahDetailScreen({ route, navigation }) {
               <Text style={[styles.tafsirToggleText, isTafsirExpanded && styles.tafsirToggleTextActive]}>{isTafsirExpanded ? `Tutup Tafsir Ayat ${ayahNumber}` : `Lihat Tafsir Ayat ${ayahNumber}`}</Text>
             </TouchableOpacity>
             {isTafsirExpanded && (
-              <View style={[styles.tafsirBox, { maxHeight: Math.floor(Dimensions.get('window').height * 0.6), overflow: 'hidden' }]}>
-                <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{currentChunk}</Text>
+              <View
+                style={[
+                  styles.tafsirBox,
+                  { maxHeight: Math.floor(Dimensions.get('window').height * 1.0), overflow: 'hidden' },
+                ]}
+                onLayout={(e) => {
+                  const w = e?.nativeEvent?.layout?.width;
+                  if (w && w > 0) setTafsirBoxWidths((prev) => ({ ...prev, [ayahNumber]: w }));
+                }}
+              >
+                <ScrollView
+                  ref={(el) => {
+                    tafsirScrollRefs.current[ayahNumber] = el;
+                  }}
+                  horizontal
+                  pagingEnabled
+                  scrollEnabled={false}
+                  showsHorizontalScrollIndicator={false}
+                  onLayout={(e) => {
+                    const w = e.nativeEvent.layout.width;
+                    setTafsirBoxWidths((prev) => ({ ...prev, [ayahNumber]: w }));
+                  }}
+                  onMomentumScrollEnd={(e) => {
+                    const w = tafsirBoxWidths[ayahNumber] || 1;
+                    const x = e.nativeEvent.contentOffset.x;
+                    const idx = Math.round(x / Math.max(1, w));
+                    setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: idx }));
+                  }}
+                >
+                  {tafsirChunks.map((chunk, i) => (
+                    <View key={`tafsir-chunk-${ayahNumber}-${i}`} style={{ width: tafsirBoxWidths[ayahNumber] || '100%' }}>
+                      <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{chunk}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
                 <View style={styles.pageNavRow}>
                   <TouchableOpacity
                     style={styles.pageBtn}
-                    onPress={() => setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: Math.max(0, (prev[ayahNumber] ?? 0) - 1) }))}
+                    onPress={() => {
+                      const target = Math.max(0, currentPage - 1);
+                      const w = tafsirBoxWidths[ayahNumber] || 0;
+                      tafsirScrollRefs.current[ayahNumber]?.scrollTo({ x: target * w, y: 0, animated: true });
+                      setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: target }));
+                    }}
                     disabled={currentPage <= 0}
                   >
-                    <Text style={[styles.pageBtnText, currentPage <= 0 && styles.pageBtnTextDisabled]}>Halaman Sebelumnya</Text>
+                    <Text style={[styles.pageBtnText, currentPage <= 0 && styles.pageBtnTextDisabled]}>Sebelum</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.pageBtn}
-                    onPress={() => setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: Math.min(maxPageIndex, (prev[ayahNumber] ?? 0) + 1) }))}
+                    onPress={() => {
+                      const target = Math.min(maxPageIndex, currentPage + 1);
+                      const w = tafsirBoxWidths[ayahNumber] || 0;
+                      tafsirScrollRefs.current[ayahNumber]?.scrollTo({ x: target * w, y: 0, animated: true });
+                      setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: target }));
+                    }}
                     disabled={currentPage >= maxPageIndex}
                   >
-                    <Text style={[styles.pageBtnText, currentPage >= maxPageIndex && styles.pageBtnTextDisabled]}>Halaman Berikutnya</Text>
+                    <Text style={[styles.pageBtnText, currentPage >= maxPageIndex && styles.pageBtnTextDisabled]}>Sesudah</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.pageIndicator}>{`Halaman ${Math.min(currentPage + 1, Math.max(1, tafsirChunks.length || 1))}/${Math.max(1, tafsirChunks.length || 1)}`}</Text>
-                {/* Hapus navigasi antar ayat dari dalam kotak tafsir untuk menghindari kebingungan */}
               </View>
             )}
           </View>
@@ -488,6 +533,11 @@ const styles = StyleSheet.create({
   audioText: { color: '#fff', fontWeight: '600' },
   tafsirBtn: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#10b981', alignSelf: 'flex-start' },
   tafsirText: { color: '#fff', fontWeight: '600' },
+  // Tambahan style untuk toggle tafsir
+  tafsirToggle: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', alignSelf: 'flex-start', marginTop: 8 },
+  tafsirToggleActive: { backgroundColor: '#e0f2fe' },
+  tafsirToggleText: { color: '#0ea5e9', fontWeight: '600' },
+  tafsirToggleTextActive: { color: '#0284c7', fontWeight: '700' },
   ayatActive: { backgroundColor: '#f0f9ff', borderLeftWidth: 3, borderLeftColor: '#0ea5e9', paddingLeft: 8, borderRadius: 8 },
   qariRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
   qariChip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: '#ddd', marginRight: 8, marginBottom: 8 },
