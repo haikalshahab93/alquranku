@@ -318,6 +318,7 @@ export default function SurahListScreen({ navigation }) {
           <View style={{ marginBottom: 12 }}>
             <TextInput
               placeholder="Cari nomor/nama/arti/tempat turun"
+              placeholderTextColor="#333"
               value={query}
               onChangeText={setQuery}
               style={styles.searchBox}
@@ -347,7 +348,7 @@ export default function SurahListScreen({ navigation }) {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16 },
-  searchBox: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff' },
+  searchBox: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', color: '#333', fontWeight: '600', fontSize: 16 },
   item: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12, elevation: 1 },
   itemHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   itemNumber: { fontWeight: 'bold', color: '#555', width: 32 },
