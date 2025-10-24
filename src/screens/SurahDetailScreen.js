@@ -27,6 +27,7 @@ export default function SurahDetailScreen({ route, navigation }) {
   const [expandedTafsirAyahs, setExpandedTafsirAyahs] = useState({});
   const [qariDropdownOpen, setQariDropdownOpen] = useState(false);
   const [tafsirPageIndexByAyah, setTafsirPageIndexByAyah] = useState({});
+  const [textScale, setTextScale] = useState(1);
   const flatListRef = useRef(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
@@ -120,6 +121,42 @@ export default function SurahDetailScreen({ route, navigation }) {
       }
     })();
   }, [selectedQari]);
+
+  // Load saved text scale
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('text_scale');
+        if (saved) {
+          const v = parseFloat(saved);
+          if (!Number.isNaN(v)) {
+            const clamped = Math.min(1.6, Math.max(0.8, v));
+            setTextScale(clamped);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load text scale', e);
+      }
+    })();
+  }, []);
+
+  // Save text scale when changed
+  useEffect(() => {
+    (async () => {
+      try {
+        await AsyncStorage.setItem('text_scale', String(textScale));
+      } catch (e) {
+        console.warn('Failed to save text scale', e);
+      }
+    })();
+  }, [textScale]);
+
+  const increaseTextScale = () => {
+    setTextScale((s) => Math.min(1.6, Math.round((s + 0.1) * 10) / 10));
+  };
+  const decreaseTextScale = () => {
+    setTextScale((s) => Math.max(0.8, Math.round((s - 0.1) * 10) / 10));
+  };
 
   // Restart ayat aktif dengan Qari baru saat Qari berubah
   useEffect(() => {
@@ -232,10 +269,10 @@ export default function SurahDetailScreen({ route, navigation }) {
     const computeCharsPerPage = () => {
       const { height, width } = Dimensions.get('window');
       const maxHeight = Math.floor(height * 0.6); // batasi 60% tinggi layar
-      const fontSize = 14; // asumsi font tafsir
-      const lineHeight = 20; // asumsi line-height
-      const linesPerPage = Math.max(10, Math.floor(maxHeight / lineHeight));
-      const charsPerLine = Math.max(20, Math.floor(width / (fontSize * 0.6)));
+      const fontSize = 14 * textScale; // gunakan skala font tafsir
+      const lineHeight = 20 * textScale; // gunakan skala line-height tafsir
+      const linesPerPage = Math.max(8, Math.floor(maxHeight / lineHeight));
+      const charsPerLine = Math.max(18, Math.floor(width / (fontSize * 0.6)));
       return Math.floor(linesPerPage * charsPerLine * 0.9); // faktor aman
     };
     const splitTextIntoChunks = (text, size) => {
@@ -280,7 +317,7 @@ export default function SurahDetailScreen({ route, navigation }) {
             </TouchableOpacity>
             {isTafsirExpanded && (
               <View style={[styles.tafsirBox, { maxHeight: Math.floor(Dimensions.get('window').height * 0.6), overflow: 'hidden' }]}>
-                <Text style={[styles.tafsirContent, { fontSize: 14, lineHeight: 20 }]}>{currentChunk}</Text>
+                <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{currentChunk}</Text>
                  {/* navigasi halaman tafsir */}
                  <View style={styles.pageNavRow}>
                    <TouchableOpacity
@@ -298,6 +335,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                      <Text style={[styles.pageBtnText, currentPage >= maxPageIndex && styles.pageBtnTextDisabled]}>Halaman Berikutnya</Text>
                    </TouchableOpacity>
                  </View>
+                 <Text style={styles.pageIndicator}>{`Halaman ${Math.min(currentPage + 1, Math.max(1, tafsirChunks.length || 1))}/${Math.max(1, tafsirChunks.length || 1)}`}</Text>
                   {tafsirMap[ayahNumber - 1] ? (
                     <View style={styles.contextBox}>
                       <Text style={styles.contextLabel}>Sebelum</Text>
@@ -331,9 +369,9 @@ export default function SurahDetailScreen({ route, navigation }) {
             <Text style={styles.audioText}>{isActive ? (isPlaying ? 'Pause' : 'Resume') : `Play Ayat ${ayahNumber}${qariName ? ` - ${qariName}` : ''}`}</Text>
           </TouchableOpacity>
         )}
-        {arabText ? <Text style={styles.arab}>{arabText}</Text> : null}
-        {latinText ? <Text style={styles.latin}>{latinText}</Text> : null}
-        {indoText ? <Text style={styles.terjemahan}>{indoText}</Text> : null}
+        {arabText ? <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arabText}</Text> : null}
+        {latinText ? <Text style={[styles.latin, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{latinText}</Text> : null}
+        {indoText ? <Text style={[styles.terjemahan, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{indoText}</Text> : null}
       </View>
     );
   };
@@ -426,6 +464,16 @@ export default function SurahDetailScreen({ route, navigation }) {
               <Text style={styles.ctrlText}>Hentikan</Text>
             </TouchableOpacity>
           </View>
+          {/* kontrol ukuran font */}
+          <View style={styles.fontRow}>
+            <TouchableOpacity style={styles.fontBtn} onPress={decreaseTextScale}>
+              <Text style={styles.fontBtnText}>A-</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.fontBtn} onPress={increaseTextScale}>
+              <Text style={styles.fontBtnText}>A+</Text>
+            </TouchableOpacity>
+            <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
+          </View>
           <TouchableOpacity style={styles.tafsirBtn} onPress={() => navigation.navigate('Tafsir', { nomor })}>
             <Text style={styles.tafsirText}>Lihat Tafsir</Text>
           </TouchableOpacity>
@@ -487,4 +535,11 @@ const styles = StyleSheet.create({
   pageBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9' },
   pageBtnText: { color: '#0ea5e9', fontWeight: '600' },
   pageBtnTextDisabled: { color: '#94a3b8' },
+  // indikator halaman
+  pageIndicator: { textAlign: 'center', color: '#64748b', marginTop: 4 },
+  // kontrol ukuran font global
+  fontRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, alignItems: 'center' },
+  fontBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
+  fontBtnText: { color: '#0ea5e9', fontWeight: '600' },
+  fontInfo: { color: '#64748b', fontWeight: '600' },
 });
