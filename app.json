@@ -20,7 +20,11 @@
         "backgroundColor": "#ffffff"
       },
       "newArchEnabled": false,
-      "package": "com.alfarisy.infoalquran"
+      "package": "com.alfarisy.infoalquran",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,6 +48,12 @@
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c5b33851-e714-4ac2-babe-2c2afac276a2"
+      }
+    },
+    "owner": "haikal2502"
   }
 }
