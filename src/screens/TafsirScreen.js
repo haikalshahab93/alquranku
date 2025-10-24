@@ -130,9 +130,9 @@ export default function TafsirScreen({ route }) {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   container: { padding: 16 },
-  title: { fontSize: 18, fontWeight: '700' },
+  title: { fontSize: 18, fontWeight: '700', color: '#111' },
   meta: { color: '#666', marginTop: 4, marginBottom: 12 },
-  content: { lineHeight: 22, color: '#222' },
+  content: { lineHeight: 22, color: '#111' },
   // Navigasi per ayat agar halaman pendek
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   navBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9' },
@@ -142,5 +142,5 @@ const styles = StyleSheet.create({
   contentBox: { backgroundColor: '#fff', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' },
   contextBox: { backgroundColor: '#f8fafc', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb' },
   contextLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
-  contextText: { color: '#374151' },
+  contextText: { color: '#111' },
 });
