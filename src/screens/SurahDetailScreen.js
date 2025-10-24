@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getSuratDetail, getTafsir } from '../api/equran';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +25,8 @@ export default function SurahDetailScreen({ route, navigation }) {
   const [qariLabelsMap, setQariLabelsMap] = useState({});
   const [tafsirMap, setTafsirMap] = useState({});
   const [expandedTafsirAyahs, setExpandedTafsirAyahs] = useState({});
+  const [qariDropdownOpen, setQariDropdownOpen] = useState(false);
+  const [tafsirPageIndexByAyah, setTafsirPageIndexByAyah] = useState({});
   const flatListRef = useRef(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
@@ -225,19 +227,97 @@ export default function SurahDetailScreen({ route, navigation }) {
     const indoText = item?.teksIndonesia ?? item?.teks_terjemahan;
     const tafsirForAyah = tafsirMap[ayahNumber];
     const isTafsirExpanded = !!expandedTafsirAyahs[ayahNumber];
+  
+    // bantu: bagi teks tafsir menjadi beberapa halaman berdasar estimasi karakter per halaman
+    const computeCharsPerPage = () => {
+      const { height, width } = Dimensions.get('window');
+      const maxHeight = Math.floor(height * 0.6); // batasi 60% tinggi layar
+      const fontSize = 14; // asumsi font tafsir
+      const lineHeight = 20; // asumsi line-height
+      const linesPerPage = Math.max(10, Math.floor(maxHeight / lineHeight));
+      const charsPerLine = Math.max(20, Math.floor(width / (fontSize * 0.6)));
+      return Math.floor(linesPerPage * charsPerLine * 0.9); // faktor aman
+    };
+    const splitTextIntoChunks = (text, size) => {
+      if (!text) return [];
+      const chunks = [];
+      let i = 0;
+      while (i < text.length) {
+        const end = Math.min(i + size, text.length);
+        let cut = end;
+        if (end < text.length) {
+          const lastSpace = text.lastIndexOf(' ', end - 1);
+          if (lastSpace > i + Math.floor(size * 0.5)) {
+            cut = lastSpace;
+          }
+        }
+        chunks.push(text.slice(i, cut).trim());
+        i = cut;
+      }
+      return chunks.filter(Boolean);
+    };
+    const charsPerPage = computeCharsPerPage();
+    const tafsirChunks = isTafsirExpanded && tafsirForAyah ? splitTextIntoChunks(tafsirForAyah, charsPerPage) : [];
+    const currentPage = tafsirPageIndexByAyah[ayahNumber] ?? 0;
+    const maxPageIndex = Math.max(0, tafsirChunks.length - 1);
+    const currentChunk = tafsirChunks[currentPage] ?? (tafsirForAyah || '');
+  
     return (
       <View style={[styles.ayat, isActive && styles.ayatActive]}>
         {tafsirForAyah ? (
           <View style={styles.header}>
             <TouchableOpacity
               style={[styles.tafsirToggle, isTafsirExpanded && styles.tafsirToggleActive]}
-              onPress={() => setExpandedTafsirAyahs((prev) => ({ ...prev, [ayahNumber]: !isTafsirExpanded }))}
+              onPress={() => {
+                const nextExpanded = !isTafsirExpanded;
+                setExpandedTafsirAyahs((prev) => ({ ...prev, [ayahNumber]: nextExpanded }));
+                if (nextExpanded) {
+                  setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: 0 }));
+                }
+              }}
             >
               <Text style={[styles.tafsirToggleText, isTafsirExpanded && styles.tafsirToggleTextActive]}>{isTafsirExpanded ? `Tutup Tafsir Ayat ${ayahNumber}` : `Lihat Tafsir Ayat ${ayahNumber}`}</Text>
             </TouchableOpacity>
             {isTafsirExpanded && (
-              <View style={styles.tafsirBox}>
-                <Text style={styles.tafsirContent}>{tafsirForAyah}</Text>
+              <View style={[styles.tafsirBox, { maxHeight: Math.floor(Dimensions.get('window').height * 0.6), overflow: 'hidden' }]}>
+                <Text style={[styles.tafsirContent, { fontSize: 14, lineHeight: 20 }]}>{currentChunk}</Text>
+                 {/* navigasi halaman tafsir */}
+                 <View style={styles.pageNavRow}>
+                   <TouchableOpacity
+                     style={styles.pageBtn}
+                     onPress={() => setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: Math.max(0, (prev[ayahNumber] ?? 0) - 1) }))}
+                     disabled={currentPage <= 0}
+                   >
+                     <Text style={[styles.pageBtnText, currentPage <= 0 && styles.pageBtnTextDisabled]}>Halaman Sebelumnya</Text>
+                   </TouchableOpacity>
+                   <TouchableOpacity
+                     style={styles.pageBtn}
+                     onPress={() => setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: Math.min(maxPageIndex, (prev[ayahNumber] ?? 0) + 1) }))}
+                     disabled={currentPage >= maxPageIndex}
+                   >
+                     <Text style={[styles.pageBtnText, currentPage >= maxPageIndex && styles.pageBtnTextDisabled]}>Halaman Berikutnya</Text>
+                   </TouchableOpacity>
+                 </View>
+                  {tafsirMap[ayahNumber - 1] ? (
+                    <View style={styles.contextBox}>
+                      <Text style={styles.contextLabel}>Sebelum</Text>
+                      <Text style={styles.tafsirContextText}>{tafsirMap[ayahNumber - 1]}</Text>
+                    </View>
+                  ) : null}
+                {tafsirMap[ayahNumber + 1] ? (
+                  <View style={styles.contextBox}>
+                    <Text style={styles.contextLabel}>Sesudah</Text>
+                    <Text style={styles.tafsirContextText}>{tafsirMap[ayahNumber + 1]}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.tafsirNavRow}>
+                  <TouchableOpacity style={styles.navBtn} onPress={() => navigateTafsir(ayahNumber, 'prev')} disabled={ayahNumber <= 1}>
+                    <Text style={[styles.navText, ayahNumber <= 1 && styles.navTextDisabled]}>Sebelumnya</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.navBtn} onPress={() => navigateTafsir(ayahNumber, 'next')} disabled={ayahNumber >= (detail?.ayat?.length || 0)}>
+                    <Text style={[styles.navText, ayahNumber >= (detail?.ayat?.length || 0) && styles.navTextDisabled]}>Berikutnya</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -286,6 +366,18 @@ export default function SurahDetailScreen({ route, navigation }) {
     }
   };
 
+  const navigateTafsir = (currentAyah, direction) => {
+    if (!detail?.ayat?.length) return;
+    const total = detail.ayat.length;
+    let target = currentAyah;
+    if (direction === 'prev') target = Math.max(1, currentAyah - 1);
+    if (direction === 'next') target = Math.min(total, currentAyah + 1);
+    setExpandedTafsirAyahs((prev) => ({ ...prev, [currentAyah]: false, [target]: true }));
+    setTafsirPageIndexByAyah((prev) => ({ ...prev, [target]: 0 }));
+    const idx = target - 1;
+    flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 });
+  };
+
   return (
     <FlatList
       ref={flatListRef}
@@ -300,16 +392,24 @@ export default function SurahDetailScreen({ route, navigation }) {
         <View style={styles.header}>
           <Text style={styles.title}>{detail?.namaLatin ?? detail?.nama_latin} ({detail?.nama})</Text>
           <Text style={styles.meta}>{detail?.arti} • {(detail?.jumlahAyat ?? detail?.jumlah_ayat)} ayat • {(detail?.tempatTurun ?? detail?.tempat_turun)}</Text>
-          {selectedQari && (
-            <Text style={styles.selectedQari}>Qari yang dipilih: {qariLabelsMap[selectedQari] || selectedQari}</Text>
-          )}
           {availableQaris.length > 0 && (
-            <View style={styles.qariRow}>
-              {availableQaris.filter(Boolean).map((q, i) => (
-                <TouchableOpacity key={`${q}-${i}`} style={[styles.qariChip, selectedQari === q && styles.qariChipActive]} onPress={() => setSelectedQari(q)}>
-                  <Text style={[styles.qariChipText, selectedQari === q && styles.qariChipTextActive]}>{qariLabelsMap[q] || q}</Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.qariSection}>
+              <TouchableOpacity style={styles.qariDropdownToggle} onPress={() => setQariDropdownOpen((o) => !o)}>
+                <Text style={styles.qariDropdownText}>Qari: {qariLabelsMap[selectedQari] || selectedQari || 'Pilih'}</Text>
+              </TouchableOpacity>
+              {qariDropdownOpen && (
+                <View style={styles.qariDropdown}>
+                  {availableQaris.filter(Boolean).map((q, i) => (
+                    <TouchableOpacity
+                      key={`${q}-${i}`}
+                      style={[styles.qariOption, selectedQari === q && styles.qariOptionActive]}
+                      onPress={() => { setSelectedQari(q); setQariDropdownOpen(false); }}
+                    >
+                      <Text style={[styles.qariOptionText, selectedQari === q && styles.qariOptionTextActive]}>{qariLabelsMap[q] || q}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           )}
           <View style={styles.controlsRow}>
@@ -343,6 +443,15 @@ const styles = StyleSheet.create({
   meta: { color: '#666', marginTop: 4 },
   selectedQari: { marginTop: 4, color: '#0f766e', fontWeight: '600' },
   ayat: { marginBottom: 16, backgroundColor: '#fff', borderRadius: 12, padding: 12, elevation: 1 },
+  // Dropdown Qari
+  qariSection: { marginTop: 8 },
+  qariDropdownToggle: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', alignSelf: 'flex-start', backgroundColor: '#f1f5f9' },
+  qariDropdownText: { color: '#0f766e', fontWeight: '600' },
+  qariDropdown: { marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, backgroundColor: '#fff', overflow: 'hidden' },
+  qariOption: { paddingVertical: 8, paddingHorizontal: 12 },
+  qariOptionActive: { backgroundColor: '#0ea5e9' },
+  qariOptionText: { color: '#333' },
+  qariOptionTextActive: { color: '#fff', fontWeight: '600' },
   ayatNumber: { color: '#555', fontWeight: '600', marginBottom: 4 },
   arab: { fontSize: 22, textAlign: 'right', lineHeight: 30 },
   latin: { color: '#444', marginTop: 8 },
@@ -358,8 +467,24 @@ const styles = StyleSheet.create({
   qariChipText: { color: '#333' },
   qariChipTextActive: { color: '#fff', fontWeight: '600' },
   controlsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
-  ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginRight: 8, marginBottom: 8, backgroundColor: '#374151' },
-  playAllBtn: { backgroundColor: '#6366f1' },
-  stopBtn: { backgroundColor: '#ef4444' },
+  // tombol kontrol audio: samakan ukuran dengan Lihat Tafsir
+  ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#0ea5e9', marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
   ctrlText: { color: '#fff', fontWeight: '600' },
+  playAllBtn: { backgroundColor: '#0ea5e9' },
+  stopBtn: { backgroundColor: '#ef4444' },
+  // tambahan untuk navigasi tafsir per ayat
+  tafsirNavRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  navBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#0ea5e9', marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
+  navText: { color: '#fff', fontWeight: '600' },
+  navTextDisabled: { color: '#94a3b8' },
+  contextBox: { backgroundColor: '#f8fafc', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+  contextLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
+  tafsirContextText: { color: '#374151' },
+  // pagination konten tafsir
+  tafsirBox: { marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb' },
+  tafsirContent: { color: '#111827' },
+  pageNavRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  pageBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9' },
+  pageBtnText: { color: '#0ea5e9', fontWeight: '600' },
+  pageBtnTextDisabled: { color: '#94a3b8' },
 });

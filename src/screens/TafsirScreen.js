@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { getTafsir } from '../api/equran';
 
 export default function TafsirScreen({ route }) {
@@ -8,11 +8,43 @@ export default function TafsirScreen({ route }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
+  // Per-ayat tafsir state agar halaman tidak terlalu panjang
+  const [tafsirList, setTafsirList] = useState([]);
+  const [tafsirMap, setTafsirMap] = useState({});
+  const [currentAyah, setCurrentAyah] = useState(1);
+
+  const { height: windowHeight } = useWindowDimensions();
+  const contentMaxHeight = Math.max(280, Math.floor(windowHeight * 0.6));
+
   useEffect(() => {
     (async () => {
       try {
         const tafsir = await getTafsir(nomor);
         setData(tafsir);
+        // Ekstrak daftar tafsir per ayat dari berbagai bentuk API (camelCase/snake_case atau nested)
+        const list = Array.isArray(tafsir?.tafsir)
+          ? tafsir.tafsir
+          : Array.isArray(tafsir?.tafsir?.kemenag)
+          ? tafsir.tafsir.kemenag
+          : Array.isArray(tafsir?.tafsir?.id)
+          ? tafsir.tafsir.id
+          : null;
+        if (Array.isArray(list)) {
+          setTafsirList(list);
+          const map = {};
+          list.forEach((it) => {
+            const a = it?.ayat;
+            const t = it?.teks || it?.tafsir || it?.content || '';
+            if (a != null && t) map[a] = t;
+          });
+          setTafsirMap(map);
+          const firstAyah = list[0]?.ayat || 1;
+          setCurrentAyah(firstAyah || 1);
+        } else {
+          setTafsirList([]);
+          setTafsirMap({});
+          setCurrentAyah(1);
+        }
       } catch (e) {
         setError('Gagal memuat tafsir');
       } finally {
@@ -21,51 +53,77 @@ export default function TafsirScreen({ route }) {
     })();
   }, [nomor]);
 
-  const extractTafsirList = (d) => {
-    if (!d) return null;
-    if (Array.isArray(d?.tafsir)) return d.tafsir;
-    if (Array.isArray(d?.tafsir?.kemenag)) return d.tafsir.kemenag;
-    if (Array.isArray(d?.tafsir?.id)) return d.tafsir.id;
-    return null;
-  };
+  const hasList = Array.isArray(tafsirList) && tafsirList.length > 0;
+  const minAyah = hasList ? (tafsirList[0]?.ayat || 1) : 1;
+  const maxAyah = hasList
+    ? (tafsirList[tafsirList.length - 1]?.ayat || (data?.jumlah_ayat ?? data?.jumlahAyat ?? 0))
+    : (data?.jumlah_ayat ?? data?.jumlahAyat ?? 0);
 
-  const extractTafsirText = (d) => {
-    if (!d) return null;
-    if (typeof d?.tafsir === 'string') return d.tafsir;
-    if (typeof d?.tafsir?.id === 'string') return d.tafsir.id;
-    if (typeof d?.tafsir?.kemenag === 'string') return d.tafsir.kemenag;
-    return null;
+  const goPrev = () => {
+    if (!hasList) return;
+    setCurrentAyah((prev) => Math.max(prev - 1, minAyah));
+  };
+  const goNext = () => {
+    if (!hasList) return;
+    setCurrentAyah((prev) => Math.min(prev + 1, maxAyah || prev + 1));
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
   if (error) return <View style={styles.center}><Text>{error}</Text></View>;
-  if (!data) return <View style={styles.center}><Text>Data tafsir tidak ditemukan.</Text></View>;
+  if (!data) return null;
 
-  const tafsirList = extractTafsirList(data);
-  const tafsirText = extractTafsirText(data);
+  const surahLatin = data?.namaLatin ?? data?.nama_latin;
+  const jumlahAyat = data?.jumlahAyat ?? data?.jumlah_ayat;
+  const tempatTurun = data?.tempatTurun ?? data?.tempat_turun;
+  const currentText = hasList ? tafsirMap[currentAyah] : (data?.tafsir || '');
+  const prevText = hasList ? tafsirMap[currentAyah - 1] : null;
+  const nextText = hasList ? tafsirMap[currentAyah + 1] : null;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Tafsir Surat {data.nama_latin} ({data.nama})</Text>
-      <Text style={styles.meta}>{data.arti} • {data.jumlah_ayat} ayat • {data.tempat_turun}</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Tafsir Surat {surahLatin} ({data?.nama})</Text>
+      <Text style={styles.meta}>{data?.arti} • {jumlahAyat} ayat • {tempatTurun}</Text>
 
-      {Array.isArray(tafsirList) && tafsirList.length > 0 ? (
+      {hasList ? (
         <View>
-          {tafsirList.map((item, idx) => (
-            <View key={`tafsir-${item?.ayat ?? idx}`} style={styles.block}>
-              {item?.ayat != null && (
-                <Text style={styles.blockTitle}>Ayat {item.ayat}</Text>
-              )}
-              <Text style={styles.content}>{item?.teks || item?.tafsir || item?.content || ''}</Text>
-            </View>
-          ))}
+          <View style={styles.navRow}>
+            <TouchableOpacity style={styles.navBtn} onPress={goPrev} disabled={currentAyah <= minAyah}>
+              <Text style={[styles.navText, currentAyah <= minAyah && styles.navTextDisabled]}>Sebelumnya</Text>
+            </TouchableOpacity>
+            <Text style={styles.ayatLabel}>Ayat {currentAyah}</Text>
+            <TouchableOpacity style={styles.navBtn} onPress={goNext} disabled={currentAyah >= maxAyah}>
+              <Text style={[styles.navText, currentAyah >= maxAyah && styles.navTextDisabled]}>Berikutnya</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.contentBox}>
+            <ScrollView style={{ maxHeight: contentMaxHeight }}>
+              <Text style={styles.content}>{currentText}</Text>
+              {prevText ? (
+                <View style={styles.contextBox}>
+                  <Text style={styles.contextLabel}>Sebelum</Text>
+                  <Text style={styles.contextText}>{prevText}</Text>
+                </View>
+              ) : null}
+              {nextText ? (
+                <View style={styles.contextBox}>
+                  <Text style={styles.contextLabel}>Sesudah</Text>
+                  <Text style={styles.contextText}>{nextText}</Text>
+                </View>
+              ) : null}
+            </ScrollView>
+          </View>
         </View>
-      ) : tafsirText ? (
-        <Text style={styles.content}>{tafsirText}</Text>
       ) : (
-        <Text style={styles.empty}>Tafsir belum tersedia untuk surat ini.</Text>
+        data?.tafsir ? (
+          <View style={styles.contentBox}>
+            <ScrollView style={{ maxHeight: contentMaxHeight }}>
+              <Text style={styles.content}>{data.tafsir}</Text>
+            </ScrollView>
+          </View>
+        ) : null
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -75,7 +133,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700' },
   meta: { color: '#666', marginTop: 4, marginBottom: 12 },
   content: { lineHeight: 22, color: '#222' },
-  empty: { color: '#666', fontStyle: 'italic' },
-  block: { marginBottom: 12 },
-  blockTitle: { fontWeight: '700', marginBottom: 4 },
+  // Navigasi per ayat agar halaman pendek
+  navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  navBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9' },
+  navText: { color: '#0ea5e9', fontWeight: '600' },
+  navTextDisabled: { color: '#94a3b8' },
+  ayatLabel: { fontSize: 16, fontWeight: '700', color: '#334155' },
+  contentBox: { backgroundColor: '#fff', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' },
+  contextBox: { backgroundColor: '#f8fafc', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+  contextLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
+  contextText: { color: '#374151' },
 });
