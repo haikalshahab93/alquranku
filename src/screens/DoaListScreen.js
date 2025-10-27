@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { getDoaList } from '../api/equran';
 
@@ -14,7 +14,7 @@ export default function DoaListScreen({ navigation }) {
       try {
         setLoading(true);
         const params = {};
-        if (query) params.q = query;
+        // Hanya kirim filter yang didukung API: grup dan tag
         if (tag) params.tag = tag;
         if (grup) params.grup = grup;
         const res = await getDoaList(params);
@@ -26,12 +26,24 @@ export default function DoaListScreen({ navigation }) {
       }
     };
     fetchDoa();
-  }, [query, tag, grup]);
+  }, [tag, grup]);
+
+  // Pencarian lokal berdasarkan nama/tr/idn
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return doa;
+    return doa.filter((item) => {
+      const nama = String(item?.nama ?? '').toLowerCase();
+      const tr = String(item?.tr ?? '').toLowerCase();
+      const idn = String(item?.idn ?? '').toLowerCase();
+      return nama.includes(q) || tr.includes(q) || idn.includes(q);
+    });
+  }, [doa, query]);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('DoaDetail', { id: item.id })}>
-      <Text style={styles.itemTitle}>{item?.title ?? item?.judul ?? 'Doa'}</Text>
-      <Text style={styles.itemSubtitle}>{(item?.tags ?? []).join(', ')}</Text>
+      <Text style={styles.itemTitle}>{item?.nama ?? 'Doa'}</Text>
+      <Text style={styles.itemSubtitle}>{Array.isArray(item?.tag) ? item.tag.join(', ') : ''}</Text>
     </TouchableOpacity>
   );
 
@@ -41,7 +53,7 @@ export default function DoaListScreen({ navigation }) {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Cari doa..."
+          placeholder="Cari doa (nama/teks)..."
           placeholderTextColor="#333"
           style={styles.input}
         />
@@ -55,7 +67,7 @@ export default function DoaListScreen({ navigation }) {
         <TextInput
           value={grup}
           onChangeText={setGrup}
-          placeholder="Grup/kategori"
+          placeholder="Grup/kategori (mis. Doa Sebelum dan Sesudah Tidur)"
           placeholderTextColor="#333"
           style={styles.input}
         />
@@ -64,7 +76,7 @@ export default function DoaListScreen({ navigation }) {
         <View style={styles.center}><ActivityIndicator /></View>
       ) : (
         <FlatList
-          data={doa}
+          data={filtered}
           keyExtractor={(item, index) => `${item?.id ?? index}`}
           renderItem={renderItem}
           contentContainerStyle={styles.list}

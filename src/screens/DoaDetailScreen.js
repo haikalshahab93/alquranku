@@ -12,6 +12,7 @@ export default function DoaDetailScreen({ route }) {
       try {
         setLoading(true);
         const res = await getDoaDetail(id);
+        // Respons contoh: { status: 'success', data: {...} }
         setDetail(res?.data ?? res);
       } catch (e) {
         console.warn('Gagal memuat detail doa', e?.message);
@@ -28,21 +29,24 @@ export default function DoaDetailScreen({ route }) {
     );
   }
 
-  const title = detail?.title ?? detail?.judul ?? `Doa #${id}`;
-  const arab = detail?.arab ?? detail?.lafal_arab ?? '';
-  const latin = detail?.latin ?? detail?.transliterasi ?? '';
-  const ind = detail?.indonesia ?? detail?.terjemahan ?? '';
-  const refText = detail?.referensi ?? '';
+  // Mapping field sesuai API equran doa
+  const title = detail?.nama ?? `Doa #${id}`;
+  const arab = detail?.ar ?? '';
+  const latin = detail?.tr ?? '';
+  const ind = detail?.idn ?? '';
+  const refText = detail?.tentang ?? '';
+  const tags = Array.isArray(detail?.tag) ? detail.tag.join(', ') : '';
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>{title}</Text>
+      {!!tags && <Text style={styles.tags}>{tags}</Text>}
       {!!arab && <Text style={styles.arab}>{arab}</Text>}
       {!!latin && <Text style={styles.latin}>{latin}</Text>}
       {!!ind && <Text style={styles.ind}>{ind}</Text>}
       {!!refText && (
         <View style={styles.refBox}>
-          <Text style={styles.refLabel}>Referensi:</Text>
+          <Text style={styles.refLabel}>Tentang / Referensi:</Text>
           <Text style={styles.refText}>{refText}</Text>
         </View>
       )}
@@ -54,6 +58,7 @@ const styles = StyleSheet.create({
   container: { padding: 16 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 20, fontWeight: '700', color: '#111', marginBottom: 8 },
+  tags: { fontSize: 12, color: '#64748b', marginBottom: 8 },
   arab: { fontSize: 22, textAlign: 'right', lineHeight: 30, color: '#111' },
   latin: { color: '#111', marginTop: 8 },
   ind: { color: '#222', marginTop: 8 },
