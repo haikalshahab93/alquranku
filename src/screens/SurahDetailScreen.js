@@ -333,6 +333,8 @@ export default function SurahDetailScreen({ route, navigation }) {
                   pagingEnabled
                   scrollEnabled={false}
                   showsHorizontalScrollIndicator={false}
+                  bounces={false}
+                  overScrollMode={'never'}
                   onLayout={(e) => {
                     const w = e.nativeEvent.layout.width;
                     setTafsirBoxWidths((prev) => ({ ...prev, [ayahNumber]: w }));
@@ -442,6 +444,8 @@ export default function SurahDetailScreen({ route, navigation }) {
       initialNumToRender={12}
       windowSize={10}
       removeClippedSubviews={false}
+      updateCellsBatchingPeriod={50}
+      maxToRenderPerBatch={8}
       ListHeaderComponent={() => (
         <View style={styles.header}>
           <Text style={styles.title}>{detail?.namaLatin ?? detail?.nama_latin} ({detail?.nama})</Text>

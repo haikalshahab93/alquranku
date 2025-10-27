@@ -28,8 +28,25 @@ export async function getTafsir(nomor) {
   return unwrap(res);
 }
 
+const doaApi = axios.create({
+  baseURL: 'https://equran.id',
+  timeout: 15000,
+});
+
+export async function getDoaList(params = {}) {
+  const res = await doaApi.get('/api/doa', { params });
+  return res.data;
+}
+
+export async function getDoaDetail(id) {
+  const res = await doaApi.get(`/api/doa/${id}`);
+  return res.data;
+}
+
 export default {
   getSuratList,
   getSuratDetail,
   getTafsir,
+  getDoaList,
+  getDoaDetail,
 };
