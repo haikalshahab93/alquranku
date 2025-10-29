@@ -43,6 +43,11 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigation.navigate('HijriCalendar')}
         />
       </View>
+
+      {/* Footer copyright dipindah ke halaman Home */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>copyright @muhammad haikal shahab</Text>
+      </View>
     </ScrollView>
   );
 }
@@ -55,4 +60,7 @@ const styles = StyleSheet.create({
   card: { padding: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
   cardDesc: { color: '#64748b', marginTop: 6 },
+  // Footer copyright di Home
+  footer: { marginTop: 24, alignItems: 'center' },
+  footerText: { color: '#94a3b8', fontSize: 12 },
 });

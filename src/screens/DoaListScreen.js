@@ -115,7 +115,7 @@ export default function DoaListScreen({ navigation }) {
         <View style={styles.center}><Text>{error}</Text></View>
       ) : (
         <FlatList
-          key={`grid-${numColumns}`]
+          key={`grid-${numColumns}`}
           data={pagedItems}
           keyExtractor={(item, idx) => String(item?.id ?? idx)}
           renderItem={renderItem}

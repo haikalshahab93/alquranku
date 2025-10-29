@@ -337,7 +337,7 @@ export default function SurahListScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             <View style={styles.pageInfoRow}><Text style={styles.pageInfo}>Halaman {safePage + 1} dari {totalPages}</Text></View>
-            <View style={styles.footerRow}><Text style={styles.footerText}>copyright @muhammad haikal shahab</Text></View>
+            {/* Hapus copyright dari daftar isi sesuai permintaan */}
           </View>
         )}
       />
