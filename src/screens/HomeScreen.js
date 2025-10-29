@@ -1,29 +1,58 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+
+function Card({ title, desc, onPress }) {
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      {!!desc && <Text style={styles.cardDesc}>{desc}</Text>}
+    </TouchableOpacity>
+  );
+}
 
 export default function HomeScreen({ navigation }) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Pilih Konten</Text>
-      <View style={styles.stack}>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('SurahList')}>
-          <Text style={styles.cardTitle}>Surat</Text>
-          <Text style={styles.cardDesc}>Daftar surat Al-Qur'an</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('DoaList')}>
-          <Text style={styles.cardTitle}>Doa</Text>
-          <Text style={styles.cardDesc}>Kumpulan Doa & Dzikir</Text>
-        </TouchableOpacity>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Alquranku</Text>
+      <Text style={styles.subtitle}>Akses cepat: Quran, Doa, dan Hadits</Text>
+
+      <View style={styles.list}>
+        <Card
+          title="Daftar Surah"
+          desc="Baca mushaf per surah"
+          onPress={() => navigation.navigate('SurahList')}
+        />
+        <Card
+          title="Daftar Doa"
+          desc="Kumpulan doa harian lengkap"
+          onPress={() => navigation.navigate('DoaList')}
+        />
+        <Card
+          title="Koleksi Hadits"
+          desc="Arba’in, Bulughul Maram, dan 9 Perawi"
+          onPress={() => navigation.navigate('HaditsMenu')}
+        />
+        <Card
+          title="Jadwal Sholat"
+          desc="Jadwal harian & bulanan"
+          onPress={() => navigation.navigate('SholatJadwal')}
+        />
+        <Card
+          title="Kalender Hijriyah"
+          desc="Konversi tanggal dan kalender"
+          onPress={() => navigation.navigate('HijriCalendar')}
+        />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 16 },
-  title: { fontSize: 20, fontWeight: '700', color: '#111', marginBottom: 12 },
-  stack: { flexDirection: 'column' },
-  card: { padding: 16, borderWidth: 1, borderColor: '#eee', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12 },
+  container: { padding: 16, backgroundColor: '#fff' },
+  title: { fontSize: 24, fontWeight: '800', color: '#111' },
+  subtitle: { color: '#64748b', marginTop: 4, marginBottom: 12 },
+  list: { flexDirection: 'column', gap: 12 },
+  card: { padding: 16, borderWidth: 1, borderColor: '#eee', backgroundColor: '#fff', borderRadius: 12 },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
-  cardDesc: { color: '#64748b', marginTop: 4 },
+  cardDesc: { color: '#64748b', marginTop: 6 },
 });

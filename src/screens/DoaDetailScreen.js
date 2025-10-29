@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
-import { getDoaDetail } from '../api/equran';
+import { getDoaDetail } from '../api/doa';
 
 export default function DoaDetailScreen({ route }) {
   const { id } = route.params || {};
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 20, fontWeight: '700', color: '#111', marginBottom: 8 },
   tags: { fontSize: 12, color: '#64748b', marginBottom: 8 },
-  arab: { fontSize: 22, textAlign: 'right', lineHeight: 30, color: '#111' },
+  arab: { fontSize: 22, textAlign: 'right', lineHeight: 30, color: '#111', fontFamily: 'NotoNaskhArabic' },
   latin: { color: '#111', marginTop: 8 },
   ind: { color: '#222', marginTop: 8 },
   refBox: { marginTop: 12, padding: 8, borderRadius: 8, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb' },

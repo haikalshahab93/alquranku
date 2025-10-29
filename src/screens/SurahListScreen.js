@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform } from 'react-native';
-import { getSuratList, getSuratDetail } from '../api/equran';
+import { getSuratList, getSuratDetail } from '../api/quran';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   expandDescTitle: { fontWeight: '700', color: '#1f2937', marginBottom: 4 },
   expandDesc: { color: '#1f2937' },
   divider: { height: 1, backgroundColor: '#e5e7eb', marginVertical: 10 },
-  expandAyatArabic: { fontSize: 20, textAlign: 'right', lineHeight: 28, color: '#111' },
+  expandAyatArabic: { fontSize: 20, textAlign: 'right', lineHeight: 28, color: '#111', fontFamily: 'NotoNaskhArabic' },
   expandAyatLatin: { color: '#444', marginTop: 6 },
   expandAyatTrans: { color: '#222', marginTop: 4 },
   expandEmpty: { color: '#666', fontStyle: 'italic' },
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   footerText: { color: '#64748b', fontSize: 12 },
   nameBox: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8, marginTop: 8 },
   nameLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
-  nameArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: '#111' },
+  nameArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: '#111', fontFamily: 'NotoNaskhArabic' },
   // Hapus style terkait dropdown Qari & kontrol audio karena tidak digunakan di ListScreen
   // controlsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
   // ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginRight: 8, marginBottom: 8, backgroundColor: '#374151' },

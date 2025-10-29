@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { getSuratDetail, getTafsir } from '../api/equran';
+import { getSuratDetail, getTafsir } from '../api/quran';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const QARI_LABELS = {
@@ -324,6 +324,10 @@ export default function SurahDetailScreen({ route, navigation }) {
                   styles.tafsirBox,
                   { maxHeight: Math.floor(Dimensions.get('window').height * 1.0), overflow: 'hidden' },
                 ]}
+                onLayout={(e) => {
+                  const w = e?.nativeEvent?.layout?.width;
+                  if (w && w > 0) setTafsirBoxWidths((prev) => ({ ...prev, [ayahNumber]: w }));
+                }}
               >
                 <ScrollView
                   ref={(el) => {
@@ -333,11 +337,15 @@ export default function SurahDetailScreen({ route, navigation }) {
                   pagingEnabled
                   scrollEnabled={false}
                   showsHorizontalScrollIndicator={false}
-                  bounces={false}
-                  overScrollMode={'never'}
                   onLayout={(e) => {
                     const w = e.nativeEvent.layout.width;
                     setTafsirBoxWidths((prev) => ({ ...prev, [ayahNumber]: w }));
+                  }}
+                  onMomentumScrollEnd={(e) => {
+                    const w = tafsirBoxWidths[ayahNumber] || 1;
+                    const x = e.nativeEvent.contentOffset.x;
+                    const idx = Math.round(x / Math.max(1, w));
+                    setTafsirPageIndexByAyah((prev) => ({ ...prev, [ayahNumber]: idx }));
                   }}
                 >
                   {tafsirChunks.map((chunk, i) => (
@@ -345,8 +353,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                       <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{chunk}</Text>
                     </View>
                   ))}
-                </ScrollView
-                >
+                </ScrollView>
                 <View style={styles.pageNavRow}>
                   <TouchableOpacity
                     style={styles.pageBtn}
@@ -443,9 +450,7 @@ export default function SurahDetailScreen({ route, navigation }) {
       contentContainerStyle={styles.list}
       initialNumToRender={12}
       windowSize={10}
-      removeClippedSubviews={false}
-      updateCellsBatchingPeriod={50}
-      maxToRenderPerBatch={8}
+      removeClippedSubviews
       ListHeaderComponent={() => (
         <View style={styles.header}>
           <Text style={styles.title}>{detail?.namaLatin ?? detail?.nama_latin} ({detail?.nama})</Text>
@@ -507,7 +512,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16 },
   header: { paddingBottom: 12, borderBottomWidth: 1, borderColor: '#eee', marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: '700', color: '#111' },
+  title: { fontSize: 20, fontWeight: '700' },
   meta: { color: '#666', marginTop: 4 },
   selectedQari: { marginTop: 4, color: '#0f766e', fontWeight: '600' },
   ayat: { marginBottom: 16, backgroundColor: '#fff', borderRadius: 12, padding: 12, elevation: 1 },
@@ -521,8 +526,8 @@ const styles = StyleSheet.create({
   qariOptionText: { color: '#333' },
   qariOptionTextActive: { color: '#fff', fontWeight: '600' },
   ayatNumber: { color: '#555', fontWeight: '600', marginBottom: 4 },
-  arab: { fontSize: 22, textAlign: 'right', lineHeight: 30, color: '#111' },
-  latin: { color: '#111', marginTop: 8 },
+  arab: { fontSize: 22, textAlign: 'right', lineHeight: 30, fontFamily: 'NotoNaskhArabic' },
+  latin: { color: '#444', marginTop: 8 },
   terjemahan: { color: '#222', marginTop: 4 },
   audioBtn: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#0ea5e9', alignSelf: 'flex-start' },
   audioText: { color: '#fff', fontWeight: '600' },
@@ -552,7 +557,7 @@ const styles = StyleSheet.create({
   navTextDisabled: { color: '#94a3b8' },
   contextBox: { backgroundColor: '#f8fafc', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb' },
   contextLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
-  tafsirContextText: { color: '#111' },
+  tafsirContextText: { color: '#374151' },
   // pagination konten tafsir
   tafsirBox: { marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb' },
   tafsirContent: { color: '#111827' },
