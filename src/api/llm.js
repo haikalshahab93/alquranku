@@ -13,7 +13,7 @@ import Constants from 'expo-constants';
 //   }
 // };
 
-const extra = (Constants?.expoConfig?.extra) || (Constants?.manifest?.extra) || {};
+const extra = (Constants?.expoConfig?.extra) || (Constants?.manifest?.extra) || global?.expo?.extra || {};
 const LLM_PROVIDER = extra?.LLM_PROVIDER || 'mock';
 const OPENAI_API_KEY = extra?.OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = extra?.OPENAI_BASE_URL || 'https://api.openai.com/v1';
