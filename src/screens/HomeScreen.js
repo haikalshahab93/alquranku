@@ -42,6 +42,11 @@ export default function HomeScreen({ navigation }) {
           desc="Konversi tanggal dan kalender"
           onPress={() => navigation.navigate('HijriCalendar')}
         />
+        <Card
+          title="Asisten LLM"
+          desc="Tanya jawab surah, tafsir, doa, hadits (demo)"
+          onPress={() => navigation.navigate('LLMChat')}
+        />
       </View>
 
       {/* Footer copyright dipindah ke halaman Home */}

@@ -16,6 +16,7 @@ import HijriCalendarScreen from './src/screens/HijriCalendarScreen';
 import SurahListScreen from './src/screens/SurahListScreen';
 import SurahDetailScreen from './src/screens/SurahDetailScreen';
 import TafsirScreen from './src/screens/TafsirScreen';
+import LLMChatScreen from './src/screens/LLMChatScreen';
 
 // Minimal internal navigator for web preview tanpa react-navigation
 export default function App() {
@@ -110,6 +111,9 @@ export default function App() {
       break;
     case 'HijriCalendar':
       ScreenEl = <HijriCalendarScreen navigation={navigation} />;
+      break;
+    case 'LLMChat':
+      ScreenEl = <LLMChatScreen />;
       break;
     default:
       ScreenEl = (
