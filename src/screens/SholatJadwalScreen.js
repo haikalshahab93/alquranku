@@ -125,7 +125,6 @@ export default function SholatJadwalScreen() {
   };
 
   useEffect(() => {
-    // Saat layar dibuka di web, coba otomatis mendeteksi lokasi
     attemptAutoLocate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -239,19 +238,32 @@ export default function SholatJadwalScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="always">
-      <Text style={styles.title}>Jadwal Sholat (Aladhan)</Text>
-      {autoLocating && <Text style={{ color: '#94a3b8', marginBottom: 6 }}>Mendeteksi lokasi otomatis...</Text>}
-      {!!locError && <Text style={{ color: '#ef4444', marginBottom: 6 }}>{locError}</Text>}
+      <Text style={styles.title}>Jadwal Sholat</Text>
+      {/* Deteksi lokasi otomatis dinonaktifkan */}
+      {/* {autoLocating && <Text style={{ color: '#94a3b8', marginBottom: 6 }}>Mendeteksi lokasi otomatis...</Text>} */}
+      {/* {!!locError && <Text style={{ color: '#ef4444', marginBottom: 6 }}>{locError}</Text>} */}
 
       {/* Kartu lokasi sederhana agar mudah */}
       <JadwalCard title="Lokasi">
         <View style={styles.row}>
-          <TextInput value={city} onChangeText={setCity} placeholder="Kota" placeholderTextColor="#64748b" style={[styles.input, styles.inputHalf]} />
-          <TextInput value={country} onChangeText={setCountry} placeholder="Negara" placeholderTextColor="#64748b" style={[styles.input, styles.inputHalf, { marginLeft: 8 }]} />
+          <TextInput value={city} onChangeText={setCity} placeholder="Kota" placeholderTextColor="#64748b" autoCorrect={false} autoCapitalize="words" selectTextOnFocus style={[styles.input, styles.inputHalf]} />
+          <TextInput value={country} onChangeText={setCountry} placeholder="Negara" placeholderTextColor="#64748b" autoCorrect={false} autoCapitalize="words" selectTextOnFocus style={[styles.input, styles.inputHalf, { marginLeft: 8 }]} />
         </View>
-        <TouchableOpacity style={styles.btn} onPress={attemptAutoLocate} disabled={autoLocating}>
-          <Text style={styles.btnText}>{autoLocating ? 'Mendeteksi...' : 'Deteksi Lokasi Otomatis'}</Text>
-        </TouchableOpacity>
+        <View style={styles.chipRow}>
+          {['Jakarta','Bandung','Surabaya','Yogyakarta','Denpasar','Medan','Makassar'].map((c) => (
+            <TouchableOpacity key={c} style={styles.chipBtn} onPress={() => setCity(c)}>
+              <Text style={styles.chipBtnText}>{c}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.chipRow}>
+          {['Indonesia','Malaysia','Singapore','Brunei'].map((cty) => (
+            <TouchableOpacity key={cty} style={styles.chipBtn} onPress={() => setCountry(cty)}>
+              <Text style={styles.chipBtnText}>{cty}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {/* Tombol deteksi lokasi otomatis dihapus */}
         <Text style={{ color: '#e5e7eb', marginTop: 6 }}>{`${city}, ${country}`}</Text>
       </JadwalCard>
 
