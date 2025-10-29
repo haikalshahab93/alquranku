@@ -48,11 +48,11 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: '#fff' },
+  container: { padding: 16, backgroundColor: '#f8fafc' },
   title: { fontSize: 24, fontWeight: '800', color: '#111' },
-  subtitle: { color: '#64748b', marginTop: 4, marginBottom: 12 },
-  list: { flexDirection: 'column', gap: 12 },
-  card: { padding: 16, borderWidth: 1, borderColor: '#eee', backgroundColor: '#fff', borderRadius: 12 },
+  subtitle: { color: '#64748b', marginTop: 4, marginBottom: 16 },
+  list: { flexDirection: 'column', gap: 14 },
+  card: { padding: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
   cardDesc: { color: '#64748b', marginTop: 6 },
 });
