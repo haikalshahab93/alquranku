@@ -84,6 +84,14 @@ export default function HijriCalendarScreen() {
 
   const length = useMemo(() => islamicMonthLength(viewYear, viewMonth), [viewYear, viewMonth]);
   const days = useMemo(() => Array.from({ length }, (_, i) => i + 1), [length]);
+  // Hitung offset hari pertama untuk header minggu dan grid yang rapi
+  const jdnStart = useMemo(() => Math.floor(islamicToJDN(viewYear, viewMonth, 1)), [viewYear, viewMonth])
+  const gStart = useMemo(() => jdnToGregorian(jdnStart), [jdnStart])
+  const startDow = useMemo(() => new Date(gStart.year, gStart.month - 1, gStart.day).getDay(), [gStart]) // 0=Ahad
+  const cells = useMemo(() => [
+    ...Array.from({ length: startDow }, () => null),
+    ...days
+  ], [startDow, days])
 
   const isTodayInView = today.year === viewYear && today.month === viewMonth;
 
@@ -166,9 +174,9 @@ export default function HijriCalendarScreen() {
       </Text>
 
       <View style={styles.navRow}>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onPrev}><Text style={styles.btnGhostText}>Sebelumnya</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onPrev}><Text style={styles.btnGhostText}>← Sebelumnya</Text></TouchableOpacity>
         <Text style={styles.monthTitle}>{MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onNext}><Text style={styles.btnGhostText}>Berikutnya</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onNext}><Text style={styles.btnGhostText}>Berikutnya →</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onReset}>
         <Text style={styles.btnText}>Kembali ke bulan ini</Text>
@@ -180,8 +188,9 @@ export default function HijriCalendarScreen() {
           const jdn = Math.floor(islamicToJDN(viewYear, viewMonth, day))
           const gDate = jdnToGregorian(jdn)
           const hasMemo = !!memos[jdn]
+          const isSelected = !!selected && selected.jdn === jdn
           return (
-            <TouchableOpacity key={day} style={[styles.cell, isToday ? styles.cellToday : null]} onPress={() => openEditor(day)}>
+            <TouchableOpacity key={day} style={[styles.cell, isToday ? styles.cellToday : null, isSelected ? styles.cellSelected : null]} onPress={() => openEditor(day)}>
               <View style={styles.cellInner}>
                 <Text style={[styles.cellHijri, isToday ? styles.cellTextToday : null]}>{day}</Text>
                 <Text style={styles.cellGreg}>{gDate.day} {GREGORIAN_MONTH_NAMES_ID[gDate.month - 1]}</Text>
@@ -230,24 +239,35 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14, color: '#475569', marginBottom: 12 },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   monthTitle: { fontSize: 18, fontWeight: '600', color: '#1f2937' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: '14.285%', aspectRatio: 1.15, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', padding: 4 },
+  weekHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  weekHeaderText: { width: '14.285%', textAlign: 'center', color: '#64748b', fontSize: 12, fontWeight: '600' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8 },
+  cell: { width: '14.285%', aspectRatio: 1.1, borderRadius: 10, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', padding: 6,
+    // shadow untuk iOS
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
+    // elevation untuk Android
+    elevation: 2,
+    marginBottom: 8,
+  },
+  cellBlank: { backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
   cellToday: { backgroundColor: '#0ea5e9' },
-  cellInner: { alignItems: 'center', justifyContent: 'center' },
+  cellSelected: { borderWidth: 2, borderColor: '#0ea5e9' },
+  cellInner: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
   cellHijri: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
   cellGreg: { color: '#334155', fontSize: 10, marginTop: 2 },
   cellTextToday: { color: 'white', fontWeight: '700' },
   btn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
   btnPrimary: { backgroundColor: '#0ea5e9', alignSelf: 'flex-start', marginBottom: 12 },
-  btnGhost: { borderWidth: 1, borderColor: '#94a3b8' },
+  btnGhost: { borderWidth: 1, borderColor: '#94a3b8', backgroundColor: 'white' },
   btnText: { color: 'white', fontWeight: '600' },
   btnGhostText: { color: '#0f172a', fontWeight: '600' },
   info: { fontSize: 12, color: '#64748b', marginTop: 12 },
-  memoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f59e0b', marginTop: 4 },
-  memoCard: { marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, backgroundColor: '#fff', padding: 12 },
+  memoDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#f59e0b', position: 'absolute', right: 6, bottom: 6 },
+  memoCard: { marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, backgroundColor: '#fff', padding: 12,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
   memoTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   memoSubtitle: { fontSize: 12, color: '#475569', marginTop: 4 },
-  memoInput: { marginTop: 8, minHeight: 80, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8, textAlignVertical: 'top' },
+  memoInput: { marginTop: 8, minHeight: 100, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 10, textAlignVertical: 'top', backgroundColor: '#f8fafc' },
   memoActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 10 },
   btnDanger: { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca' },
   btnDangerText: { color: '#dc2626', fontWeight: '700' },
