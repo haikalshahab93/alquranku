@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Konversi Gregorian -> Julian Day Number (JDN)
 function gregorianToJDN(y, m, d) {
@@ -93,6 +94,65 @@ export default function HijriCalendarScreen() {
   const gNow = new Date();
   const gTodayLabel = `${gNow.getDate()} ${GREGORIAN_MONTH_NAMES_ID[gNow.getMonth()]} ${gNow.getFullYear()}`;
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('@hijri_memos')
+        const obj = raw ? JSON.parse(raw) : {}
+        setMemos(obj && typeof obj === 'object' ? obj : {})
+      } catch (e) {
+        // ignore
+      }
+    })()
+  }, [])
+
+  const openEditor = (day) => {
+    const jdn = Math.floor(islamicToJDN(viewYear, viewMonth, day))
+    const gDate = jdnToGregorian(jdn)
+    const existing = memos[jdn]?.text ?? ''
+    setSelected({ day, jdn, gDate })
+    setMemoText(existing)
+  }
+
+  const saveMemo = async () => {
+    if (!selected) return
+    try {
+      setSaving(true)
+      const next = { ...memos }
+      const text = memoText.trim()
+      if (text) {
+        next[selected.jdn] = { text, updatedAt: new Date().toISOString() }
+      } else {
+        delete next[selected.jdn]
+      }
+      await AsyncStorage.setItem('@hijri_memos', JSON.stringify(next))
+      setMemos(next)
+      setSelected(null)
+      setMemoText('')
+    } catch (e) {
+      // ignore
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteMemo = async () => {
+    if (!selected) return
+    try {
+      setSaving(true)
+      const next = { ...memos }
+      delete next[selected.jdn]
+      await AsyncStorage.setItem('@hijri_memos', JSON.stringify(next))
+      setMemos(next)
+      setSelected(null)
+      setMemoText('')
+    } catch (e) {
+      // ignore
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Kalender Hijriah</Text>
@@ -111,18 +171,46 @@ export default function HijriCalendarScreen() {
 
       <View style={styles.grid}>
         {days.map((day) => {
-          const isToday = isTodayInView && day === today.day;
-          const gDate = jdnToGregorian(islamicToJDN(viewYear, viewMonth, day));
+          const isToday = isTodayInView && day === today.day
+          const jdn = Math.floor(islamicToJDN(viewYear, viewMonth, day))
+          const gDate = jdnToGregorian(jdn)
+          const hasMemo = !!memos[jdn]
           return (
-            <View key={day} style={[styles.cell, isToday ? styles.cellToday : null]}>
+            <TouchableOpacity key={day} style={[styles.cell, isToday ? styles.cellToday : null]} onPress={() => openEditor(day)}>
               <View style={styles.cellInner}>
                 <Text style={[styles.cellHijri, isToday ? styles.cellTextToday : null]}>{day}</Text>
                 <Text style={styles.cellGreg}>{gDate.day} {GREGORIAN_MONTH_NAMES_ID[gDate.month - 1]}</Text>
+                {hasMemo ? <View style={styles.memoDot} /> : null}
               </View>
-            </View>
-          );
+            </TouchableOpacity>
+          )
         })}
       </View>
+
+      {selected ? (
+        <View style={styles.memoCard}>
+          <Text style={styles.memoTitle}>Memo untuk {selected.day} {MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
+          <Text style={styles.memoSubtitle}>Masehi: {selected.gDate.day} {GREGORIAN_MONTH_NAMES_ID[selected.gDate.month - 1]} {selected.gDate.year}</Text>
+          <TextInput
+            style={styles.memoInput}
+            placeholder="Tulis catatan/memo di sini..."
+            multiline
+            value={memoText}
+            onChangeText={setMemoText}
+          />
+          <View style={styles.memoActions}>
+            <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => { setSelected(null); setMemoText('') }} disabled={saving}>
+              <Text style={styles.btnGhostText}>Tutup</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={deleteMemo} disabled={saving || !memos[selected.jdn]}>
+              <Text style={styles.btnDangerText}>Hapus</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveMemo} disabled={saving}>
+              <Text style={styles.btnText}>{memos[selected.jdn] ? 'Simpan' : 'Tambahkan'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       <Text style={styles.info}>
         Catatan: Perhitungan ini menggunakan kalender Hijriah aritmetika (civil). Pada praktiknya, awal bulan dapat berbeda berdasarkan rukyat atau otoritas setempat.
@@ -149,5 +237,13 @@ const styles = StyleSheet.create({
   btnGhost: { borderWidth: 1, borderColor: '#94a3b8' },
   btnText: { color: 'white', fontWeight: '600' },
   btnGhostText: { color: '#0f172a', fontWeight: '600' },
-  info: { fontSize: 12, color: '#64748b', marginTop: 12 }
+  info: { fontSize: 12, color: '#64748b', marginTop: 12 },
+  memoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f59e0b', marginTop: 4 },
+  memoCard: { marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, backgroundColor: '#fff', padding: 12 },
+  memoTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  memoSubtitle: { fontSize: 12, color: '#475569', marginTop: 4 },
+  memoInput: { marginTop: 8, minHeight: 80, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 8, textAlignVertical: 'top' },
+  memoActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 10 },
+  btnDanger: { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca' },
+  btnDangerText: { color: '#dc2626', fontWeight: '700' },
 });
