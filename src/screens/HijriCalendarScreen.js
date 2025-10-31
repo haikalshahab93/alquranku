@@ -41,6 +41,27 @@ const MONTH_NAMES_ID = [
   "Rajab", 'Syaban', 'Ramadhan', 'Syawal', 'Zulqaidah', 'Zulhijjah'
 ];
 
+// Tambahkan nama bulan Gregorian (Masehi)
+const GREGORIAN_MONTH_NAMES_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+// Konversi JDN -> Gregorian (Fliegel-Van Flandern)
+function jdnToGregorian(jdn) {
+  const J = Math.floor(jdn + 0.5);
+  let l = J + 68569;
+  const n = Math.floor((4 * l) / 146097);
+  l = l - Math.floor((146097 * n + 3) / 4);
+  const i = Math.floor((4000 * (l + 1)) / 1461001);
+  l = l - Math.floor((1461 * i) / 4) + 31;
+  const j = Math.floor((80 * l) / 2447);
+  const d = l - Math.floor((2447 * j) / 80);
+  l = Math.floor(j / 11);
+  const m = j + 2 - 12 * l;
+  const y = 100 * (n - 49) + i + l;
+  return { year: y, month: m, day: d };
+}
+
 function todayHijri() {
   const g = new Date();
   const y = g.getFullYear();
@@ -68,11 +89,15 @@ export default function HijriCalendarScreen() {
   };
   const onReset = () => { setViewYear(today.year); setViewMonth(today.month); };
 
+  // Label hari ini versi Masehi
+  const gNow = new Date();
+  const gTodayLabel = `${gNow.getDate()} ${GREGORIAN_MONTH_NAMES_ID[gNow.getMonth()]} ${gNow.getFullYear()}`;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Kalender Hijriah</Text>
       <Text style={styles.subtitle}>
-        Hari ini: {today.day} {MONTH_NAMES_ID[today.month - 1]} {today.year} H
+        Hari ini: {today.day} {MONTH_NAMES_ID[today.month - 1]} {today.year} H • Masehi: {gTodayLabel}
       </Text>
 
       <View style={styles.navRow}>
@@ -87,9 +112,13 @@ export default function HijriCalendarScreen() {
       <View style={styles.grid}>
         {days.map((day) => {
           const isToday = isTodayInView && day === today.day;
+          const gDate = jdnToGregorian(islamicToJDN(viewYear, viewMonth, day));
           return (
             <View key={day} style={[styles.cell, isToday ? styles.cellToday : null]}>
-              <Text style={[styles.cellText, isToday ? styles.cellTextToday : null]}>{day}</Text>
+              <View style={styles.cellInner}>
+                <Text style={[styles.cellHijri, isToday ? styles.cellTextToday : null]}>{day}</Text>
+                <Text style={styles.cellGreg}>{gDate.day} {GREGORIAN_MONTH_NAMES_ID[gDate.month - 1]}</Text>
+              </View>
             </View>
           );
         })}
@@ -109,9 +138,11 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   monthTitle: { fontSize: 18, fontWeight: '600', color: '#1f2937' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: '14.285%', aspectRatio: 1, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
+  cell: { width: '14.285%', aspectRatio: 1.15, borderWidth: 1, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', padding: 4 },
   cellToday: { backgroundColor: '#0ea5e9' },
-  cellText: { color: '#0f172a', fontSize: 14 },
+  cellInner: { alignItems: 'center', justifyContent: 'center' },
+  cellHijri: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
+  cellGreg: { color: '#334155', fontSize: 10, marginTop: 2 },
   cellTextToday: { color: 'white', fontWeight: '700' },
   btn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
   btnPrimary: { backgroundColor: '#0ea5e9', alignSelf: 'flex-start', marginBottom: 12 },
