@@ -173,10 +173,10 @@ export default function HijriCalendarScreen() {
         Hari ini: {today.day} {MONTH_NAMES_ID[today.month - 1]} {today.year} H • Masehi: {gTodayLabel}
       </Text>
 
-      <View style={styles.navRow}>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onPrev}><Text style={styles.btnGhostText}>← Sebelumnya</Text></TouchableOpacity>
-        <Text style={styles.monthTitle}>{MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onNext}><Text style={styles.btnGhostText}>Berikutnya →</Text></TouchableOpacity>
+      <Text style={styles.monthTitleCenter}>{MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
+      <View style={styles.navButtonsRow}>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost, styles.btnGhost]} onPress={onPrev}><Text style={styles.btnGhostText}>← Sebelumnya</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost, styles.btnGhost]} onPress={onNext}><Text style={styles.btnGhostText}>Berikutnya →</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onReset}>
         <Text style={styles.btnText}>Kembali ke bulan ini</Text>
@@ -237,15 +237,16 @@ const styles = StyleSheet.create({
   container: { padding: 16 },
   title: { fontSize: 22, fontWeight: '600', marginBottom: 6, color: '#0f172a' },
   subtitle: { fontSize: 14, color: '#475569', marginBottom: 12 },
-  navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  // navRow dihapus, diganti dengan monthTitleCenter + navButtonsRow
   monthTitle: { fontSize: 18, fontWeight: '600', color: '#1f2937' },
+  monthTitleCenter: { fontSize: 18, fontWeight: '600', color: '#1f2937', textAlign: 'center', marginBottom: 8 },
+  navButtonsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  btnFull: { flex: 1, alignItems: 'center' },
   weekHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   weekHeaderText: { width: '14.285%', textAlign: 'center', color: '#64748b', fontSize: 12, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 8 },
   cell: { width: '14.285%', aspectRatio: 1.1, borderRadius: 10, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', padding: 6,
-    // shadow untuk iOS
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
-    // elevation untuk Android
     elevation: 2,
     marginBottom: 8,
   },
@@ -271,4 +272,4 @@ const styles = StyleSheet.create({
   memoActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 10 },
   btnDanger: { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca' },
   btnDangerText: { color: '#dc2626', fontWeight: '700' },
-});
+})
