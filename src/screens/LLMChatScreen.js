@@ -4,7 +4,7 @@ import { chatLLM } from '../api/llm';
 
 export default function LLMChatScreen() {
   const [messages, setMessages] = useState([
-    { role: 'system', content: 'Anda adalah asisten untuk aplikasi Alquranku. Jawab singkat dan relevan.' },
+    { role: 'system', content: 'Anda adalah asisten untuk aplikasi ALQURANKU. Jawab singkat dan relevan.' },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

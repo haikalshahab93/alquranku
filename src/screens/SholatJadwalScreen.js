@@ -86,19 +86,41 @@ export default function SholatJadwalScreen() {
       setAutoLocating(true);
       setLocError(null);
       setErrorHarian(null);
-      if (!('geolocation' in navigator)) {
-        setLocError('Geolocation tidak tersedia di browser ini');
-        setAutoLocating(false);
-        return;
+      
+      // Native (Android/iOS) via expo-location
+      let coords = null;
+      try {
+        const isNative = typeof navigator === 'undefined';
+        if (isNative) {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            throw new Error('Izin lokasi ditolak');
+          }
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        }
+      } catch (e) {
+        // Jika gagal native, akan lanjut coba web
       }
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000,
+      
+      // Web fallback via navigator.geolocation
+      if (!coords) {
+        if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+          setLocError('Geolocation tidak tersedia di perangkat ini');
+          setAutoLocating(false);
+          return;
+        }
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000,
+          });
         });
-      });
-      const { latitude, longitude } = position.coords || {};
+        coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      }
+      
+      const { latitude, longitude } = coords || {};
       if (typeof latitude !== 'number' || typeof longitude !== 'number') {
         setLocError('Koordinat tidak valid');
         setAutoLocating(false);
@@ -240,9 +262,9 @@ export default function SholatJadwalScreen() {
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="always">
       <Text style={styles.title}>Jadwal Sholat</Text>
       {/* Deteksi lokasi otomatis dinonaktifkan */}
-      {/* {autoLocating && <Text style={{ color: '#94a3b8', marginBottom: 6 }}>Mendeteksi lokasi otomatis...</Text>} */}
-      {/* {!!locError && <Text style={{ color: '#ef4444', marginBottom: 6 }}>{locError}</Text>} */}
-
+      {autoLocating && <Text style={{ color: '#94a3b8', marginBottom: 6 }}>Mendeteksi lokasi otomatis...</Text>}
+      {!!locError && <Text style={{ color: '#ef4444', marginBottom: 6 }}>{locError}</Text>}
+      
       {/* Kartu lokasi sederhana agar mudah */}
       <JadwalCard title="Lokasi">
         <View style={styles.row}>
@@ -263,7 +285,9 @@ export default function SholatJadwalScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        {/* Tombol deteksi lokasi otomatis dihapus */}
+        <TouchableOpacity style={styles.btnGhost} onPress={attemptAutoLocate} disabled={autoLocating}>
+          <Text style={styles.btnGhostText}>{autoLocating ? 'Mendeteksi...' : 'Deteksi Lokasi Otomatis'}</Text>
+        </TouchableOpacity>
         <Text style={{ color: '#e5e7eb', marginTop: 6 }}>{`${city}, ${country}`}</Text>
       </JadwalCard>
 
@@ -408,6 +432,9 @@ const styles = StyleSheet.create({
   timeChip: { backgroundColor: '#0f172a', borderColor: '#1f2937', borderWidth: 1, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10, marginRight: 8, marginBottom: 8 },
   chipLabel: { color: '#9ca3af', fontSize: 12 },
   chipVal: { color: '#e5e7eb', fontWeight: '700' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 },
+  chipBtn: { backgroundColor: '#0b1220', borderColor: '#1f2937', borderWidth: 1, borderRadius: 20, paddingVertical: 6, paddingHorizontal: 10, marginRight: 8, marginTop: 6 },
+  chipBtnText: { color: '#e5e7eb' },
   row: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   inputHalf: { flex: 1 },
   dayBox: { backgroundColor: '#0f172a', borderRadius: 8, padding: 8, marginTop: 8 },
@@ -432,4 +459,6 @@ const styles = StyleSheet.create({
   listVal: { color: '#e5e7eb', fontSize: 16, fontWeight: '700', marginRight: 12 },
   listValActive: { color: '#d1b892' },
   metaTitle: { color: '#e5e7eb', fontWeight: '700', marginTop: 8 },
+  btnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
+  btnGhostText: { color: '#e5e7eb', fontWeight: '700' },
 });

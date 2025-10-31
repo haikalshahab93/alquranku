@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
 import { getHaditsArbainSemua } from '../api/hadits';
 
 function normalizeArray(data) {
@@ -14,6 +14,14 @@ export default function HaditsListScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState('');
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(0);
+  // Hitung ukuran halaman dinamis berdasarkan tinggi layar (khusus mobile)
+  const { height: windowHeight } = useWindowDimensions();
+  const isMobile = Platform.OS === 'android' || Platform.OS === 'ios';
+  const headerHeight = 140; // estimasi tinggi header + pencarian
+  const footerHeight = 72;  // estimasi tinggi pager
+  const itemHeightEstimate = 88; // estimasi tinggi kartu item
+  const pageSize = isMobile ? Math.max(5, Math.floor((windowHeight - headerHeight - footerHeight) / itemHeightEstimate)) : 20;
 
   useEffect(() => {
     (async () => {
@@ -43,6 +51,16 @@ export default function HaditsListScreen({ navigation }) {
       return judul.includes(q) || arab.includes(q) || indo.includes(q) || latin.includes(q) || perawi.includes(q);
     });
   }, [items, query]);
+  // Reset ke halaman pertama saat query berubah
+  useEffect(() => { setPage(0); }, [query]);
+  // Paging
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const start = safePage * pageSize;
+  const end = start + pageSize;
+  const paged = filtered.slice(start, end);
+  const goPrev = () => setPage((p) => Math.max(0, p - 1));
+  const goNext = () => setPage((p) => Math.min(totalPages - 1, p + 1));
 
   const renderItem = ({ item, index }) => {
     const nomor = item?.no ?? item?.nomor ?? (index + 1);
@@ -76,12 +94,23 @@ export default function HaditsListScreen({ navigation }) {
       ) : error ? (
         <View style={styles.center}><Text>{error}</Text></View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item, idx) => String(item?.no ?? item?.nomor ?? idx)}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-        />
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={paged}
+            keyExtractor={(item, idx) => String(item?.no ?? item?.nomor ?? idx)}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+          />
+          <View style={styles.pager}>
+            <TouchableOpacity onPress={goPrev} disabled={safePage <= 0} style={[styles.pagerBtn, safePage <= 0 && styles.pagerBtnDisabled]}>
+              <Text style={[styles.pagerBtnText, safePage <= 0 && styles.pagerBtnTextDisabled]}>Sebelumnya</Text>
+            </TouchableOpacity>
+            <Text style={styles.pagerText}>Halaman {safePage + 1} / {totalPages}</Text>
+            <TouchableOpacity onPress={goNext} disabled={safePage >= totalPages - 1} style={[styles.pagerBtn, safePage >= totalPages - 1 && styles.pagerBtnDisabled]}>
+              <Text style={[styles.pagerBtnText, safePage >= totalPages - 1 && styles.pagerBtnTextDisabled]}>Berikutnya</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -99,4 +128,11 @@ const styles = StyleSheet.create({
   item: { padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   itemTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   itemSubtitle: { color: '#64748b', marginTop: 4 },
+  // Pager styles
+  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
+  pagerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
+  pagerBtnDisabled: { opacity: 0.6 },
+  pagerBtnText: { color: '#0ea5e9', fontWeight: '700' },
+  pagerBtnTextDisabled: { color: '#94a3b8' },
+  pagerText: { color: '#0f172a', fontWeight: '700' },
 });

@@ -1,4 +1,4 @@
-# Alquranku
+# ALQURANKU
 
 Aplikasi Al-Qur'an berbasis Expo (React Native) untuk membaca daftar surat, detail surat, pemutaran audio per ayat, pemilihan Qari, serta tampilan Tafsir per ayat yang rapi dan mudah dinavigasi.
 
@@ -62,8 +62,21 @@ Aplikasi Al-Qur'an berbasis Expo (React Native) untuk membaca daftar surat, deta
 1. Indikator halaman di kotak tafsir (mis. "Halaman 1/4").
 2. Kontrol ukuran font (Perbesar/Perkecil) untuk tafsir dan ayat, serta menyimpan preferensi secara lokal.
 
-## Kontribusi
-Pull request dan masukan sangat dihargai. Silakan buka issue jika menemukan bug atau punya ide fitur.
+## Build dan Rilis
 
-## Lisensi
-Proyek ini menggunakan lisensi MIT.
+### Build APK (untuk instalasi langsung)
+```bash
+npx eas build -p android --profile android-apk --non-interactive
+```
+
+### Build AAB (untuk Play Store)
+```bash
+npx eas build -p android --profile android-production --non-interactive
+```
+
+File artefak akan tersedia di dashboard Expo (EAS) dan diunduh ke folder `dist/` oleh skrip otomatis.
+
+### Catatan Rilis (1.0.0)
+- Rilis awal ALQURANKU dengan fitur utama Qur'an, Doa, Hadits, dan Kalender Hijriyah
+- Perbaikan tampilan logo di HomeScreen (fallback otomatis)
+- Peningkatan stabilitas

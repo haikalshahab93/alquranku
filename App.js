@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Image } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
 import { NotoNaskhArabic_400Regular } from '@expo-google-fonts/noto-naskh-arabic';
 import HomeScreen from './src/screens/HomeScreen';
@@ -17,6 +18,7 @@ import SurahListScreen from './src/screens/SurahListScreen';
 import SurahDetailScreen from './src/screens/SurahDetailScreen';
 import TafsirScreen from './src/screens/TafsirScreen';
 import LLMChatScreen from './src/screens/LLMChatScreen';
+
 
 // Minimal internal navigator for web preview tanpa react-navigation
 export default function App() {
@@ -61,10 +63,15 @@ export default function App() {
           <Text style={styles.backText}>Kembali</Text>
         </TouchableOpacity>
       ) : (
-        <View style={styles.backBtn} />
+        <>
+          <View style={{ width: 100 }} />
+          <View style={styles.brandCenter}>
+            <Image source={require('./assets/icon.png')} style={styles.headerLogo} resizeMode="contain" />
+            <Text style={styles.headerTitle}>ALQURANKU</Text>
+          </View>
+          <View style={{ width: 100 }} />
+        </>
       )}
-      <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">{current.name}</Text>
-      <View style={styles.backBtn} />
     </View>
   );
 
@@ -107,13 +114,30 @@ export default function App() {
       ScreenEl = <HaditsBmEntryScreen navigation={navigation} route={{ params: current.params }} />;
       break;
     case 'SholatJadwal':
-      ScreenEl = <SholatJadwalScreen navigation={navigation} />;
+      // ScreenEl = <SholatJadwalScreen navigation={navigation} />;
+      // Sembunyikan sementara fitur Jadwal Sholat
+      ScreenEl = (
+        <View style={styles.center}>
+          <Text>Fitur Jadwal Sholat disembunyikan sementara.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
+            <Text style={styles.backText2}>Kembali</Text>
+          </TouchableOpacity>
+        </View>
+      );
       break;
     case 'HijriCalendar':
       ScreenEl = <HijriCalendarScreen navigation={navigation} />;
       break;
     case 'LLMChat':
-      ScreenEl = <LLMChatScreen />;
+      // Sembunyikan sementara Asisten LLM
+      ScreenEl = (
+        <View style={styles.center}>
+          <Text>Fitur Asisten LLM disembunyikan sementara.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
+            <Text style={styles.backText2}>Kembali</Text>
+          </TouchableOpacity>
+        </View>
+      );
       break;
     default:
       ScreenEl = (
@@ -127,16 +151,30 @@ export default function App() {
   }
 
   return (
-    <View style={styles.app}>
-      {/* Header dihilangkan untuk mencegah tombol kembali tertutup layar */}
-      <View style={styles.content}>{ScreenEl}</View>
-    </View>
+    <SafeAreaProvider>
+      <View style={styles.app}>
+        <SafeAreaView edges={["top"]} style={styles.safeTop}>
+          <StatusBar translucent={false} backgroundColor="#fafafa" barStyle="dark-content" />
+          <Header />
+        </SafeAreaView>
+        <SafeAreaView edges={["bottom"]} style={styles.content}>
+          <View style={{ flex: 1 }}>
+            {ScreenEl}
+          </View>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>copyright @muhammad haikal shahab</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#fff' },
   header: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa' },
+  brandCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 1 },
+  headerLogo: { width: 28, height: 28, marginRight: 8 },
   backBtn: { width: 100, height: 40, justifyContent: 'center' },
   backText: { color: '#0ea5e9', fontWeight: '700' },
   headerTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
@@ -144,4 +182,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   backLink: { marginTop: 12 },
   backText2: { color: '#0ea5e9' },
+  safeTop: { backgroundColor: '#fafafa' },
+  footer: { borderTopWidth: 1, borderColor: '#eee', paddingVertical: 8, alignItems: 'center', backgroundColor: '#fafafa' },
+  footerText: { color: '#94a3b8', fontSize: 12 },
 });

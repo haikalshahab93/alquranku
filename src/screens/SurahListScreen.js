@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share } from 'react-native';
 import { getSuratList, getSuratDetail } from '../api/quran';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -116,7 +116,7 @@ export default function SurahListScreen({ navigation }) {
               if (m && m[1]) {
                 label = decodeURIComponent(m[1]).replace(/-/g, ' ');
               }
-            } catch {}
+            } catch (e) {}
           }
           labelMap[k] = label || k;
         });
@@ -229,6 +229,40 @@ export default function SurahListScreen({ navigation }) {
     const tempatTurun = item.tempatTurun || item.tempat_turun || details[item.nomor]?.surat?.tempatTurun || details[item.nomor]?.surat?.tempat_turun || details[item.nomor]?.tempatTurun || details[item.nomor]?.tempat_turun || '';
     const rawDesc = details[item.nomor]?.surat?.deskripsi || details[item.nomor]?.deskripsi || details[item.nomor]?.description || '';
     const description = stripHtml(rawDesc);
+
+    const handleDownloadSurah = async (nomor) => {
+      try {
+        const det = details[nomor] || await getSuratDetail(nomor);
+        const name = det?.namaLatin || det?.nama_latin || `Surah ${nomor}`;
+        const safeName = String(name).replace(/[^a-zA-Z0-9\- _()]/g, '');
+        const fileName = `${safeName}-${nomor}.txt`;
+        const header = `${name} (${det?.nama ?? ''})\n${det?.arti ?? ''} • ${(det?.jumlahAyat ?? det?.jumlah_ayat) ?? ''} ayat\nTempat turun: ${(det?.tempatTurun ?? det?.tempat_turun) ?? ''}`;
+        const body = Array.isArray(det?.ayat) ? det.ayat.map((a, idx) => {
+          const n = a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : idx + 1);
+          const arab = a?.teksArab ?? a?.teks_arab ?? '';
+          const latinT = a?.teksLatin ?? a?.teks_latin ?? '';
+          const indo = a?.teksTerjemahan ?? a?.teks_terjemahan ?? a?.teksIndonesia ?? '';
+          return `\n\nAyat ${n}:\n${arab}\n${latinT}\n${indo}`;
+        }).join('') : '';
+        const text = `${header}\n${body}\n`;
+        if (Platform.OS === 'web') {
+          const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } else {
+          await Share.share({ title: fileName, message: text });
+        }
+      } catch (e) {
+        console.warn('Gagal mengunduh/berbagi surat:', e?.message);
+      }
+    };
+
     return (
       <View style={styles.item}>
         <View style={styles.itemHeader}>
@@ -264,7 +298,12 @@ export default function SurahListScreen({ navigation }) {
                 </View>
               )}
               <View style={styles.divider} />
-              <Text style={styles.expandTitle}>Preview Ayat 1</Text>
+              <View style={styles.previewHeaderRow}>
+                <Text style={styles.expandTitle}>Preview Ayat 1</Text>
+                <TouchableOpacity style={[styles.actionBtn, styles.downloadBtn]} onPress={() => handleDownloadSurah(item.nomor)}>
+                  <Text style={styles.actionText}>Download Surat</Text>
+                </TouchableOpacity>
+              </View>
               {firstAyah ? (
                 <>
                   <Text style={styles.expandAyatArabic}>{firstAyah.teksArab || firstAyah.teks_arab}</Text>
@@ -373,7 +412,9 @@ const styles = StyleSheet.create({
   actionBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginRight: 8, marginBottom: 8, backgroundColor: '#374151' },
   detailBtn: { backgroundColor: '#6366f1' },
   tafsirBtn: { backgroundColor: '#10b981' },
+  downloadBtn: { backgroundColor: '#0ea5e9' },
   actionText: { color: '#fff', fontWeight: '600' },
+  previewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   pagerBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', marginHorizontal: 8 },
   pagerBtnDisabled: { opacity: 0.5 },
