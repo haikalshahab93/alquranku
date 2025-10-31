@@ -128,7 +128,7 @@ export default function App() {
 
   return (
     <View style={styles.app}>
-      <Header />
+      {/* Header dihilangkan untuk mencegah tombol kembali tertutup layar */}
       <View style={styles.content}>{ScreenEl}</View>
     </View>
   );
