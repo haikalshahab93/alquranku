@@ -76,6 +76,11 @@ export default function HijriCalendarScreen() {
   const today = useMemo(() => todayHijri(), []);
   const [viewYear, setViewYear] = useState(today.year);
   const [viewMonth, setViewMonth] = useState(today.month);
+  // Tambahkan state untuk fitur memo
+  const [memos, setMemos] = useState({});
+  const [selected, setSelected] = useState(null); // { day, jdn, gDate }
+  const [memoText, setMemoText] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const length = useMemo(() => islamicMonthLength(viewYear, viewMonth), [viewYear, viewMonth]);
   const days = useMemo(() => Array.from({ length }, (_, i) => i + 1), [length]);
