@@ -80,3 +80,68 @@ File artefak akan tersedia di dashboard Expo (EAS) dan diunduh ke folder `dist/`
 - Rilis awal ALQURANKU dengan fitur utama Qur'an, Doa, Hadits, dan Kalender Hijriyah
 - Perbaikan tampilan logo di HomeScreen (fallback otomatis)
 - Peningkatan stabilitas
+
+## UI Kit (Atomic Design)
+Kami menambahkan UI Kit sederhana untuk konsistensi tema ungu dan reusable components.
+
+### Theme
+Lokasi: `src/ui/index.js`
+
+```js
+export const theme = {
+  colors: {
+    primary: '#8b5cf6',
+    primaryDark: '#6d28d9',
+    primaryLight: '#a78bfa',
+    bg: '#f8fafc',
+    text: '#1f2937',
+    muted: '#6b7280',
+    white: '#ffffff',
+  },
+  radii: { md: 12, lg: 16 },
+  shadow: {
+    card: {
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 3,
+    },
+  },
+};
+```
+
+### Komponen Reusable
+- `GradientCard({ title, desc, onPress })`
+- `PurpleButton({ label, onPress })`
+- `OutlineLightButton({ label, onPress })`
+- `SectionTitle`
+- `SecondaryText`
+
+Contoh penggunaan:
+```jsx
+import { GradientCard, PurpleButton, OutlineLightButton, SectionTitle, SecondaryText, theme } from '../ui';
+
+<GradientCard title="Terakhir dibaca" desc="Al-Fatihah ayat 3" onPress={() => {}} />
+<PurpleButton label="Lanjutkan" onPress={() => {}} />
+<OutlineLightButton label="Reset" onPress={() => {}} />
+<SectionTitle>Daftar Surat</SectionTitle>
+<SecondaryText>Konten deskripsi yang lebih halus</SecondaryText>
+```
+
+### Pedoman Desain
+- Aksen biru diganti menjadi ungu: gunakan `theme.colors.primary`, `primaryDark`, `primaryLight`.
+- Shadow lembut dan rounded konsisten: gunakan `theme.shadow.card` dan `theme.radii`.
+- Teks sekunder di atas gradient: gunakan `SecondaryText` atau `color: theme.colors.muted` untuk keterbacaan.
+
+## Pratinjau & Pengembangan Web
+Jalankan server pengembangan web:
+```bash
+npx expo start --web
+```
+Server akan terbuka di `http://localhost:19006/` secara default.
+
+## Kontribusi
+- Ikuti pola UI Kit untuk komponen baru agar konsisten.
+- Hindari hardcode warna biru; gunakan `theme`.
+- Pastikan tampilan mobile dan web diuji di pratinjau Expo.

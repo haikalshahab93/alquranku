@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import { getHaditsPerawiList } from '../api/hadits';
+import { theme } from '../ui';
 
 export default function HaditsPerawiListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
   pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
   pagerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
   pagerBtnDisabled: { opacity: 0.6 },
-  pagerBtnText: { color: '#0ea5e9', fontWeight: '700' },
+  pagerBtnText: { color: theme.colors.primary, fontWeight: '700' },
   pagerBtnTextDisabled: { color: '#94a3b8' },
   pagerText: { color: '#0f172a', fontWeight: '700' },
 });

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { theme } from '../ui';
 
 // Konversi Gregorian -> Julian Day Number (JDN)
 function gregorianToJDN(y, m, d) {
@@ -253,14 +254,14 @@ const styles = StyleSheet.create({
   // add spacing between buttons and memo actions
   memoActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10 },
   cellBlank: { backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
-  cellToday: { backgroundColor: '#0ea5e9' },
-  cellSelected: { borderWidth: 2, borderColor: '#0ea5e9' },
+  cellToday: { backgroundColor: theme.colors.primary },
+  cellSelected: { borderWidth: 2, borderColor: theme.colors.primary },
   cellInner: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
   cellHijri: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
   cellGreg: { color: '#334155', fontSize: 10, marginTop: 2 },
   cellTextToday: { color: 'white', fontWeight: '700' },
   btn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  btnPrimary: { backgroundColor: '#0ea5e9', alignSelf: 'flex-start', marginBottom: 12 },
+  btnPrimary: { backgroundColor: theme.colors.primaryDark, alignSelf: 'flex-start', marginBottom: 12 },
   btnGhost: { borderWidth: 1, borderColor: '#94a3b8', backgroundColor: 'white' },
   btnText: { color: 'white', fontWeight: '600' },
   btnGhostText: { color: '#0f172a', fontWeight: '600' },

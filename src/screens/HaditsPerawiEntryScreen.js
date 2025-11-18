@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { theme } from '../ui';
 
 export default function HaditsPerawiEntryScreen({ route, navigation }) {
   const { slug, name } = route.params || {};
@@ -42,12 +43,12 @@ export default function HaditsPerawiEntryScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', padding: 16 },
-  title: { fontSize: 18, fontWeight: '700', color: '#111' },
+  title: { color: theme.colors.primaryDark, fontSize: 16, fontWeight: '700' },
   desc: { color: '#64748b', marginTop: 6, marginBottom: 10 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, color: '#111' },
   row: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   btn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#0ea5e9', marginRight: 10 },
-  btnText: { color: '#fff', fontWeight: '700' },
+  btnText: { color: theme.colors.primary, fontWeight: '700' },
   btnAlt: { backgroundColor: '#f1f5f9' },
   btnTextAlt: { color: '#0ea5e9', fontWeight: '700' },
 });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { getDoaDetail } from '../api/doa';
+import { theme } from '../ui';
 
 export default function DoaDetailScreen({ route }) {
   const { id } = route.params || {};
@@ -79,5 +80,5 @@ const styles = StyleSheet.create({
   cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 4 },
   cacheText: { color: '#92400e', fontWeight: '700' },
   refreshBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
-  refreshText: { color: '#0ea5e9', fontWeight: '700' },
+  refreshText: { color: theme.colors.primary, fontWeight: '700' },
 });
