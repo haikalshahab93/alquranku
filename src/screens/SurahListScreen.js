@@ -30,6 +30,7 @@ export default function SurahListScreen({ navigation }) {
   const [qariLabelsMap, setQariLabelsMap] = useState({});
   const [qariDropdownOpen, setQariDropdownOpen] = useState({});
   const [preferredQari, setPreferredQari] = useState(null);
+  const [fromCacheList, setFromCacheList] = useState(false);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
   useEffect(() => {
@@ -54,17 +55,22 @@ export default function SurahListScreen({ navigation }) {
   const itemHeightEstimate = 92; // estimasi tinggi kartu item tanpa expand
   const pageSize = isMobile ? Math.max(5, Math.floor((windowHeight - headerHeight - footerHeight) / itemHeightEstimate)) : 20;
 
+  const fetchList = async () => {
+    try {
+      setLoading(true);
+      const data = await getSuratList();
+      setSurahs(data);
+      setFromCacheList(!!data?.__fromCache);
+      setError(null);
+    } catch (e) {
+      setError('Gagal memuat daftar surat');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const data = await getSuratList();
-        setSurahs(data);
-      } catch (e) {
-        setError('Gagal memuat daftar surat');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchList();
   }, []);
 
   const filteredSurahs = surahs.filter((s) => {
@@ -223,6 +229,7 @@ export default function SurahListScreen({ navigation }) {
     const isExpanded = !!expanded[item.nomor];
     const isNameExpanded = !!expandedNames[item.nomor];
     const firstAyah = details[item.nomor]?.ayat?.[0];
+    const isDetailFromCache = !!details[item.nomor]?.__fromCache;
     // Ambil meta dari item (camelCase v2) atau fallback ke detail.surat dan snake_case lama
     const latin = item.namaLatin || item.nama_latin || details[item.nomor]?.surat?.namaLatin || details[item.nomor]?.surat?.nama_latin || details[item.nomor]?.namaLatin || details[item.nomor]?.nama_latin || '';
     const jumlahAyat = item.jumlahAyat || item.jumlah_ayat || details[item.nomor]?.surat?.jumlahAyat || details[item.nomor]?.surat?.jumlah_ayat || details[item.nomor]?.jumlahAyat || details[item.nomor]?.jumlah_ayat || '';
@@ -275,6 +282,9 @@ export default function SurahListScreen({ navigation }) {
             <Text style={styles.infoToggleText}>{isExpanded ? 'Tutup ringkas' : 'Lihat ringkas'}</Text>
           </TouchableOpacity>
         </View>
+        {fromCacheList ? (
+          <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+        ) : null}
         {isNameExpanded && (
           <View style={styles.nameBox}>
             <Text style={styles.nameLabel}>Nama Arab</Text>
@@ -290,7 +300,9 @@ export default function SurahListScreen({ navigation }) {
           ) : (
             <View style={styles.expandBox}>
               <Text style={styles.expandTitle}>Ringkas Surat</Text>
-              {/* Hapus meta: Nama Latin, Jumlah Ayat, Tempat Turun sesuai permintaan */}
+              {!!isDetailFromCache && (
+                <View style={styles.cacheBadge}><Text style={styles.cacheText}>Ringkas dari Cache</Text></View>
+              )}
               {!!description && (
                 <View style={styles.expandDescBox}>
                   <Text style={styles.expandDescTitle}>Deskripsi</Text>
@@ -362,6 +374,11 @@ export default function SurahListScreen({ navigation }) {
               onChangeText={setQuery}
               style={styles.searchBox}
             />
+            <View style={styles.refreshRow}>
+              <TouchableOpacity style={[styles.pagerBtn]} onPress={fetchList}>
+                <Text style={styles.pagerText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
         renderItem={renderItem}
@@ -376,7 +393,6 @@ export default function SurahListScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             <View style={styles.pageInfoRow}><Text style={styles.pageInfo}>Halaman {safePage + 1} dari {totalPages}</Text></View>
-            {/* Hapus copyright dari daftar isi sesuai permintaan */}
           </View>
         )}
       />
@@ -426,6 +442,9 @@ const styles = StyleSheet.create({
   nameBox: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8, marginTop: 8 },
   nameLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
   nameArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: '#111', fontFamily: 'NotoNaskhArabic' },
+  cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 4 },
+  cacheText: { color: '#92400e', fontWeight: '700' },
+  refreshRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 16 },
   // Hapus style terkait dropdown Qari & kontrol audio karena tidak digunakan di ListScreen
   // controlsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
   // ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginRight: 8, marginBottom: 8, backgroundColor: '#374151' },

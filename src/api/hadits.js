@@ -14,7 +14,11 @@ async function readCache(key, allowStale = false) {
     if (!obj || typeof obj.ts !== 'number') return null;
     const expired = Date.now() - obj.ts > CACHE_TTL_MS;
     if (expired && !allowStale) return null;
-    return obj.payload;
+    const payload = obj.payload;
+    if (payload && typeof payload === 'object') {
+      try { payload.__fromCache = true; } catch {}
+    }
+    return payload;
   } catch {
     return null;
   }
@@ -29,7 +33,10 @@ async function writeCache(key, payload) {
 export async function getHaditsArbainSemua() {
   const key = cacheKey('arbain_all');
   try {
-    const { data } = await axios.get(`${MYQURAN_V2_BASE}/hadits/arbain/all`);
+    const { data } = await axios.get(`${MYQURAN_V2_BASE}/hadits/arbain`);
+    if (data && typeof data === 'object') {
+      try { data.__fromCache = false; } catch {}
+    }
     await writeCache(key, data);
     return data;
   } catch (e) {
@@ -43,6 +50,9 @@ export async function getHaditsArbainNomor(nomor) {
   const key = cacheKey('arbain_num', String(nomor));
   try {
     const { data } = await axios.get(`${MYQURAN_V2_BASE}/hadits/arbain/${encodeURIComponent(nomor)}`);
+    if (data && typeof data === 'object') {
+      try { data.__fromCache = false; } catch {}
+    }
     await writeCache(key, data);
     return data;
   } catch (e) {
@@ -62,6 +72,9 @@ export async function getHaditsBmNomor(nomor) {
   const key = cacheKey('bm_num', String(nomor));
   try {
     const { data } = await axios.get(`${MYQURAN_V2_BASE}/hadits/bm/${encodeURIComponent(nomor)}`);
+    if (data && typeof data === 'object') {
+      try { data.__fromCache = false; } catch {}
+    }
     await writeCache(key, data);
     return data;
   } catch (e) {
@@ -80,6 +93,9 @@ export async function getHaditsPerawiList() {
   const key = cacheKey('perawi_list');
   try {
     const { data } = await axios.get(`${MYQURAN_V2_BASE}/hadits/perawi`);
+    if (data && typeof data === 'object') {
+      try { data.__fromCache = false; } catch {}
+    }
     await writeCache(key, data);
     return data;
   } catch (e) {
@@ -93,6 +109,9 @@ export async function getHaditsPerawiNomor(slug, nomor) {
   const key = cacheKey('perawi_num', `${slug}:${nomor}`);
   try {
     const { data } = await axios.get(`${MYQURAN_V2_BASE}/hadits/${encodeURIComponent(slug)}/${encodeURIComponent(nomor)}`);
+    if (data && typeof data === 'object') {
+      try { data.__fromCache = false; } catch {}
+    }
     await writeCache(key, data);
     return data;
   } catch (e) {

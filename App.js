@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Image } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -18,14 +18,35 @@ import SurahListScreen from './src/screens/SurahListScreen';
 import SurahDetailScreen from './src/screens/SurahDetailScreen';
 import TafsirScreen from './src/screens/TafsirScreen';
 import LLMChatScreen from './src/screens/LLMChatScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 
 // Minimal internal navigator for web preview tanpa react-navigation
 export default function App() {
+  const [initialResolved, setInitialResolved] = useState(false);
   const [stack, setStack] = useState([{ name: 'Home', params: null }]);
   const current = stack[stack.length - 1];
 
-  // Pastikan urutan hooks konsisten: deklarasikan navigation terlebih dahulu
+  useEffect(() => {
+    (async () => {
+      try {
+        const done = await AsyncStorage.getItem('onboardingDone');
+        const logged = await AsyncStorage.getItem('loggedIn');
+        if (!done) {
+          setStack([{ name: 'Onboarding', params: null }]);
+        } else if (!logged) {
+          setStack([{ name: 'Login', params: null }]);
+        }
+      } catch {}
+      setInitialResolved(true);
+    })();
+  }, []);
+
   const navigation = useMemo(() => ({
     navigate: (name, params) => {
       setStack((s) => [...s, { name, params: params || null }]);
@@ -33,7 +54,7 @@ export default function App() {
     goBack: () => {
       setStack((s) => (s.length > 1 ? s.slice(0, s.length - 1) : s));
     },
-    setOptions: () => {}, // no-op untuk layar yang memanggil setOptions
+    setOptions: () => {},
   }), []);
 
   const [fontsLoaded] = useFonts({
@@ -48,35 +69,49 @@ export default function App() {
     Text.defaultProps.style = [Text.defaultProps.style || {}, { fontFamily: 'Inter' }];
   }
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !initialResolved) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Memuat font...</Text>
+        <Text>Memuat...</Text>
       </View>
     );
   }
 
   const Header = () => (
     <View style={styles.header}>
-      {stack.length > 1 ? (
-        <TouchableOpacity onPress={navigation.goBack} style={styles.backBtn}>
-          <Text style={styles.backText}>Kembali</Text>
-        </TouchableOpacity>
-      ) : (
-        <>
-          <View style={{ width: 100 }} />
-          <View style={styles.brandCenter}>
-            <Image source={require('./assets/icon.png')} style={styles.headerLogo} resizeMode="contain" />
-            <Text style={styles.headerTitle}>ALQURANKU</Text>
-          </View>
-          <View style={{ width: 100 }} />
-        </>
-      )}
+      {(() => {
+        const topLevel = new Set(['Home', 'SurahList', 'DoaList', 'HaditsMenu', 'Settings']);
+        const showBack = stack.length > 1 && !topLevel.has(current.name);
+        if (showBack) {
+          return (
+            <TouchableOpacity onPress={navigation.goBack} style={styles.backBtn}>
+              <Text style={styles.backText}>Kembali</Text>
+            </TouchableOpacity>
+          );
+        }
+        return (
+          <LinearGradient colors={["#ede9fe","#f5f3ff"]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerGradient}>
+            <View style={{ width: 100 }} />
+            <View style={styles.brandCenter}>
+              <Image source={require('./assets/icon.png')} style={styles.headerLogo} resizeMode="contain" />
+              <Text style={styles.headerTitle}>ALQURANKU</Text>
+            </View>
+            <View style={{ width: 100 }} />
+          </LinearGradient>
+        );
+      })()}
     </View>
   );
 
+
   let ScreenEl = null;
   switch (current.name) {
+    case 'Onboarding':
+      ScreenEl = <OnboardingScreen navigation={navigation} />;
+      break;
+    case 'Login':
+      ScreenEl = <LoginScreen navigation={navigation} />;
+      break;
     case 'Home':
       ScreenEl = <HomeScreen navigation={navigation} />;
       break;
@@ -139,6 +174,9 @@ export default function App() {
         </View>
       );
       break;
+    case 'Settings':
+      ScreenEl = <SettingsScreen navigation={navigation} />;
+      break;
     default:
       ScreenEl = (
         <View style={styles.center}>
@@ -149,6 +187,33 @@ export default function App() {
         </View>
       );
   }
+
+  const BottomNav = () => (
+    <View style={styles.bottomNav}>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
+        <FontAwesome5 name="home" size={18} color={current.name === 'Home' ? '#8b5cf6' : '#64748b'} />
+        <Text style={[styles.navText, current.name !== 'Home' && { color: '#64748b' }]}>Home</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('SurahList')}>
+        <FontAwesome5 name="book-open" size={18} color={current.name === 'SurahList' || current.name === 'SurahDetail' ? '#8b5cf6' : '#64748b'} />
+        <Text style={[styles.navText, (current.name !== 'SurahList' && current.name !== 'SurahDetail') && { color: '#64748b' }]}>Surah</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('DoaList')}>
+        <FontAwesome5 name="hands" size={18} color={current.name === 'DoaList' || current.name === 'DoaDetail' ? '#8b5cf6' : '#64748b'} />
+        <Text style={[styles.navText, (current.name !== 'DoaList' && current.name !== 'DoaDetail') && { color: '#64748b' }]}>Doa</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('HaditsMenu')}>
+        <FontAwesome5 name="scroll" size={18} color={current.name.startsWith('Hadits') ? '#8b5cf6' : '#64748b'} />
+        <Text style={[styles.navText, (!current.name.startsWith('Hadits')) && { color: '#64748b' }]}>Hadits</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
+        <FontAwesome5 name="cog" size={18} color={current.name === 'Settings' ? '#8b5cf6' : '#64748b'} />
+        <Text style={[styles.navText, current.name !== 'Settings' && { color: '#64748b' }]}>Pengaturan</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const hideBottomNav = current.name === 'Onboarding' || current.name === 'Login';
 
   return (
     <SafeAreaProvider>
@@ -161,9 +226,8 @@ export default function App() {
           <View style={{ flex: 1 }}>
             {ScreenEl}
           </View>
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>copyright @muhammad haikal shahab</Text>
-          </View>
+          {!hideBottomNav && <BottomNav />}
+          {/* Footer dihapus untuk tampilan lebih bersih */}
         </SafeAreaView>
       </View>
     </SafeAreaProvider>
@@ -173,6 +237,7 @@ export default function App() {
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: '#fff' },
   header: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa' },
+  headerGradient: { flex: 1, height: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 8 },
   brandCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 1 },
   headerLogo: { width: 28, height: 28, marginRight: 8 },
   backBtn: { width: 100, height: 40, justifyContent: 'center' },
@@ -183,6 +248,8 @@ const styles = StyleSheet.create({
   backLink: { marginTop: 12 },
   backText2: { color: '#0ea5e9' },
   safeTop: { backgroundColor: '#fafafa' },
-  footer: { borderTopWidth: 1, borderColor: '#eee', paddingVertical: 8, alignItems: 'center', backgroundColor: '#fafafa' },
-  footerText: { color: '#94a3b8', fontSize: 12 },
+  // add bottom nav styles
+  bottomNav: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#eee', backgroundColor: '#fafafa' },
+  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, gap: 4 },
+  navText: { color: '#0ea5e9', fontWeight: '700', fontSize: 12 },
 });

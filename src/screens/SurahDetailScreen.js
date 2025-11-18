@@ -28,7 +28,7 @@ export default function SurahDetailScreen({ route, navigation }) {
   const [qariDropdownOpen, setQariDropdownOpen] = useState(false);
   const [tafsirPageIndexByAyah, setTafsirPageIndexByAyah] = useState({});
   const [textScale, setTextScale] = useState(1);
-  // Tambahan untuk paging horizontal tafsir
+  const [fromCacheDetail, setFromCacheDetail] = useState(false);
   const [tafsirBoxWidths, setTafsirBoxWidths] = useState({});
   const tafsirScrollRefs = useRef({});
   const flatListRef = useRef(null);
@@ -39,42 +39,42 @@ export default function SurahDetailScreen({ route, navigation }) {
     navigation.setOptions({ title: `${namaLatin ?? nama_latin ?? ''}` });
   }, [namaLatin, nama_latin, navigation]);
 
+  const fetchDetail = async () => {
+    try {
+      setLoading(true);
+      const data = await getSuratDetail(nomor);
+      setDetail(data);
+      setFromCacheDetail(!!data?.__fromCache);
+      const ayah0 = data?.ayat?.[0];
+      const audioObj0 = ayah0?.audio || {};
+      const keys = Object.keys(audioObj0);
+      const qariKeys = Array.from(new Set(keys.filter(Boolean)));
+      setAvailableQaris(qariKeys);
+      const labelMap = {};
+      qariKeys.forEach((k) => {
+        const url = audioObj0[k];
+        let label = QARI_LABELS[k];
+        if (!label && typeof url === 'string') {
+          try {
+            const m = url.match(/audio-partial\/(.+?)\//);
+            if (m && m[1]) label = decodeURIComponent(m[1]).replace(/-/g, ' ');
+          } catch {}
+        }
+        labelMap[k] = label || k;
+      });
+      setQariLabelsMap(labelMap);
+      setSelectedQari(qariKeys.includes('alafasy') ? 'alafasy' : (qariKeys[0] || null));
+    } catch (e) {
+      setError('Gagal memuat detail surat');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const data = await getSuratDetail(nomor);
-        setDetail(data);
-        const ayah0 = data?.ayat?.[0];
-        const audioObj0 = ayah0?.audio || {};
-        const keys = Object.keys(audioObj0);
-        const qariKeys = Array.from(new Set(keys.filter(Boolean)));
-        setAvailableQaris(qariKeys);
-        // Build labels for qari keys, parsing from URL if needed
-        const labelMap = {};
-        qariKeys.forEach((k) => {
-          const url = audioObj0[k];
-          let label = QARI_LABELS[k];
-          if (!label && typeof url === 'string') {
-            try {
-              const m = url.match(/audio-partial\/(.+?)\//);
-              if (m && m[1]) {
-                label = decodeURIComponent(m[1]).replace(/-/g, ' ');
-              }
-            } catch {}
-          }
-          labelMap[k] = label || k;
-        });
-        setQariLabelsMap(labelMap);
-        setSelectedQari(qariKeys.includes('alafasy') ? 'alafasy' : (qariKeys[0] || null));
-      } catch (e) {
-        setError('Gagal memuat detail surat');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchDetail();
   }, [nomor]);
 
-  // Sinkronkan status player ke state isPlaying dan auto-next saat selesai
   useEffect(() => {
     if ('playing' in playerStatus) {
       setIsPlaying(!!playerStatus.playing);
@@ -98,7 +98,6 @@ export default function SurahDetailScreen({ route, navigation }) {
     }
   }, [playerStatus.playing, playerStatus.position, playerStatus.duration]);
 
-  // Load saved Qari preference
   useEffect(() => {
     (async () => {
       try {
@@ -112,7 +111,6 @@ export default function SurahDetailScreen({ route, navigation }) {
     })();
   }, []);
 
-  // Simpan preferensi Qari saat berubah
   useEffect(() => {
     (async () => {
       if (selectedQari) {
@@ -125,7 +123,6 @@ export default function SurahDetailScreen({ route, navigation }) {
     })();
   }, [selectedQari]);
 
-  // Load saved text scale
   useEffect(() => {
     (async () => {
       try {
@@ -143,7 +140,6 @@ export default function SurahDetailScreen({ route, navigation }) {
     })();
   }, []);
 
-  // Save text scale when changed
   useEffect(() => {
     (async () => {
       try {
@@ -161,7 +157,6 @@ export default function SurahDetailScreen({ route, navigation }) {
     setTextScale((s) => Math.max(0.8, Math.round((s - 0.1) * 10) / 10));
   };
 
-  // Restart ayat aktif dengan Qari baru saat Qari berubah
   useEffect(() => {
     if (selectedQari && playingAyahIndex != null) {
       playAyah(playingAyahIndex);
@@ -172,15 +167,12 @@ export default function SurahDetailScreen({ route, navigation }) {
     const ayah = detail?.ayat?.[index];
     if (!ayah || !ayah.audio) return null;
     const audioObj = ayah.audio;
-    // Prefer selected Qari if available for this ayah
     if (selectedQari && typeof audioObj[selectedQari] === 'string' && audioObj[selectedQari]) {
       return audioObj[selectedQari];
     }
-    // Fallback: iterate through available qari keys for this surah
     for (const k of availableQaris) {
       if (typeof audioObj[k] === 'string' && audioObj[k]) return audioObj[k];
     }
-    // Final fallback: any available string value
     for (const val of Object.values(audioObj)) {
       if (typeof val === 'string' && val) return val;
     }
@@ -203,6 +195,16 @@ export default function SurahDetailScreen({ route, navigation }) {
       flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
       player.seekTo(0);
       player.play();
+
+      // Simpan progress "terakhir dibaca" setiap kali memutar ayat
+      try {
+        const metaNama = detail?.surat?.namaLatin || detail?.surat?.nama_latin || namaLatin || nama_latin || '';
+        await AsyncStorage.setItem('last_read', JSON.stringify({
+          nomor,
+          namaLatin: metaNama,
+          lastAyah: (detail?.ayat?.[index]?.nomorAyat || detail?.ayat?.[index]?.nomor_ayat || index + 1),
+        }));
+      } catch {}
     } catch (e) {
       console.log('Audio error', e);
     }
@@ -215,10 +217,18 @@ export default function SurahDetailScreen({ route, navigation }) {
     } else {
       player.play();
       setIsPlaying(true);
+      // Saat melanjutkan, update last_read ke ayat aktif
+      try {
+        const metaNama = detail?.surat?.namaLatin || detail?.surat?.nama_latin || namaLatin || nama_latin || '';
+        await AsyncStorage.setItem('last_read', JSON.stringify({
+          nomor,
+          namaLatin: metaNama,
+          lastAyah: (detail?.ayat?.[playingAyahIndex]?.nomorAyat || detail?.ayat?.[playingAyahIndex]?.nomor_ayat || (playingAyahIndex != null ? playingAyahIndex + 1 : 1)),
+        }));
+      } catch {}
     }
   };
 
-  // Sinkronkan tafsir ke map per ayat
   useEffect(() => {
     (async () => {
       try {
@@ -243,13 +253,11 @@ export default function SurahDetailScreen({ route, navigation }) {
           setTafsirMap({});
         }
       } catch (e) {
-        // Abaikan error tafsir agar layar detail tetap berfungsi
         setTafsirMap({});
       }
     })();
   }, [nomor]);
 
-  // Pastikan pemutar berhenti saat komponen di-unmount (Android safety)
   useEffect(() => {
     return () => {
       try { player.pause(); } catch {}
@@ -267,16 +275,15 @@ export default function SurahDetailScreen({ route, navigation }) {
     const indoText = item?.teksIndonesia ?? item?.teks_terjemahan;
     const tafsirForAyah = tafsirMap[ayahNumber];
     const isTafsirExpanded = !!expandedTafsirAyahs[ayahNumber];
-  
-    // bantu: bagi teks tafsir menjadi beberapa halaman berdasar estimasi karakter per halaman
+
     const computeCharsPerPage = () => {
       const { height, width } = Dimensions.get('window');
-      const maxHeight = Math.floor(height * 0.6); // batasi 60% tinggi layar
-      const fontSize = 14 * textScale; // gunakan skala font tafsir
-      const lineHeight = 20 * textScale; // gunakan skala line-height tafsir
+      const maxHeight = Math.floor(height * 0.6);
+      const fontSize = 14 * textScale;
+      const lineHeight = 20 * textScale;
       const linesPerPage = Math.max(8, Math.floor(maxHeight / lineHeight));
       const charsPerLine = Math.max(18, Math.floor(width / (fontSize * 0.6)));
-      return Math.floor(linesPerPage * charsPerLine * 0.9); // faktor aman
+      return Math.floor(linesPerPage * charsPerLine * 0.9);
     };
     const splitTextIntoChunks = (text, size) => {
       if (!text) return [];
@@ -301,7 +308,7 @@ export default function SurahDetailScreen({ route, navigation }) {
     const currentPage = tafsirPageIndexByAyah[ayahNumber] ?? 0;
     const maxPageIndex = Math.max(0, tafsirChunks.length - 1);
     const currentChunk = tafsirChunks[currentPage] ?? (tafsirForAyah || '');
-  
+
     return (
       <View style={[styles.ayat, isActive && styles.ayatActive]}>
         {tafsirForAyah ? (
@@ -330,9 +337,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                 }}
               >
                 <ScrollView
-                  ref={(el) => {
-                    tafsirScrollRefs.current[ayahNumber] = el;
-                  }}
+                  ref={(el) => { tafsirScrollRefs.current[ayahNumber] = el; }}
                   horizontal
                   pagingEnabled
                   scrollEnabled={false}
@@ -436,10 +441,16 @@ export default function SurahDetailScreen({ route, navigation }) {
     if (direction === 'prev') target = Math.max(1, currentAyah - 1);
     if (direction === 'next') target = Math.min(total, currentAyah + 1);
     setExpandedTafsirAyahs((prev) => ({ ...prev, [currentAyah]: false, [target]: true }));
-    setTafsirPageIndexByAyah((prev) => ({ ...prev, [target]: 0 })); // pagination dihapus ketika navigasi antar ayat
+    setTafsirPageIndexByAyah((prev) => ({ ...prev, [target]: 0 }));
     const idx = target - 1;
     flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 });
   };
+
+  if (loading && !detail) {
+    return (
+      <View style={styles.center}><ActivityIndicator size="large" /></View>
+    );
+  }
 
   return (
     <FlatList
@@ -455,6 +466,9 @@ export default function SurahDetailScreen({ route, navigation }) {
         <View style={styles.header}>
           <Text style={styles.title}>{detail?.namaLatin ?? detail?.nama_latin} ({detail?.nama})</Text>
           <Text style={styles.meta}>{detail?.arti} • {(detail?.jumlahAyat ?? detail?.jumlah_ayat)} ayat • {(detail?.tempatTurun ?? detail?.tempat_turun)}</Text>
+          {fromCacheDetail ? (
+            <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+          ) : null}
           {availableQaris.length > 0 && (
             <View style={styles.qariSection}>
               <TouchableOpacity style={styles.qariDropdownToggle} onPress={() => setQariDropdownOpen((o) => !o)}>
@@ -488,8 +502,10 @@ export default function SurahDetailScreen({ route, navigation }) {
             <TouchableOpacity style={[styles.ctrlBtn, styles.stopBtn]} onPress={stopPlayback}>
               <Text style={styles.ctrlText}>Hentikan</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.ctrlBtn]} onPress={fetchDetail}>
+              <Text style={styles.ctrlText}>Refresh</Text>
+            </TouchableOpacity>
           </View>
-          {/* kontrol ukuran font */}
           <View style={styles.fontRow}>
             <TouchableOpacity style={styles.fontBtn} onPress={decreaseTextScale}>
               <Text style={styles.fontBtnText}>A-</Text>
@@ -516,7 +532,6 @@ const styles = StyleSheet.create({
   meta: { color: '#666', marginTop: 4 },
   selectedQari: { marginTop: 4, color: '#0f766e', fontWeight: '600' },
   ayat: { marginBottom: 16, backgroundColor: '#fff', borderRadius: 12, padding: 12, elevation: 1 },
-  // Dropdown Qari
   qariSection: { marginTop: 8 },
   qariDropdownToggle: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', alignSelf: 'flex-start', backgroundColor: '#f1f5f9' },
   qariDropdownText: { color: '#0f766e', fontWeight: '600' },
@@ -533,7 +548,6 @@ const styles = StyleSheet.create({
   audioText: { color: '#fff', fontWeight: '600' },
   tafsirBtn: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#10b981', alignSelf: 'flex-start' },
   tafsirText: { color: '#fff', fontWeight: '600' },
-  // Tambahan style untuk toggle tafsir
   tafsirToggle: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', alignSelf: 'flex-start', marginTop: 8 },
   tafsirToggleActive: { backgroundColor: '#e0f2fe' },
   tafsirToggleText: { color: '#0ea5e9', fontWeight: '600' },
@@ -545,12 +559,10 @@ const styles = StyleSheet.create({
   qariChipText: { color: '#333' },
   qariChipTextActive: { color: '#fff', fontWeight: '600' },
   controlsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
-  // tombol kontrol audio: samakan ukuran dengan Lihat Tafsir
   ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#0ea5e9', marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
   ctrlText: { color: '#fff', fontWeight: '600' },
   playAllBtn: { backgroundColor: '#0ea5e9' },
   stopBtn: { backgroundColor: '#ef4444' },
-  // tambahan untuk navigasi tafsir per ayat
   tafsirNavRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   navBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#0ea5e9', marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
   navText: { color: '#fff', fontWeight: '600' },
@@ -558,18 +570,17 @@ const styles = StyleSheet.create({
   contextBox: { backgroundColor: '#f8fafc', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb' },
   contextLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
   tafsirContextText: { color: '#374151' },
-  // pagination konten tafsir
   tafsirBox: { marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb' },
   tafsirContent: { color: '#111827' },
   pageNavRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   pageBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9' },
   pageBtnText: { color: '#0ea5e9', fontWeight: '600' },
   pageBtnTextDisabled: { color: '#94a3b8' },
-  // indikator halaman
   pageIndicator: { textAlign: 'center', color: '#64748b', marginTop: 4 },
-  // kontrol ukuran font global
   fontRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, alignItems: 'center' },
   fontBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
   fontBtnText: { color: '#0ea5e9', fontWeight: '600' },
   fontInfo: { color: '#64748b', fontWeight: '600' },
+  cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 8 },
+  cacheText: { color: '#92400e', fontWeight: '700' },
 });

@@ -12,6 +12,7 @@ export default function TafsirScreen({ route }) {
   const [tafsirList, setTafsirList] = useState([]);
   const [tafsirMap, setTafsirMap] = useState({});
   const [currentAyah, setCurrentAyah] = useState(1);
+  const [fromCache, setFromCache] = useState(false);
 
   const { height: windowHeight } = useWindowDimensions();
   const contentMaxHeight = Math.max(280, Math.floor(windowHeight * 0.6));
@@ -21,6 +22,7 @@ export default function TafsirScreen({ route }) {
       try {
         const tafsir = await getTafsir(nomor);
         setData(tafsir);
+        setFromCache(!!tafsir?.__fromCache);
         // Ekstrak daftar tafsir per ayat dari berbagai bentuk API (camelCase/snake_case atau nested)
         const list = Array.isArray(tafsir?.tafsir)
           ? tafsir.tafsir
@@ -84,6 +86,10 @@ export default function TafsirScreen({ route }) {
       <Text style={styles.title}>Tafsir Surat {surahLatin} ({data?.nama})</Text>
       <Text style={styles.meta}>{data?.arti} • {jumlahAyat} ayat • {tempatTurun}</Text>
 
+      {fromCache ? (
+        <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+      ) : null}
+
       {hasList ? (
         <View>
           <View style={styles.navRow}>
@@ -143,4 +149,6 @@ const styles = StyleSheet.create({
   contextBox: { backgroundColor: '#f8fafc', padding: 8, borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb' },
   contextLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
   contextText: { color: '#374151' },
+  cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginBottom: 8 },
+  cacheText: { color: '#92400e', fontWeight: '700' },
 });

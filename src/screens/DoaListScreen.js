@@ -17,20 +17,25 @@ export default function DoaListScreen({ navigation }) {
   const isMobile = Platform.OS === 'android' || Platform.OS === 'ios';
 
   const [page, setPage] = useState(0);
+  const [fromCacheList, setFromCacheList] = useState(false);
+
+  const fetchList = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await getDoaList();
+      const arr = normalizeArray(res);
+      setItems(arr);
+      setFromCacheList(!!(Array.isArray(res) ? res.__fromCache : res?.__fromCache));
+    } catch (e) {
+      setError(e?.message || 'Gagal memuat daftar doa');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await getDoaList();
-        setItems(normalizeArray(res));
-      } catch (e) {
-        setError(e?.message || 'Gagal memuat daftar doa');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchList();
   }, []);
 
   useEffect(() => {
@@ -93,15 +98,23 @@ export default function DoaListScreen({ navigation }) {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Daftar Doa</Text>
-        <TouchableOpacity style={styles.randomBtn} onPress={() => {
-          if (!filtered.length) return;
-          const idx = Math.floor(Math.random() * filtered.length);
-          const id = filtered[idx]?.id;
-          if (id != null) navigation.navigate('DoaDetail', { id });
-        }}>
-          <Text style={styles.randomText}>Acak</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity style={styles.randomBtn} onPress={() => {
+            if (!filtered.length) return;
+            const idx = Math.floor(Math.random() * filtered.length);
+            const id = filtered[idx]?.id;
+            if (id != null) navigation.navigate('DoaDetail', { id });
+          }}>
+            <Text style={styles.randomText}>Acak</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.randomBtn, { marginLeft: 8 }]} onPress={fetchList}>
+            <Text style={styles.randomText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+      {fromCacheList ? (
+        <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+      ) : null}
       <TextInput
         value={query}
         onChangeText={setQuery}
@@ -152,8 +165,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   cardTags: { color: '#64748b', marginTop: 4 },
   cardDesc: { color: '#334155', marginTop: 4 },
-  pagerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 8 },
-  pagerBtn: { flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, backgroundColor: '#fff' },
+  pagerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8 },
+  pagerBtn: { flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, backgroundColor: '#fff', marginHorizontal: 8 },
   pagerBtnDisabled: { opacity: 0.5 },
   pagerText: { textAlign: 'center', fontWeight: '700', color: '#0ea5e9' },
+  cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginHorizontal: 16 },
+  cacheText: { color: '#92400e', fontWeight: '700' },
 });

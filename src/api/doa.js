@@ -14,7 +14,11 @@ async function readCache(key, allowStale = false) {
     if (!obj || typeof obj.ts !== 'number') return [];
     const expired = Date.now() - obj.ts > CACHE_TTL_MS;
     if (expired && !allowStale) return [];
-    return obj.payload;
+    const payload = obj.payload;
+    if (payload && typeof payload === 'object') {
+      try { payload.__fromCache = true; } catch {}
+    }
+    return payload;
   } catch {
     return [];
   }
@@ -34,6 +38,9 @@ export async function getDoaList({ grup, tag } = {}) {
   try {
     const { data } = await axios.get(DOA_BASE, { params });
     const out = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+    if (out && typeof out === 'object') {
+      try { out.__fromCache = false; } catch {}
+    }
     await writeCache(key, out);
     return out;
   } catch (e) {
@@ -52,6 +59,9 @@ export async function getDoaDetail(id) {
   try {
     const { data } = await axios.get(`${DOA_BASE}/${iid}`);
     const detail = data?.data ?? data;
+    if (detail && typeof detail === 'object') {
+      try { detail.__fromCache = false; } catch {}
+    }
     await writeCache(key, detail);
     return { data: detail };
   } catch (e) {
