@@ -2,15 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import { GradientCard, PurpleButton, OutlineLightButton, theme } from '../ui';
 
 function Card({ title, desc, onPress }) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
-      <LinearGradient colors={["#ede9fe","#e9d5ff"]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.cardBg}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        {!!desc && <Text style={styles.cardDesc}>{desc}</Text>}
-      </LinearGradient>
-    </TouchableOpacity>
+    <GradientCard title={title} desc={desc} onPress={onPress} />
   );
 }
 
@@ -48,33 +44,30 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       {lastRead && (
-        <LinearGradient colors={["#8b5cf6","#6d28d9"]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.lastReadCard}>
+        <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.lastReadCard}>
           <Text style={styles.lastReadLabel}>Terakhir dibaca</Text>
           <Text style={styles.lastReadTitle}>{lastRead?.namaLatin || `Surah ${lastRead?.nomor}`}</Text>
           {!!lastRead?.lastAyah && (
             <Text style={styles.lastReadMeta}>Ayat {lastRead.lastAyah}</Text>
           )}
           <View style={{ flexDirection: 'row', marginTop: 10 }}>
-            <TouchableOpacity
-              style={styles.continueBtn}
+            <PurpleButton
+              label="Lanjutkan"
               onPress={() => navigation.navigate('SurahDetail', {
                 nomor: lastRead?.nomor,
                 nama_latin: lastRead?.namaLatin,
                 namaLatin: lastRead?.namaLatin,
                 lastAyah: lastRead?.lastAyah || 1,
               })}
-            >
-              <Text style={styles.continueText}>Lanjutkan</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.resetBtn}
+              style={{ marginRight: 8 }}
+            />
+            <OutlineLightButton
+              label="Reset"
               onPress={async () => {
                 await AsyncStorage.removeItem('last_read');
                 setLastRead(null);
               }}
-            >
-              <Text style={styles.resetText}>Reset</Text>
-            </TouchableOpacity>
+            />
           </View>
         </LinearGradient>
       )}
