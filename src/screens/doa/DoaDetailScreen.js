@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
-import { getDoaDetail } from '../api/doa';
-import { theme } from '../ui';
+import { getDoaDetail } from '../../api/doa';
+import { theme } from '../../ui';
 
 export default function DoaDetailScreen({ route }) {
   const { id } = route.params || {};

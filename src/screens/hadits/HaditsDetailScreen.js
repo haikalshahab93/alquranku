@@ -7,8 +7,8 @@ import {
   getHaditsBmAcak,
   getHaditsPerawiNomor,
   getHaditsPerawiAcak,
-} from '../api/hadits';
-import { theme } from '../ui';
+} from '../../api/hadits';
+import { theme } from '../../ui';
 
 function pickFields(payload) {
   const p = payload?.data ?? payload;

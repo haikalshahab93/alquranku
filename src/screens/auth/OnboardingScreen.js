@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { theme } from '../ui';
+import { theme } from '../../ui';
 
 const { width } = Dimensions.get('window');
 

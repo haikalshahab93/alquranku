@@ -3,6 +3,11 @@
 Aplikasi Al-Qur'an berbasis Expo (React Native) untuk membaca daftar surat, detail surat, pemutaran audio per ayat, pemilihan Qari, serta tampilan Tafsir per ayat yang rapi dan mudah dinavigasi.
 
 ## Fitur Utama
+- Navigasi bawah (Bottom Bar): Home, Surah, Bookmark, Pengaturan
+- Layar Bookmark Quran:
+  - Koleksi bookmark (mis. My Favorite, Daily) dengan jumlah item
+  - Tambah koleksi baru
+  - Ketuk bookmark untuk langsung membuka SurahDetail dan auto-scroll ke ayat target
 - Daftar Surat lengkap
 - Detail Surat:
   - Teks Arab, Latin, dan Terjemahan Indonesia per ayat
@@ -54,6 +59,8 @@ Aplikasi Al-Qur'an berbasis Expo (React Native) untuk membaca daftar surat, deta
      ```
 
 ## Catatan Penggunaan
+- Gunakan bottom bar untuk navigasi cepat: Home, Surah, Bookmark, Pengaturan.
+- Di layar Bookmark, ketuk sebuah item untuk langsung membuka SurahDetail dan aplikasi akan auto-scroll ke ayat target.
 - Di halaman detail surat, pilih Qari melalui dropdown untuk mengubah sumber audio.
 - Gunakan tombol kontrol audio (Putar Surat/Sebelumnya/Berikutnya/Hentikan) untuk kendali pemutaran.
 - Tekan "Lihat Tafsir Ayat N" untuk membuka tafsir yang dipaginasi; gunakan tombol "Halaman Sebelumnya/Berikutnya" untuk navigasi konten, dan tombol "Sebelumnya/Berikutnya" untuk pindah ke ayat lain.
@@ -76,9 +83,11 @@ npx eas build -p android --profile android-production --non-interactive
 
 File artefak akan tersedia di dashboard Expo (EAS) dan diunduh ke folder `dist/` oleh skrip otomatis.
 
-### Catatan Rilis (1.0.0)
-- Rilis awal ALQURANKU dengan fitur utama Qur'an, Doa, Hadits, dan Kalender Hijriyah
-- Perbaikan tampilan logo di HomeScreen (fallback otomatis)
+### Catatan Rilis (1.1.0)
+- Bottom bar diperbarui: Home, Surah, Bookmark, Pengaturan (Doa & Hadits tidak lagi ditempatkan di bottom bar)
+- Penambahan layar Bookmark Quran dan integrasi navigasi dari SurahList serta Settings
+- Fitur auto-scroll ke ayat saat membuka dari bookmark
+- Perbaikan error: penutupan fungsi komponen SurahDetail (brace) dan infinite re-render pada status player
 - Peningkatan stabilitas
 
 ## UI Kit (Atomic Design)

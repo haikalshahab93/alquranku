@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme } from '../ui';
+import { theme } from '../../ui';
 
 // Konversi Gregorian -> Julian Day Number (JDN)
 function gregorianToJDN(y, m, d) {

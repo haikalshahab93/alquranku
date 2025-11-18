@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { theme } from '../ui';
+import { theme } from '../../ui';
+import { getHaditsPerawiNomor } from '../../api/hadits'
 
 export default function HaditsPerawiEntryScreen({ route, navigation }) {
   const { slug, name } = route.params || {};

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share } from 'react-native';
-import { getSuratList, getSuratDetail } from '../api/quran';
+import { getSuratList, getSuratDetail } from '../../api/quran';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme } from '../ui';
+import { theme, GradientCard } from '../../ui';
+// Using dynamic import('docx') inside handleDownloadSurah for web only; remove static import to avoid Metro resolution error on native/web bundling
 
 const QARI_LABELS = {
   alafasy: 'Al-Afasy',
@@ -22,6 +23,8 @@ export default function SurahListScreen({ navigation }) {
   const [details, setDetails] = useState({});
   const [loadingDetail, setLoadingDetail] = useState({});
   const [page, setPage] = useState(0);
+  const [lastRead, setLastRead] = useState(null);
+  const [activeTab, setActiveTab] = useState('surah');
   const [expandedNames, setExpandedNames] = useState({});
   const [playingNomor, setPlayingNomor] = useState(null);
   const [playingAyahIndex, setPlayingAyahIndex] = useState(null);
@@ -74,6 +77,18 @@ export default function SurahListScreen({ navigation }) {
     fetchList();
   }, []);
 
+  // Load last read meta for header card
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('last_read');
+        if (raw) {
+          const obj = JSON.parse(raw);
+          setLastRead(obj);
+        }
+      } catch {}
+    })();
+  }, []);
   const filteredSurahs = surahs.filter((s) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
@@ -243,36 +258,95 @@ export default function SurahListScreen({ navigation }) {
         const det = details[nomor] || await getSuratDetail(nomor);
         const name = det?.namaLatin || det?.nama_latin || `Surah ${nomor}`;
         const safeName = String(name).replace(/[^a-zA-Z0-9\- _()]/g, '');
-        const fileName = `${safeName}-${nomor}.txt`;
-        const header = `${name} (${det?.nama ?? ''})\n${det?.arti ?? ''} • ${(det?.jumlahAyat ?? det?.jumlah_ayat) ?? ''} ayat\nTempat turun: ${(det?.tempatTurun ?? det?.tempat_turun) ?? ''}`;
-        const body = Array.isArray(det?.ayat) ? det.ayat.map((a, idx) => {
-          const n = a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : idx + 1);
-          const arab = a?.teksArab ?? a?.teks_arab ?? '';
-          const latinT = a?.teksLatin ?? a?.teks_latin ?? '';
-          const indo = a?.teksTerjemahan ?? a?.teks_terjemahan ?? a?.teksIndonesia ?? '';
-          return `\n\nAyat ${n}:\n${arab}\n${latinT}\n${indo}`;
-        }).join('') : '';
-        const text = `${header}\n${body}\n`;
+        const fileNameBase = `${safeName}-${nomor}`;
+        const headerTitle = `${name} (${det?.nama ?? ''})`;
+        const headerMeta = `${det?.arti ?? ''} • ${(det?.jumlahAyat ?? det?.jumlah_ayat) ?? ''} ayat • Tempat turun: ${(det?.tempatTurun ?? det?.tempat_turun) ?? ''}`;
+    
         if (Platform.OS === 'web') {
-          const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } else {
-          await Share.share({ title: fileName, message: text });
-        }
+          try {
+            const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import('docx');
+             const doc = new Document({
+               sections: [
+                 {
+                   properties: {},
+                   children: [
+                     new Paragraph({ text: headerTitle, heading: HeadingLevel.TITLE }),
+                     new Paragraph({ text: headerMeta }),
+                     ...Array.isArray(det?.ayat)
+                       ? det.ayat.map((a, idx) => {
+                           const n = a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : idx + 1);
+                           const arab = a?.teksArab ?? a?.teks_arab ?? '';
+                           const latinT = a?.teksLatin ?? a?.teks_latin ?? '';
+                           const indo = a?.teksTerjemahan ?? a?.teks_terjemahan ?? a?.teksIndonesia ?? '';
+                           return [
+                             new Paragraph({ text: `Ayat ${n}`, heading: HeadingLevel.HEADING_2 }),
+                             new Paragraph({ children: [new TextRun({ text: arab })] }),
+                             new Paragraph({ children: [new TextRun({ text: latinT })] }),
+                             new Paragraph({ children: [new TextRun({ text: indo })] }),
+                             new Paragraph({ text: '' }),
+                           ];
+                         }).flat()
+                       : [],
+                   ],
+                 },
+               ],
+             });
+             const blob = await Packer.toBlob(doc);
+             const url = URL.createObjectURL(blob);
+             const a = document.createElement('a');
+             a.href = url;
+             a.download = `${fileNameBase}.docx`;
+             document.body.appendChild(a);
+             a.click();
+             document.body.removeChild(a);
+             URL.revokeObjectURL(url);
+           } catch (err) {
+             // Fallback jika import docx gagal: unduh sebagai .txt
+             const body = Array.isArray(det?.ayat)
+               ? det.ayat
+                   .map((a, idx) => {
+                     const n = a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : idx + 1);
+                     const arab = a?.teksArab ?? a?.teks_arab ?? '';
+                     const latinT = a?.teksLatin ?? a?.teks_latin ?? '';
+                     const indo = a?.teksTerjemahan ?? a?.teks_terjemahan ?? a?.teksIndonesia ?? '';
+                     return `\n\nAyat ${n}:\n${arab}\n${latinT}\n${indo}`;
+                   })
+                   .join('')
+               : '';
+             const text = `${headerTitle}\n${headerMeta}\n${body}\n`;
+             const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+             const url = URL.createObjectURL(blob);
+             const a = document.createElement('a');
+             a.href = url;
+             a.download = `${fileNameBase}.txt`;
+             document.body.appendChild(a);
+             a.click();
+             document.body.removeChild(a);
+             URL.revokeObjectURL(url);
+           }
+         } else {
+           // Fallback mobile: bagikan teks lengkap
+           const body = Array.isArray(det?.ayat)
+             ? det.ayat
+                 .map((a, idx) => {
+                   const n = a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : idx + 1);
+                   const arab = a?.teksArab ?? a?.teks_arab ?? '';
+                   const latinT = a?.teksLatin ?? a?.teks_latin ?? '';
+                   const indo = a?.teksTerjemahan ?? a?.teks_terjemahan ?? a?.teksIndonesia ?? '';
+                   return `\n\nAyat ${n}:\n${arab}\n${latinT}\n${indo}`;
+                 })
+                 .join('')
+             : '';
+           const text = `${headerTitle}\n${headerMeta}\n${body}\n`;
+           await Share.share({ title: `${fileNameBase}.docx`, message: text });
+         }
       } catch (e) {
         console.warn('Gagal mengunduh/berbagi surat:', e?.message);
       }
     };
 
     return (
-      <View style={styles.item}>
+      <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomor, nama_latin: item.namaLatin || item.nama_latin, namaLatin: item.namaLatin || item.nama_latin })}>
         <View style={styles.itemHeader}>
           <Text style={styles.itemNumber}>{item.nomor}</Text>
           <Text style={styles.itemLatin}>{item.namaLatin || item.nama_latin}</Text>
@@ -314,7 +388,7 @@ export default function SurahListScreen({ navigation }) {
               <View style={styles.previewHeaderRow}>
                 <Text style={styles.expandTitle}>Preview Ayat 1</Text>
                 <TouchableOpacity style={[styles.actionBtn, styles.downloadBtn]} onPress={() => handleDownloadSurah(item.nomor)}>
-                  <Text style={styles.actionText}>Download Surat</Text>
+                  <Text style={styles.actionText}>Download Surat (Word)</Text>
                 </TouchableOpacity>
               </View>
               {firstAyah ? (
@@ -327,12 +401,7 @@ export default function SurahListScreen({ navigation }) {
                 <Text style={styles.expandEmpty}>{details[item.nomor]?.error || 'Tidak ada preview tersedia.'}</Text>
               )}
 
-
-
               <View style={styles.actionsRow}>
-                <TouchableOpacity style={[styles.actionBtn, styles.detailBtn]} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomor, nama_latin: item.namaLatin || item.nama_latin, namaLatin: item.namaLatin || item.nama_latin })}>
-                  <Text style={styles.actionText}>Buka Detail</Text>
-                </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, styles.tafsirBtn]} onPress={() => navigation.navigate('Tafsir', { nomor: item.nomor })}>
                   <Text style={styles.actionText}>Lihat Tafsir</Text>
                 </TouchableOpacity>
@@ -341,7 +410,7 @@ export default function SurahListScreen({ navigation }) {
             </View>
           )
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -368,6 +437,36 @@ export default function SurahListScreen({ navigation }) {
         contentContainerStyle={styles.list}
         ListHeaderComponent={(
           <View style={{ marginBottom: 12 }}>
+            {!!lastRead && (
+              <GradientCard
+                title={lastRead?.namaLatin ? `Last Read\n${lastRead?.namaLatin}` : 'Last Read'}
+                desc={lastRead?.lastAyah ? `Ayah No. ${lastRead.lastAyah}` : undefined}
+                style={{}}
+                showQuran
+                onPress={() => navigation.navigate('SurahDetail', {
+                  nomor: lastRead?.nomor,
+                  nama_latin: lastRead?.namaLatin,
+                  namaLatin: lastRead?.namaLatin,
+                  lastAyah: lastRead?.lastAyah || 1,
+                })}
+              />
+            )}
+
+            <View style={styles.tabsRow}>
+              <TouchableOpacity style={[styles.tabBtn, activeTab === 'surah' && styles.tabBtnActive]} onPress={() => setActiveTab('surah')}>
+                <Text style={[styles.tabText, activeTab === 'surah' && styles.tabTextActive]}>Surah</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tabBtn} onPress={() => {}}>
+                <Text style={styles.tabText}>Para</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tabBtn} onPress={() => {}}>
+                <Text style={styles.tabText}>Page</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tabBtn} onPress={() => navigation.navigate('QuranBookmarks')}>
+                <Text style={styles.tabText}>Bookmark</Text>
+              </TouchableOpacity>
+            </View>
+
             <TextInput
               placeholder="Cari nomor/nama/arti/tempat turun"
               placeholderTextColor="#333"
@@ -407,9 +506,8 @@ const styles = StyleSheet.create({
   searchBox: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', color: '#333', fontWeight: '600', fontSize: 16 },
   item: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12, elevation: 2, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   itemHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  itemNumber: { fontWeight: 'bold', color: '#555', width: 32 },
-  itemLatin: { fontSize: 16, fontWeight: '600', flex: 1, color: '#111' },
-  itemArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: '#111' },
+  itemNumber: { fontWeight: 'bold', color: theme.colors.primaryDark, width: 32, textAlign: 'center', backgroundColor: '#ede9fe', borderRadius: 16, borderWidth: 1, borderColor: theme.colors.primaryLight },
+  itemArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: theme.colors.primary, fontFamily: 'NotoNaskhArabic' },
   itemMeta: { marginTop: 4, color: '#666' },
   infoToggle: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f1f5f9', marginLeft: 8 },
   infoToggleText: { color: '#0f172a', fontWeight: '600' },
@@ -461,4 +559,9 @@ const styles = StyleSheet.create({
   // qariChipActive: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
   // qariChipText: { color: '#333' },
   // qariChipTextActive: { color: '#fff', fontWeight: '600' },
+  tabsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 4 },
+  tabBtn: { paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 2, borderColor: 'transparent' },
+  tabBtnActive: { borderColor: theme.colors.primary },
+  tabText: { color: '#64748b', fontWeight: '700' },
+  tabTextActive: { color: theme.colors.primaryDark },
 });

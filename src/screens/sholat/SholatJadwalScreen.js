@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { getAladhanHarianCity, getAladhanBulananCity, getAladhanQibla } from '../api/aladhan';
+import { getAladhanHarianCity, getAladhanBulananCity, getAladhanQibla } from '../../api/aladhan';
 
 // Helper untuk mendapatkan tanggal hari ini dalam format yyyy-mm-dd (zona waktu lokal)
 const getTodayISO = () => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from 'react-native';
-import { getHaditsPerawiList } from '../api/hadits';
-import { theme } from '../ui';
+import { getHaditsPerawiList } from '../../api/hadits';
+import { theme } from '../../ui';
 
 export default function HaditsPerawiListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);

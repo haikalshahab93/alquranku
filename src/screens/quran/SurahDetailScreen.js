@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Share } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { getSuratDetail, getTafsir } from '../api/quran';
+import { getSuratDetail, getTafsir } from '../../api/quran';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme } from '../ui';
+import { theme } from '../../ui';
+import { LinearGradient } from 'expo-linear-gradient'
+import { Ionicons } from '@expo/vector-icons'
 
 const QARI_LABELS = {
   alafasy: 'Al-Afasy',
@@ -14,6 +16,9 @@ const QARI_LABELS = {
 };
 
 export default function SurahDetailScreen({ route, navigation }) {
+  // Definisi fetchDetail ditempatkan di atas return agar bisa dipanggil dari effect & tombol
+  // (lihat bagian bawah file untuk implementasi fungsinya)
+
   const { nomor, nama_latin, namaLatin } = route.params;
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
@@ -35,10 +40,72 @@ export default function SurahDetailScreen({ route, navigation }) {
   const flatListRef = useRef(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
+  const [bookmarksMap, setBookmarksMap] = useState({});
+  const [activeCollection, setActiveCollection] = useState('My Favorite');
 
   useEffect(() => {
     navigation.setOptions({ title: `${namaLatin ?? nama_latin ?? ''}` });
   }, [namaLatin, nama_latin, navigation]);
+
+  const BOOKMARK_KEY = 'quran_bookmarks';
+  const CURRENT_COLLECTION_KEY = 'quran_bookmarks_active_collection';
+  const loadBookmarks = async () => {
+    try {
+      const colRaw = await AsyncStorage.getItem(CURRENT_COLLECTION_KEY);
+      const col = colRaw || 'My Favorite';
+      setActiveCollection(col);
+
+      const raw = await AsyncStorage.getItem(BOOKMARK_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      let items = [];
+      if (Array.isArray(parsed)) {
+        // migrate array -> collections structure
+        items = parsed;
+        const migrated = { collections: { [col]: items } };
+        await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(migrated));
+      } else if (parsed && typeof parsed === 'object') {
+        const collections = parsed.collections || {};
+        items = Array.isArray(collections[col]) ? collections[col] : [];
+      }
+      const map = {};
+      (Array.isArray(items) ? items : []).forEach((b) => {
+        if (b && b.nomorSurah != null && b.ayahNumber != null) {
+          map[`${b.nomorSurah}-${b.ayahNumber}`] = true;
+        }
+      });
+      setBookmarksMap(map);
+    } catch {
+      setBookmarksMap({});
+    }
+  };
+  useEffect(() => { loadBookmarks(); }, [nomor]);
+  const isBookmarked = (ayahNumber) => !!bookmarksMap[`${nomor}-${ayahNumber}`];
+  const toggleBookmarkAyah = async (ayahNumber) => {
+    try {
+      const colRaw = await AsyncStorage.getItem(CURRENT_COLLECTION_KEY);
+      const col = colRaw || 'My Favorite';
+      const raw = await AsyncStorage.getItem(BOOKMARK_KEY);
+      let data = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(data)) {
+        data = { collections: { [col]: data } };
+      }
+      if (!data || typeof data !== 'object') data = { collections: {} };
+      if (!Array.isArray(data.collections[col])) data.collections[col] = [];
+
+      const arr = data.collections[col];
+      const idx = arr.findIndex((b) => b.nomorSurah === nomor && b.ayahNumber === ayahNumber);
+      const metaNama = detail?.surat?.namaLatin || detail?.surat?.nama_latin || namaLatin || nama_latin || '';
+      let nextArr;
+      if (idx >= 0) {
+        nextArr = [...arr.slice(0, idx), ...arr.slice(idx + 1)];
+      } else {
+        nextArr = [...arr, { nomorSurah: nomor, namaSurah: metaNama, ayahNumber, ts: Date.now(), collection: col }];
+      }
+      data.collections[col] = nextArr;
+      await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(data));
+      await loadBookmarks();
+    } catch {}
+  };
 
   const fetchDetail = async () => {
     try {
@@ -76,6 +143,19 @@ export default function SurahDetailScreen({ route, navigation }) {
     fetchDetail();
   }, [nomor]);
 
+  // Auto scroll ke targetAyah setelah detail tersedia
+  useEffect(() => {
+    const targetAyah = route?.params?.targetAyah;
+    if (targetAyah != null && detail?.ayat?.length > 0) {
+      const idx = detail.ayat.findIndex((it) => (it?.nomorAyat != null ? it.nomorAyat : it?.nomor) === targetAyah);
+      if (typeof idx === 'number' && idx >= 0) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+        }, 200);
+      }
+    }
+  }, [detail, route?.params?.targetAyah]);
+  // Pindahkan pembaruan state player ke dalam effect agar tidak memicu setState saat render
   useEffect(() => {
     if ('playing' in playerStatus) {
       setIsPlaying(!!playerStatus.playing);
@@ -97,8 +177,7 @@ export default function SurahDetailScreen({ route, navigation }) {
         try { player.seekTo(0); } catch {}
       }
     }
-  }, [playerStatus.playing, playerStatus.position, playerStatus.duration]);
-
+  }, [playerStatus.playing, playerStatus.position, playerStatus.duration, detail?.ayat, playingAyahIndex]);
   useEffect(() => {
     (async () => {
       try {
@@ -205,30 +284,75 @@ export default function SurahDetailScreen({ route, navigation }) {
           namaLatin: metaNama,
           lastAyah: (detail?.ayat?.[index]?.nomorAyat || detail?.ayat?.[index]?.nomor_ayat || index + 1),
         }));
-      } catch {}
+      } catch (e) {
+        console.log('Audio error', e);
+      }
     } catch (e) {
-      console.log('Audio error', e);
+      // silent
     }
   };
-
-  const togglePlayPause = async () => {
-    if (playerStatus.playing) {
-      player.pause();
-      setIsPlaying(false);
-    } else {
-      player.play();
-      setIsPlaying(true);
-      // Saat melanjutkan, update last_read ke ayat aktif
+    const togglePlayPause = async () => {
+      if (playerStatus.playing) {
+        player.pause();
+        setIsPlaying(false);
+      } else {
+        player.play();
+        setIsPlaying(true);
+        // Saat melanjutkan, update last_read ke ayat aktif
+        try {
+          const metaNama = detail?.surat?.namaLatin || detail?.surat?.nama_latin || namaLatin || nama_latin || '';
+          await AsyncStorage.setItem('last_read', JSON.stringify({
+            nomor,
+            namaLatin: metaNama,
+            lastAyah: (detail?.ayat?.[playingAyahIndex]?.nomorAyat || detail?.ayat?.[playingAyahIndex]?.nomor_ayat || (playingAyahIndex != null ? playingAyahIndex + 1 : 1)),
+          }));
+        } catch {}
+      }
+    };
+    
+    // Playback controls for header actions
+    const playSurah = async () => {
       try {
-        const metaNama = detail?.surat?.namaLatin || detail?.surat?.nama_latin || namaLatin || nama_latin || '';
-        await AsyncStorage.setItem('last_read', JSON.stringify({
-          nomor,
-          namaLatin: metaNama,
-          lastAyah: (detail?.ayat?.[playingAyahIndex]?.nomorAyat || detail?.ayat?.[playingAyahIndex]?.nomor_ayat || (playingAyahIndex != null ? playingAyahIndex + 1 : 1)),
-        }));
-      } catch {}
-    }
-  };
+        if (!detail?.ayat || detail.ayat.length === 0) return;
+        const startIndex = playingAyahIndex != null ? playingAyahIndex : 0;
+        await playAyah(startIndex);
+      } catch (e) {
+        console.log('playSurah error', e);
+      }
+    };
+    
+    const playNext = async () => {
+      try {
+        if (!detail?.ayat || detail.ayat.length === 0) return;
+        const next = (playingAyahIndex != null ? playingAyahIndex + 1 : 0);
+        if (next < detail.ayat.length) {
+          await playAyah(next);
+        }
+      } catch (e) {
+        console.log('playNext error', e);
+      }
+    };
+    
+    const playPrev = async () => {
+      try {
+        if (!detail?.ayat || detail.ayat.length === 0) return;
+        const prev = (playingAyahIndex != null ? Math.max(0, playingAyahIndex - 1) : 0);
+        await playAyah(prev);
+      } catch (e) {
+        console.log('playPrev error', e);
+      }
+    };
+    
+    const stopPlayback = async () => {
+      try {
+        await stopCurrent();
+        setPlayingAyahId(null);
+        setPlayingAyahIndex(null);
+        setIsPlaying(false);
+      } catch (e) {
+        console.log('stopPlayback error', e);
+      }
+    };
 
   useEffect(() => {
     (async () => {
@@ -265,6 +389,16 @@ export default function SurahDetailScreen({ route, navigation }) {
       try { player.seekTo(0); } catch {}
     };
   }, [player]);
+
+  const shareAyah = async (ayahNumber, arabText, latinText, indoText) => {
+    try {
+      const title = `${detail?.namaLatin ?? detail?.nama_latin} - Ayat ${ayahNumber}`
+      const message = `${title}\n\n${arabText || ''}\n${latinText || ''}\n${indoText || ''}`
+      await Share.share({ title, message })
+    } catch (e) {
+      // silent
+    }
+  }
 
   const renderItem = ({ item, index }) => {
     const isActive = index === playingAyahIndex;
@@ -312,6 +446,7 @@ export default function SurahDetailScreen({ route, navigation }) {
 
     return (
       <View style={[styles.ayat, isActive && styles.ayatActive]}>
+        {/* Tafsir toggle dan konten tafsir tetap seperti sebelumnya */}
         {tafsirForAyah ? (
           <View style={styles.header}>
             <TouchableOpacity
@@ -391,139 +526,30 @@ export default function SurahDetailScreen({ route, navigation }) {
             )}
           </View>
         ) : null}
-        <Text style={styles.ayatNumber}>Ayat {ayahNumber}</Text>
-        {hasAudio && (
-          <TouchableOpacity
-            style={styles.audioBtn}
-            onPress={() => (isActive ? togglePlayPause() : playAyah(index))}
-          >
-            <Text style={styles.audioText}>{isActive ? (isPlaying ? 'Pause' : 'Resume') : `Play Ayat ${ayahNumber}${qariName ? ` - ${qariName}` : ''}`}</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.ayatTopRow}>
+          <View style={styles.numberPill}>
+            <Text style={styles.numberPillText}>{ayahNumber}</Text>
+          </View>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => shareAyah(ayahNumber, arabText, latinText, indoText)}>
+              <Ionicons name="share-social-outline" size={20} color="#6B21A8" />
+            </TouchableOpacity>
+            {hasAudio ? (
+              <TouchableOpacity style={styles.iconBtn} onPress={() => (isActive ? togglePlayPause() : playAyah(index))}>
+                <Ionicons name={isActive && isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={22} color="#6B21A8" />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity style={styles.iconBtn} onPress={() => toggleBookmarkAyah(ayahNumber)}>
+              <Ionicons name={isBookmarked(ayahNumber) ? 'star' : 'star-outline'} size={20} color={isBookmarked(ayahNumber) ? '#f59e0b' : '#6B21A8'} />
+            </TouchableOpacity>
+          </View>
+        </View>
         {arabText ? <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arabText}</Text> : null}
         {latinText ? <Text style={[styles.latin, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{latinText}</Text> : null}
         {indoText ? <Text style={[styles.terjemahan, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{indoText}</Text> : null}
       </View>
     );
   };
-
-  const stopPlayback = async () => {
-    await stopCurrent();
-    setPlayingAyahId(null);
-    setPlayingAyahIndex(null);
-    setIsPlaying(false);
-  };
-
-  const playSurah = () => {
-    if (!detail?.ayat?.length) return;
-    playAyah(0);
-  };
-
-  const playPrev = () => {
-    if (!detail?.ayat?.length) return;
-    const prev = (playingAyahIndex != null ? playingAyahIndex - 1 : detail.ayat.length - 1);
-    if (prev >= 0) {
-      playAyah(prev);
-    }
-  };
-
-  const playNext = () => {
-    if (!detail?.ayat?.length) return;
-    const next = (playingAyahIndex != null ? playingAyahIndex + 1 : 0);
-    if (next < detail.ayat.length) {
-      playAyah(next);
-    }
-  };
-
-  const navigateTafsir = (currentAyah, direction) => {
-    if (!detail?.ayat?.length) return;
-    const total = detail.ayat.length;
-    let target = currentAyah;
-    if (direction === 'prev') target = Math.max(1, currentAyah - 1);
-    if (direction === 'next') target = Math.min(total, currentAyah + 1);
-    setExpandedTafsirAyahs((prev) => ({ ...prev, [currentAyah]: false, [target]: true }));
-    setTafsirPageIndexByAyah((prev) => ({ ...prev, [target]: 0 }));
-    const idx = target - 1;
-    flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 });
-  };
-
-  if (loading && !detail) {
-    return (
-      <View style={styles.center}><ActivityIndicator size="large" /></View>
-    );
-  }
-
-  return (
-    <FlatList
-      ref={flatListRef}
-      data={detail?.ayat}
-      keyExtractor={(item, index) => `${item?.id ?? item?.nomor ?? item?.nomorAyat ?? 'ayah'}-${index}`}
-      renderItem={renderItem}
-      contentContainerStyle={styles.list}
-      initialNumToRender={12}
-      windowSize={10}
-      removeClippedSubviews
-      ListHeaderComponent={() => (
-        <View style={styles.header}>
-          <Text style={styles.title}>{detail?.namaLatin ?? detail?.nama_latin} ({detail?.nama})</Text>
-          <Text style={styles.meta}>{detail?.arti} • {(detail?.jumlahAyat ?? detail?.jumlah_ayat)} ayat • {(detail?.tempatTurun ?? detail?.tempat_turun)}</Text>
-          {fromCacheDetail ? (
-            <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
-          ) : null}
-          {availableQaris.length > 0 && (
-            <View style={styles.qariSection}>
-              <TouchableOpacity style={styles.qariDropdownToggle} onPress={() => setQariDropdownOpen((o) => !o)}>
-                <Text style={styles.qariDropdownText}>Qari: {qariLabelsMap[selectedQari] || selectedQari || 'Pilih'}</Text>
-              </TouchableOpacity>
-              {qariDropdownOpen && (
-                <View style={styles.qariDropdown}>
-                  {availableQaris.filter(Boolean).map((q, i) => (
-                    <TouchableOpacity
-                      key={`${q}-${i}`}
-                      style={[styles.qariOption, selectedQari === q && styles.qariOptionActive]}
-                      onPress={() => { setSelectedQari(q); setQariDropdownOpen(false); }}
-                    >
-                      <Text style={[styles.qariOptionText, selectedQari === q && styles.qariOptionTextActive]}>{qariLabelsMap[q] || q}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-          <View style={styles.controlsRow}>
-            <TouchableOpacity style={[styles.ctrlBtn, styles.playAllBtn]} onPress={playSurah}>
-              <Text style={styles.ctrlText}>Putar Surat</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctrlBtn]} onPress={playPrev}>
-              <Text style={styles.ctrlText}>Sebelumnya</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctrlBtn]} onPress={playNext}>
-              <Text style={styles.ctrlText}>Berikutnya</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctrlBtn, styles.stopBtn]} onPress={stopPlayback}>
-              <Text style={styles.ctrlText}>Hentikan</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctrlBtn]} onPress={fetchDetail}>
-              <Text style={styles.ctrlText}>Refresh</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.fontRow}>
-            <TouchableOpacity style={styles.fontBtn} onPress={decreaseTextScale}>
-              <Text style={styles.fontBtnText}>A-</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.fontBtn} onPress={increaseTextScale}>
-              <Text style={styles.fontBtnText}>A+</Text>
-            </TouchableOpacity>
-            <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
-          </View>
-          <TouchableOpacity style={styles.tafsirBtn} onPress={() => navigation.navigate('Tafsir', { nomor })}>
-            <Text style={styles.tafsirText}>Lihat Tafsir</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    />
-  );
-}
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -584,4 +610,110 @@ const styles = StyleSheet.create({
   fontInfo: { color: '#64748b', fontWeight: '600' },
   cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 8 },
   cacheText: { color: '#92400e', fontWeight: '700' },
+  headerCard: { borderRadius: 16, paddingVertical: 18, paddingHorizontal: 20, marginBottom: 12 },
+  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  headerSubtitle: { color: '#f5f3ff', marginTop: 4, fontSize: 14 },
+  headerMeta: { color: '#ede9fe', marginTop: 6, fontWeight: '700' },
+  basmalah: { color: '#fff', fontSize: 24, textAlign: 'center', marginTop: 12, fontFamily: 'NotoNaskhArabic' },
+  ayatTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  numberPill: { backgroundColor: '#ede9fe', borderColor: '#ddd6fe', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, minWidth: 32, alignItems: 'center' },
+  numberPillText: { color: '#6B21A8', fontWeight: '800' },
+  actionRow: { flexDirection: 'row', alignItems: 'center' },
+  iconBtn: { padding: 8, marginLeft: 4, borderRadius: 999, backgroundColor: '#f5f3ff', borderWidth: 1, borderColor: '#ede9fe' },
 });
+
+
+return (
+  <FlatList
+    ref={flatListRef}
+    data={detail?.ayat}
+    keyExtractor={(item, index) => `${item?.id ?? item?.nomor ?? item?.nomorAyat ?? 'ayah'}-${index}`}
+    renderItem={renderItem}
+    contentContainerStyle={styles.list}
+    initialNumToRender={12}
+    windowSize={10}
+    removeClippedSubviews
+    onScrollToIndexFailed={(info) => {
+      // Coba ulang scroll setelah beberapa saat agar layout sempat terukur
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 });
+      }, 300);
+    }}
+    ListHeaderComponent={() => (
+      <View>
+        <LinearGradient
+          colors={["#8B5CF6", "#A78BFA"]}
+          start={[0, 0]}
+          end={[1, 1]}
+          style={styles.headerCard}
+        >
+          <Text style={styles.headerTitle}>{detail?.namaLatin ?? detail?.nama_latin}</Text>
+          <Text style={styles.headerSubtitle}>{detail?.arti}</Text>
+          <Text style={styles.headerMeta}>{`${(detail?.tempatTurun ?? detail?.tempat_turun)?.toUpperCase()} • ${(detail?.jumlahAyat ?? detail?.jumlah_ayat)} AYAT`}</Text>
+          {nomor !== 9 ? (
+            <Text style={styles.basmalah}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>
+          ) : null}
+        </LinearGradient>
+
+        <View style={styles.header}>
+          {fromCacheDetail ? (
+            <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+          ) : null}
+          {availableQaris.length > 0 && (
+            <View style={styles.qariSection}>
+              <TouchableOpacity style={styles.qariDropdownToggle} onPress={() => setQariDropdownOpen((o) => !o)}>
+                <Text style={styles.qariDropdownText}>Qari: {qariLabelsMap[selectedQari] || selectedQari || 'Pilih'}</Text>
+              </TouchableOpacity>
+              {qariDropdownOpen && (
+                <View style={styles.qariDropdown}>
+                  {availableQaris.filter(Boolean).map((q, i) => (
+                    <TouchableOpacity
+                      key={`${q}-${i}`}
+                      style={[styles.qariOption, selectedQari === q && styles.qariOptionActive]}
+                      onPress={() => { setSelectedQari(q); setQariDropdownOpen(false); }}
+                    >
+                      <Text style={[styles.qariOptionText, selectedQari === q && styles.qariOptionTextActive]}>{qariLabelsMap[q] || q}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+          <View style={styles.controlsRow}>
+            <TouchableOpacity style={[styles.ctrlBtn, styles.playAllBtn]} onPress={playSurah}>
+              <Text style={styles.ctrlText}>Putar Surat</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ctrlBtn]} onPress={playPrev}>
+              <Text style={styles.ctrlText}>Sebelumnya</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ctrlBtn]} onPress={playNext}>
+              <Text style={styles.ctrlText}>Berikutnya</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ctrlBtn, styles.stopBtn]} onPress={stopPlayback}>
+              <Text style={styles.ctrlText}>Hentikan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ctrlBtn]} onPress={fetchDetail}>
+              <Text style={styles.ctrlText}>Refresh</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.ctrlBtn]} onPress={() => navigation.navigate('QuranBookmarks')}>
+              <Text style={styles.ctrlText}>Bookmarks</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.fontRow}>
+            <TouchableOpacity style={styles.fontBtn} onPress={decreaseTextScale}>
+              <Text style={styles.fontBtnText}>A-</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.fontBtn} onPress={increaseTextScale}>
+              <Text style={styles.fontBtnText}>A+</Text>
+            </TouchableOpacity>
+            <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
+          </View>
+          <TouchableOpacity style={styles.tafsirBtn} onPress={() => navigation.navigate('Tafsir', { nomor })}>
+            <Text style={styles.tafsirText}>Lihat Tafsir</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )}
+  />
+);
+}

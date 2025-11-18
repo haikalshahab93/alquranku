@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { GradientCard, PurpleButton, OutlineLightButton, theme } from '../ui';
+import { GradientCard, PurpleButton, OutlineLightButton, FeatureTile, theme } from '../ui';
 
 function Card({ title, desc, onPress }) {
   return (
@@ -73,43 +73,36 @@ export default function HomeScreen({ navigation }) {
       )}
 
       <View style={styles.list}>
-        <Card
-          title="Daftar Surah"
-          desc="Baca mushaf per surah"
+        <FeatureTile
+          title="Surah"
+          icon="book-outline"
           onPress={() => navigation.navigate('SurahList')}
         />
-        <Card
-          title="Daftar Doa"
-          desc="Kumpulan doa harian lengkap"
+        <FeatureTile
+          title="Doa"
+          icon="heart-outline"
           onPress={() => navigation.navigate('DoaList')}
         />
-        <Card
-          title="Koleksi Hadits"
-          desc="Arba’in, Bulughul Maram, dan 9 Perawi"
+        <FeatureTile
+          title="Hadits"
+          icon="reader-outline"
           onPress={() => navigation.navigate('HaditsMenu')}
         />
         {/* Jadwal Sholat disembunyikan sementara */}
-        {/* <Card
-          title="Jadwal Sholat"
-          desc="Jadwal harian & bulanan"
-          onPress={() => navigation.navigate('SholatJadwal')}
-        /> */}
-        <Card
-          title="Kalender Hijriyah"
-          desc="Konversi tanggal dan kalender"
+        {/* <FeatureTile title="Sholat" icon="time-outline" onPress={() => navigation.navigate('SholatJadwal')} /> */}
+        <FeatureTile
+          title="Hijriyah"
+          icon="calendar-outline"
           onPress={() => navigation.navigate('HijriCalendar')}
         />
-        {/* Asisten LLM disembunyikan sementara */}
-        {/* <Card
-          title="Asisten LLM"
-          desc="Tanya jawab surah, tafsir, doa, hadits (demo)"
-          onPress={() => navigation.navigate('LLMChat')}
-        /> */}
-        <Card
-          title="Pengaturan"
-          desc="Manajemen cache offline"
-          onPress={() => navigation.navigate('Settings')}
+        <FeatureTile
+          title="Kiblat"
+          icon="compass-outline"
+          onPress={() => navigation.navigate('Qibla')}
         />
+        {/* Asisten LLM disembunyikan sementara */}
+        {/* <FeatureTile title="Asisten" icon="chatbubble-ellipsis-outline" onPress={() => navigation.navigate('LLMChat')} /> */}
+        {/* Pengaturan dihapus dari Home sesuai permintaan */}
       </View>
 
       {/* Footer disembunyikan */}
@@ -123,7 +116,7 @@ const styles = StyleSheet.create({
   logo: { width: 48, height: 48, marginRight: 8 },
   title: { fontSize: 24, fontWeight: '800', color: '#111', textAlign: 'center' },
   subtitle: { color: '#64748b', marginTop: 4, marginBottom: 16, textAlign: 'center' },
-  list: { flexDirection: 'column' },
+  list: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' },
   card: { padding: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, marginBottom: 14 },
   cardBg: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e9d5ff' },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#1f2937' },

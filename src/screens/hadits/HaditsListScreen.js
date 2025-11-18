@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
-import { getHaditsArbainSemua } from '../api/hadits';
-import { theme } from '../ui';
+import { getHaditsArbainSemua } from '../../api/hadits';
+import { theme } from '../../ui';
 
 function normalizeArray(data) {
   if (Array.isArray(data)) return data;
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12 },
   title: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
   randomBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
-  randomText: { color: '#0ea5e9', fontWeight: '700' },
+  randomText: { color: theme.colors.primary, fontWeight: '700' },
   search: { margin: 16, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#0f172a', backgroundColor: '#fff' },
   list: { padding: 16 },
   item: { padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },

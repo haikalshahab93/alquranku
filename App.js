@@ -4,26 +4,28 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
 import { NotoNaskhArabic_400Regular } from '@expo-google-fonts/noto-naskh-arabic';
 import HomeScreen from './src/screens/HomeScreen';
-import DoaListScreen from './src/screens/DoaListScreen';
-import DoaDetailScreen from './src/screens/DoaDetailScreen';
-import HaditsMenuScreen from './src/screens/HaditsMenuScreen';
-import HaditsListScreen from './src/screens/HaditsListScreen';
-import HaditsDetailScreen from './src/screens/HaditsDetailScreen';
-import HaditsPerawiListScreen from './src/screens/HaditsPerawiListScreen';
-import HaditsPerawiEntryScreen from './src/screens/HaditsPerawiEntryScreen';
-import HaditsBmEntryScreen from './src/screens/HaditsBmEntryScreen';
-import SholatJadwalScreen from './src/screens/SholatJadwalScreen';
-import HijriCalendarScreen from './src/screens/HijriCalendarScreen';
-import SurahListScreen from './src/screens/SurahListScreen';
-import SurahDetailScreen from './src/screens/SurahDetailScreen';
-import TafsirScreen from './src/screens/TafsirScreen';
-import LLMChatScreen from './src/screens/LLMChatScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
-import OnboardingScreen from './src/screens/OnboardingScreen';
-import LoginScreen from './src/screens/LoginScreen';
+import DoaListScreen from './src/screens/doa/DoaListScreen';
+import DoaDetailScreen from './src/screens/doa/DoaDetailScreen';
+import HaditsMenuScreen from './src/screens/hadits/HaditsMenuScreen';
+import HaditsListScreen from './src/screens/hadits/HaditsListScreen';
+import HaditsDetailScreen from './src/screens/hadits/HaditsDetailScreen';
+import HaditsPerawiListScreen from './src/screens/hadits/HaditsPerawiListScreen';
+import HaditsPerawiEntryScreen from './src/screens/hadits/HaditsPerawiEntryScreen';
+import HaditsBmEntryScreen from './src/screens/hadits/HaditsBmEntryScreen';
+import SholatJadwalScreen from './src/screens/sholat/SholatJadwalScreen';
+import HijriCalendarScreen from './src/screens/calendar/HijriCalendarScreen';
+import SurahListScreen from './src/screens/quran/SurahListScreen';
+import SurahDetailScreen from './src/screens/quran/SurahDetailScreen';
+import TafsirScreen from './src/screens/quran/TafsirScreen';
+import LLMChatScreen from './src/screens/llm/LLMChatScreen';
+import SettingsScreen from './src/screens/settings/SettingsScreen';
+import OnboardingScreen from './src/screens/auth/OnboardingScreen';
+import LoginScreen from './src/screens/auth/LoginScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import QiblaScreen from './src/screens/qibla/QiblaScreen';
+import QuranBookmarksScreen from './src/screens/quran/QuranBookmarksScreen';
 
 
 // Minimal internal navigator for web preview tanpa react-navigation
@@ -77,10 +79,11 @@ export default function App() {
     );
   }
 
+  // Update daftar halaman top-level untuk tombol back di header
   const Header = () => (
     <View style={styles.header}>
       {(() => {
-        const topLevel = new Set(['Home', 'SurahList', 'DoaList', 'HaditsMenu', 'Settings']);
+        const topLevel = new Set(['Home', 'SurahList', 'QuranBookmarks', 'Settings']);
         const showBack = stack.length > 1 && !topLevel.has(current.name);
         if (showBack) {
           return (
@@ -163,6 +166,9 @@ export default function App() {
     case 'HijriCalendar':
       ScreenEl = <HijriCalendarScreen navigation={navigation} />;
       break;
+    case 'Qibla':
+      ScreenEl = <QiblaScreen navigation={navigation} />;
+      break;
     case 'LLMChat':
       // Sembunyikan sementara Asisten LLM
       ScreenEl = (
@@ -177,6 +183,9 @@ export default function App() {
     case 'Settings':
       ScreenEl = <SettingsScreen navigation={navigation} />;
       break;
+    case 'QuranBookmarks':
+      ScreenEl = <QuranBookmarksScreen navigation={navigation} />;
+      break;
     default:
       ScreenEl = (
         <View style={styles.center}>
@@ -188,6 +197,7 @@ export default function App() {
       );
   }
 
+  // Bottom navigation: tambahkan Bookmark, hilangkan Doa & Hadits
   const BottomNav = () => (
     <View style={styles.bottomNav}>
       <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
@@ -198,13 +208,9 @@ export default function App() {
         <FontAwesome5 name="book-open" size={18} color={current.name === 'SurahList' || current.name === 'SurahDetail' ? '#8b5cf6' : '#64748b'} />
         <Text style={[styles.navText, (current.name !== 'SurahList' && current.name !== 'SurahDetail') && { color: '#64748b' }]}>Surah</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('DoaList')}>
-        <FontAwesome5 name="hands" size={18} color={current.name === 'DoaList' || current.name === 'DoaDetail' ? '#8b5cf6' : '#64748b'} />
-        <Text style={[styles.navText, (current.name !== 'DoaList' && current.name !== 'DoaDetail') && { color: '#64748b' }]}>Doa</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('HaditsMenu')}>
-        <FontAwesome5 name="scroll" size={18} color={current.name.startsWith('Hadits') ? '#8b5cf6' : '#64748b'} />
-        <Text style={[styles.navText, (!current.name.startsWith('Hadits')) && { color: '#64748b' }]}>Hadits</Text>
+      <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('QuranBookmarks')}>
+        <FontAwesome5 name="bookmark" size={18} color={current.name === 'QuranBookmarks' ? '#8b5cf6' : '#64748b'} />
+        <Text style={[styles.navText, current.name !== 'QuranBookmarks' && { color: '#64748b' }]}>Bookmark</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
         <FontAwesome5 name="cog" size={18} color={current.name === 'Settings' ? '#8b5cf6' : '#64748b'} />

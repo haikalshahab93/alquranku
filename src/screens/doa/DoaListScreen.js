@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
-import { getDoaList } from '../api/doa';
-import { theme } from '../ui';
+import { getDoaList } from '../../api/doa';
+import { theme } from '../../ui';
 
 function normalizeArray(data) {
   if (Array.isArray(data)) return data;

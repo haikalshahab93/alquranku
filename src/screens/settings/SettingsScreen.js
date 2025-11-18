@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../ui';
+import { theme } from '../../ui';
 
 const PREFIXES = {
   quran: 'cache:quran:',
@@ -36,7 +36,7 @@ async function clearPrefix(prefix) {
   }
 }
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ quran: { count: 0, bytes: 0 }, doa: { count: 0, bytes: 0 }, hadits: { count: 0, bytes: 0 } });
   const [message, setMessage] = useState('');
@@ -78,6 +78,19 @@ export default function SettingsScreen() {
     refreshStats();
   };
 
+  const logout = async () => {
+    try {
+      await AsyncStorage.removeItem('loggedIn');
+      navigation.navigate('Menu');
+    } catch {}
+  };
+  const skip = () => {
+    navigation.navigate('Menu');
+  };
+  const openBookmarks = () => {
+    navigation.navigate('QuranBookmarks');
+  };
+
   const formatMB = (bytes) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 
   return (
@@ -109,6 +122,17 @@ export default function SettingsScreen() {
         <TouchableOpacity style={[styles.btn, styles.btnHadits]} onPress={clearHadits}><Text style={styles.btnText}>Clear Hadits Cache</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btn, styles.btnAll]} onPress={clearAll}><Text style={styles.btnText}>Clear Semua Cache</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btn, styles.btnRefresh]} onPress={refreshStats}><Text style={styles.btnText}>Refresh Statistik</Text></TouchableOpacity>
+        <View style={{ marginTop: 16 }}>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]} onPress={logout}>
+            <Text style={[styles.btnText, { color: '#B91C1C' }]}>Logout</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: '#EDE9FE', borderColor: '#DDD6FE' }]} onPress={skip}>
+            <Text style={[styles.btnText, { color: '#6B21A8' }]}>Lewati</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]} onPress={openBookmarks}>
+            <Text style={[styles.btnText, { color: '#065F46' }]}>Buka Bookmark Qur'an</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { theme } from '../ui';
+import { theme } from '../../ui';
+import { getHaditsBmNomor } from '../../api/hadits'
 
 export default function HaditsBmEntryScreen({ navigation }) {
   const [nomor, setNomor] = useState('');

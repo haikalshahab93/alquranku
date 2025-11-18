@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import { chatLLM } from '../api/llm';
-import { theme } from '../ui';
+import { chatLLM } from '../../api/llm';
+import { theme } from '../../ui';
 
 export default function LLMChatScreen() {
   const [messages, setMessages] = useState([

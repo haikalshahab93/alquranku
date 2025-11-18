@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { theme } from '../ui';
+import { theme } from '../../ui';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');

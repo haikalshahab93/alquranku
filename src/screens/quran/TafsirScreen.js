@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { getTafsir } from '../api/quran';
-import { theme } from '../ui';
+import { getTafsir } from '../../api/quran';
+import { theme } from '../../ui';
 
 export default function TafsirScreen({ route }) {
   const { nomor } = route.params;
