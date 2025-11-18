@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { chatLLM } from '../api/llm';
+import { theme } from '../ui';
 
 export default function LLMChatScreen() {
   const [messages, setMessages] = useState([
@@ -65,11 +66,11 @@ const styles = StyleSheet.create({
   chat: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12 },
   chatInner: { padding: 12 },
   bubble: { maxWidth: '90%', borderRadius: 12, padding: 10, marginBottom: 10 },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: '#0ea5e9' },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: theme.colors.primary },
   assistantBubble: { alignSelf: 'flex-start', backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
   bubbleText: { color: '#111' },
   inputRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   input: { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8 },
-  sendBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: '#0ea5e9' },
+  sendBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: theme.colors.primaryDark },
   sendText: { color: '#fff', fontWeight: '700' },
 });

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import { theme } from '../ui';
 
 const PREFIXES = {
   quran: 'cache:quran:',
@@ -125,14 +126,14 @@ const styles = StyleSheet.create({
   statValue: { color: '#334155' },
   actions: { marginTop: 12 },
   btn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f1f5f9', marginBottom: 8 },
-  btnText: { color: '#0ea5e9', fontWeight: '700', textAlign: 'center' },
+  btnText: { color: theme.colors.primary, fontWeight: '700', textAlign: 'center' },
   btnQuran: {},
   btnDoa: {},
   btnHadits: {},
   btnAll: { backgroundColor: '#fff8', borderColor: '#fde68a' },
   btnRefresh: {},
-  messageBox: { marginTop: 8, backgroundColor: '#ecfeff', borderColor: '#bae6fd', borderWidth: 1, borderRadius: 8, padding: 8 },
-  messageText: { color: '#0284c7', fontWeight: '600' },
+  messageBox: { marginTop: 8, backgroundColor: '#ede9fe', borderColor: theme.colors.primaryLight, borderWidth: 1, borderRadius: 8, padding: 8 },
+  messageText: { color: theme.colors.primaryDark, fontWeight: '600' },
   hero: { borderRadius: 16, padding: 16, marginBottom: 12 },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heroTextBox: { flex: 1 },

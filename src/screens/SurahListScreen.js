@@ -3,6 +3,7 @@ import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, 
 import { getSuratList, getSuratDetail } from '../api/quran';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { theme } from '../ui';
 
 const QARI_LABELS = {
   alafasy: 'Al-Afasy',
@@ -428,13 +429,13 @@ const styles = StyleSheet.create({
   actionBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginRight: 8, marginBottom: 8, backgroundColor: '#374151' },
   detailBtn: { backgroundColor: '#6366f1' },
   tafsirBtn: { backgroundColor: '#10b981' },
-  downloadBtn: { backgroundColor: '#0ea5e9' },
+  downloadBtn: { backgroundColor: theme.colors.primaryDark },
   actionText: { color: '#fff', fontWeight: '600' },
   previewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   pagerBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', marginHorizontal: 8 },
   pagerBtnDisabled: { opacity: 0.5 },
-  pagerText: { color: '#0ea5e9', fontWeight: '700' },
+  pagerText: { color: theme.colors.primary, fontWeight: '700' },
   pageInfoRow: { marginTop: 8, alignItems: 'center' },
   pageInfo: { color: '#666', textAlign: 'center', fontWeight: '600' },
   footerRow: { marginTop: 12, alignItems: 'center' },

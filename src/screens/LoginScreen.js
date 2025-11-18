@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { theme } from '../ui';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, paddingHorizontal: 8, paddingVertical: 12, color: '#0f172a', fontSize: 16 },
   eyeBtn: { paddingHorizontal: 12, paddingVertical: 10 },
 
-  btn: { backgroundColor: '#0ea5e9', borderRadius: 10, paddingVertical: 12, alignItems: 'center', shadowColor: '#0ea5e9', shadowOpacity: 0.25, shadowRadius: 6 },
+  btn: { backgroundColor: theme.colors.primaryDark, borderRadius: 10, paddingVertical: 12, alignItems: 'center', shadowColor: theme.colors.primaryDark, shadowOpacity: 0.25, shadowRadius: 6 },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 
   forgotBtn: { marginTop: 10, alignItems: 'center' },

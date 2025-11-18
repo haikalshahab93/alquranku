@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
 import { getDoaList } from '../api/doa';
+import { theme } from '../ui';
 
 function normalizeArray(data) {
   if (Array.isArray(data)) return data;
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12 },
   title: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
   randomBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
-  randomText: { color: '#0ea5e9', fontWeight: '700' },
+  randomText: { color: theme.colors.primary, fontWeight: '700' },
   search: { margin: 16, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#0f172a', backgroundColor: '#fff' },
   list: { padding: 16 },
   card: { flex: 1, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
   pagerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   pagerBtn: { flex: 1, paddingVertical: 10, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, backgroundColor: '#fff', marginHorizontal: 8 },
   pagerBtnDisabled: { opacity: 0.5 },
-  pagerText: { textAlign: 'center', fontWeight: '700', color: '#0ea5e9' },
+  pagerText: { textAlign: 'center', fontWeight: '700', color: theme.colors.primary },
   cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginHorizontal: 16 },
   cacheText: { color: '#92400e', fontWeight: '700' },
 });

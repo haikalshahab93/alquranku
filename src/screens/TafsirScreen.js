@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { getTafsir } from '../api/quran';
+import { theme } from '../ui';
 
 export default function TafsirScreen({ route }) {
   const { nomor } = route.params;
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
   // Navigasi per ayat agar halaman pendek
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   navBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9' },
-  navText: { color: '#0ea5e9', fontWeight: '600' },
+  navText: { color: theme.colors.primary, fontWeight: '600' },
   navTextDisabled: { color: '#94a3b8' },
   ayatLabel: { fontSize: 16, fontWeight: '700', color: '#334155' },
   contentBox: { backgroundColor: '#fff', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb' },

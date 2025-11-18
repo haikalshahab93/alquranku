@@ -8,6 +8,7 @@ import {
   getHaditsPerawiNomor,
   getHaditsPerawiAcak,
 } from '../api/hadits';
+import { theme } from '../ui';
 
 function pickFields(payload) {
   const p = payload?.data ?? payload;
@@ -163,14 +164,14 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   container: { padding: 16, backgroundColor: '#fff' },
   navRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, marginBottom: 12 },
-  ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#0ea5e9', marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
+  ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.primaryDark, marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
   ctrlBtnDisabled: { backgroundColor: '#e2e8f0' },
   ctrlText: { color: '#fff', fontWeight: '600' },
   ctrlTextDisabled: { color: '#64748b' },
   // Kontrol ukuran font (serasi dengan SurahDetail)
   fontRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   fontBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#f1f5f9', marginRight: 8 },
-  fontBtnText: { fontWeight: '700', color: '#0ea5e9' },
+  fontBtnText: { fontWeight: '700', color: theme.colors.primary },
   fontInfo: { color: '#64748b' },
   title: { fontSize: 20, fontWeight: '700', color: '#111' },
   perawi: { color: '#666', marginTop: 4 },

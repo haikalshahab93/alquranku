@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { theme } from '../ui';
 
 const { width } = Dimensions.get('window');
 
@@ -60,10 +61,10 @@ export default function OnboardingScreen({ navigation }) {
         {slides.map((s, i) => (
           <View key={i} style={[styles.slide, { width }]}> 
             {/* icon area */}
-            <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#f0f9ff', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              {i === 0 && <FontAwesome5 name="book-open" size={48} color="#0ea5e9" />}
-              {i === 1 && <FontAwesome5 name="hands" size={48} color="#0ea5e9" />}
-              {i === 2 && <FontAwesome5 name="calendar" size={48} color="#0ea5e9" />}
+            <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              {i === 0 && <FontAwesome5 name="book-open" size={48} color={theme.colors.primary} />}
+              {i === 1 && <FontAwesome5 name="hands" size={48} color={theme.colors.primary} />}
+              {i === 2 && <FontAwesome5 name="calendar" size={48} color={theme.colors.primary} />}
             </View>
             <Text style={styles.title}>{s.title}</Text>
             <Text style={styles.desc}>{s.desc}</Text>
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
   skipText: { color: '#64748b', fontWeight: '700' },
   dots: { flexDirection: 'row', alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 8, backgroundColor: '#e2e8f0', marginHorizontal: 4 },
-  dotActive: { backgroundColor: '#0ea5e9' },
-  nextBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#0ea5e9' },
+  dotActive: { backgroundColor: theme.colors.primary },
+  nextBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.primaryDark },
   nextText: { color: '#fff', fontWeight: '700' },
 });
