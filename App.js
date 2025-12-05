@@ -26,6 +26,9 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import QiblaScreen from './src/screens/qibla/QiblaScreen';
 import QuranBookmarksScreen from './src/screens/quran/QuranBookmarksScreen';
+import UserScreen from './src/screens/auth/UserScreen';
+import UlamaListScreen from './src/screens/ulama/UlamaListScreen'
+import UlamaDetailScreen from './src/screens/ulama/UlamaDetailScreen'
 
 
 // Minimal internal navigator for web preview tanpa react-navigation
@@ -33,6 +36,7 @@ export default function App() {
   const [initialResolved, setInitialResolved] = useState(false);
   const [stack, setStack] = useState([{ name: 'Home', params: null }]);
   const current = stack[stack.length - 1];
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -41,9 +45,12 @@ export default function App() {
         const logged = await AsyncStorage.getItem('loggedIn');
         if (!done) {
           setStack([{ name: 'Onboarding', params: null }]);
-        } else if (!logged) {
-          setStack([{ name: 'Login', params: null }]);
+        } else {
+          // Selalu langsung ke Home setelah onboarding selesai, tanpa menampilkan Login
+          setStack([{ name: 'Home', params: null }]);
         }
+        // Pastikan status login tersinkronisasi untuk menampilkan tab User dan layar User
+        setIsLoggedIn(!!logged);
       } catch {}
       setInitialResolved(true);
     })();
@@ -58,6 +65,16 @@ export default function App() {
     },
     setOptions: () => {},
   }), []);
+  
+  // Sinkronkan isLoggedIn setiap ada perubahan stack (misal setelah Login berhasil)
+  useEffect(() => {
+    (async () => {
+      try {
+        const logged = await AsyncStorage.getItem('loggedIn');
+        setIsLoggedIn(!!logged);
+      } catch {}
+    })();
+  }, [stack]);
 
   const [fontsLoaded] = useFonts({
     Inter: Inter_400Regular,
@@ -83,7 +100,7 @@ export default function App() {
   const Header = () => (
     <View style={styles.header}>
       {(() => {
-        const topLevel = new Set(['Home', 'SurahList', 'QuranBookmarks', 'Settings']);
+        const topLevel = new Set(['Home', 'SurahList', 'QuranBookmarks', 'Settings', 'User']);
         const showBack = stack.length > 1 && !topLevel.has(current.name);
         if (showBack) {
           return (
@@ -113,7 +130,15 @@ export default function App() {
       ScreenEl = <OnboardingScreen navigation={navigation} />;
       break;
     case 'Login':
-      ScreenEl = <LoginScreen navigation={navigation} />;
+      // Sembunyikan layar Login sepenuhnya (bypass)
+      ScreenEl = (
+        <View style={styles.center}>
+          <Text>Layar Login dibypass. Gunakan Home.</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backLink}>
+            <Text style={styles.backText2}>Ke Home</Text>
+          </TouchableOpacity>
+        </View>
+      );
       break;
     case 'Home':
       ScreenEl = <HomeScreen navigation={navigation} />;
@@ -152,19 +177,16 @@ export default function App() {
       ScreenEl = <HaditsBmEntryScreen navigation={navigation} route={{ params: current.params }} />;
       break;
     case 'SholatJadwal':
-      // ScreenEl = <SholatJadwalScreen navigation={navigation} />;
-      // Sembunyikan sementara fitur Jadwal Sholat
-      ScreenEl = (
-        <View style={styles.center}>
-          <Text>Fitur Jadwal Sholat disembunyikan sementara.</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
-            <Text style={styles.backText2}>Kembali</Text>
-          </TouchableOpacity>
-        </View>
-      );
+      ScreenEl = <SholatJadwalScreen navigation={navigation} />;
       break;
     case 'HijriCalendar':
       ScreenEl = <HijriCalendarScreen navigation={navigation} />;
+      break;
+    case 'UlamaList':
+      ScreenEl = <UlamaListScreen navigation={navigation} />;
+      break;
+    case 'UlamaDetail':
+      ScreenEl = <UlamaDetailScreen navigation={navigation} route={{ params: current.params }} />;
       break;
     case 'Qibla':
       ScreenEl = <QiblaScreen navigation={navigation} />;
@@ -185,6 +207,10 @@ export default function App() {
       break;
     case 'QuranBookmarks':
       ScreenEl = <QuranBookmarksScreen navigation={navigation} />;
+      break;
+    case 'User':
+      // Bypass login: selalu tampilkan UserScreen meskipun belum login
+      ScreenEl = (<UserScreen navigation={navigation} />);
       break;
     default:
       ScreenEl = (
@@ -212,6 +238,12 @@ export default function App() {
         <FontAwesome5 name="bookmark" size={18} color={current.name === 'QuranBookmarks' ? '#8b5cf6' : '#64748b'} />
         <Text style={[styles.navText, current.name !== 'QuranBookmarks' && { color: '#64748b' }]}>Bookmark</Text>
       </TouchableOpacity>
+      {isLoggedIn && (
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('User')}>
+          <FontAwesome5 name="user" size={18} color={current.name === 'User' ? '#8b5cf6' : '#64748b'} />
+          <Text style={[styles.navText, current.name !== 'User' && { color: '#64748b' }]}>User</Text>
+        </TouchableOpacity>
+      )}
       <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Settings')}>
         <FontAwesome5 name="cog" size={18} color={current.name === 'Settings' ? '#8b5cf6' : '#64748b'} />
         <Text style={[styles.navText, current.name !== 'Settings' && { color: '#64748b' }]}>Pengaturan</Text>
@@ -219,7 +251,7 @@ export default function App() {
     </View>
   );
 
-  const hideBottomNav = current.name === 'Onboarding' || current.name === 'Login';
+  const hideBottomNav = current.name === 'Onboarding';
 
   return (
     <SafeAreaProvider>

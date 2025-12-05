@@ -25,6 +25,109 @@ Aplikasi Al-Qur'an berbasis Expo (React Native) untuk membaca daftar surat, deta
 - Expo (React Native)
 - JavaScript (ES6+)
 
+## Fitur Tambahan: Direktori Ulama
+
+Direktori Ulama ditambahkan dengan pengalaman yang responsif dan nyaman:
+- Responsif: grid 3 kolom (≥1200px), 2 kolom (≥768px), dan 1 kolom di mobile.
+- Paginasi eksplisit dengan tombol "Sebelumnya" dan "Sesudahnya" untuk membatasi konten yang tampil per halaman.
+- Ukuran halaman saat ini: 30 item per halaman (dapat diubah).
+- Pencarian mengembalikan ke halaman pertama.
+- Detail Ulama menangani seluruh nilai teks/empty dengan aman untuk menghindari error "Unexpected text node".
+
+Lokasi terkait:
+- Layar daftar: `src/screens/ulama/UlamaListScreen.js`
+- Layar detail: `src/screens/ulama/UlamaDetailScreen.js`
+- Dataset: `src/data/ulama.json`
+- ETL/alat bantu dataset: `scripts/etl_ulama.py`
+
+## Kalender Hijriah (MyQuran API)
+
+Aplikasi menampilkan kalender Hijriah bulanan menggunakan API MyQuran dan dilengkapi penanganan CORS khusus untuk mode web:
+- Endpoint dasar: `https://api.myquran.com/v2/kalender/hijriah/{tahun}/{bulan}`.
+- Penanganan CORS: mencoba beberapa proxy yang umumnya menyertakan `Access-Control-Allow-Origin: *`.
+  - Primary: `https://api.allorigins.win/raw?url=`
+  - Fallback: `https://corsproxy.io/?`, `https://api.codetabs.com/v1/proxy?quest=`
+- Caching: respons disimpan di `AsyncStorage` selama ±7 hari untuk ketahanan jaringan.
+- Timeout & header: permintaan menetapkan `Accept: application/json` dan timeout hingga 15 detik.
+
+Lokasi terkait:
+- API kalender: `src/api/kalender.js`
+- Layar kalender: `src/screens/calendar/HijriCalendarScreen.js`
+
+Tips uji web (Expo web):
+- Jalankan dev server: `npx expo start --web --port 8084`
+- Buka: `http://localhost:8084/` lalu navigasi ke halaman Kalender Hijriah.
+- Jika ada error jaringan/CORS, klik "Coba lagi"; aplikasi akan mencoba proxy fallback.
+
+## Masalah umum & Solusi
+
+- Error "Unexpected text node: -" pada detail Ulama: sudah diperbaiki dengan memastikan semua nilai teks/empty dibungkus komponen `<Text>`.
+- CORS error saat memanggil API MyQuran di web: ditangani dengan fallback proxy dan caching. Jika semua proxy gagal, gunakan aplikasi di mode native (Expo Go) atau sambungkan ke jaringan berbeda.
+
+## Struktur Proyek (ringkas)
+
+```
+./
+├── src/
+│   ├── api/
+│   │   ├── kalender.js        # Penanganan API kalender + proxy CORS, cache
+│   │   ├── quran.js           # API Qur'an
+│   │   └── ...
+│   ├── screens/
+│   │   ├── ulama/             # Daftar & Detail Ulama (responsif + paginasi)
+│   │   ├── calendar/          # Kalender Hijriah
+│   │   └── ...
+│   └── ui/                    # Theme & komponen UI reusable
+├── scripts/etl_ulama.py       # Alat bantu pengolahan dataset Ulama
+└── ...
+```
+
+## Build & Preview
+
+- Development (native): `npx expo start`
+- Development (web): `npx expo start --web` atau dengan port khusus `--port 8084`
+- Build Android APK/AAB: gunakan `eas.json` dan perintah `npx eas build -p android --profile <profil>` (lihat bagian Build dan Rilis di atas)
+
+## Deploy ke GitHub
+
+Langkah umum:
+1. Inisialisasi (jika belum):
+   ```bash
+   git init
+   git add -A
+   git commit -m "chore: initial commit"
+   ```
+2. Buat repo kosong di GitHub (mis. `https://github.com/<username>/alquranku`).
+3. Set remote & push:
+   ```bash
+   git branch -M main
+   git remote add origin https://github.com/<username>/alquranku.git
+   git push -u origin main
+   ```
+
+Catatan: pastikan Anda sudah login Git atau menyiapkan Personal Access Token (PAT) saat push via HTTPS.
+
+## Lisensi & Dataset
+
+- Dataset `src/data/ulama.json` berasal dari sumber internal proyek. Mohon pastikan lisensi penggunaan dan atribusi sumber sesuai sebelum rilis publik.
+- Jika ukuran data besar, pertimbangkan pemecahan per abjad/era agar performa daftar lebih baik.
+- Daftar Surat lengkap
+- Detail Surat:
+  - Teks Arab, Latin, dan Terjemahan Indonesia per ayat
+  - Pemutar audio per ayat dengan kontrol:
+    - Putar Surat (mulai dari ayat pertama)
+    - Sebelumnya / Berikutnya (navigasi ayat aktif)
+    - Hentikan
+  - Pemilihan Qari melalui dropdown, menyimpan preferensi secara lokal
+  - Lihat Tafsir per ayat:
+    - Konten dibatasi tinggi layar (agar tidak memicu scroll panjang)
+    - Paginasi dengan tombol "Halaman Sebelumnya" / "Halaman Berikutnya"
+    - Navigasi antar ayat dari area Tafsir: "Sebelumnya" / "Berikutnya"
+
+## Teknologi
+- Expo (React Native)
+- JavaScript (ES6+)
+
 ## Struktur Proyek
 ```
 ./

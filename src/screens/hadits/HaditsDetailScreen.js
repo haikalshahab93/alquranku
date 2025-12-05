@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Share, Platform } from 'react-native';
 import { 
   getHaditsArbainNomor, 
   getHaditsArbainAcak,
@@ -9,6 +9,7 @@ import {
   getHaditsPerawiAcak,
 } from '../../api/hadits';
 import { theme } from '../../ui';
+import { Ionicons } from '@expo/vector-icons'
 
 function pickFields(payload) {
   const p = payload?.data ?? payload;
@@ -125,6 +126,29 @@ export default function HaditsDetailScreen({ route, navigation }) {
     await fetchByNumber(target);
   };
 
+  // Navigasi keyboard di web: ArrowLeft = sebelumnya, ArrowRight = berikutnya
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = (e) => {
+      const key = e?.key;
+      if (key === 'ArrowLeft') {
+        if (!prevDisabled) goPrev();
+      } else if (key === 'ArrowRight') {
+        if (!nextDisabled) goNext();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [prevDisabled, nextDisabled, currentNomor, totalMax, perawiSlug]);
+
+  const shareHadits = async () => {
+    try {
+      const judul = data?.judul || `Hadits ${data?.nomor ?? ''}`;
+      const msg = `${judul}${data?.perawi ? `\nPerawi: ${data.perawi}` : ''}\n\n${data?.arab ?? ''}\n\n${data?.latin ?? ''}\n\n${data?.indo ?? ''}`;
+      await Share.share({ message: msg });
+    } catch {}
+  };
+
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
   if (error) return <View style={styles.center}><Text>{error}</Text></View>;
   if (!data) return null;
@@ -151,11 +175,33 @@ export default function HaditsDetailScreen({ route, navigation }) {
         <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
       </View>
 
+      {/* Baris atas: nomor & aksi */}
+      <View style={styles.ayatTopRow}>
+        <View style={styles.numberPill}>
+          <Text style={styles.numberPillText}>{data?.nomor ?? '-'}</Text>
+        </View>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.iconBtn} onPress={shareHadits}>
+            <Ionicons name="share-social-outline" size={20} color="#6B21A8" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <Text style={styles.title}>{data.judul || `Hadits ${data.nomor ?? ''}`}</Text>
       {!!data.perawi && <Text style={styles.perawi}>Perawi: {data.perawi}</Text>}
       {!!data.arab && <Text style={[styles.arab, { fontSize: 20 * textScale, lineHeight: 30 * textScale }]}>{data.arab}</Text>}
       {!!data.latin && <Text style={[styles.latin, { fontSize: 14 * textScale, lineHeight: 22 * textScale }]}>{data.latin}</Text>}
       {!!data.indo && <Text style={[styles.indo, { fontSize: 14 * textScale, lineHeight: 22 * textScale }]}>{data.indo}</Text>}
+
+      {/* Navigasi bawah (duplikasi kontrol) */}
+      <View style={styles.navRow}>
+        <TouchableOpacity style={[styles.ctrlBtn, prevDisabled && styles.ctrlBtnDisabled]} onPress={goPrev} disabled={prevDisabled}>
+          <Text style={[styles.ctrlText, prevDisabled && styles.ctrlTextDisabled]}>Sebelumnya</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.ctrlBtn, nextDisabled && styles.ctrlBtnDisabled]} onPress={goNext} disabled={nextDisabled}>
+          <Text style={[styles.ctrlText, nextDisabled && styles.ctrlTextDisabled]}>Berikutnya</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -171,6 +217,18 @@ const styles = StyleSheet.create({
   // Kontrol ukuran font (serasi dengan SurahDetail)
   fontRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   fontBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#f1f5f9', marginRight: 8 },
+  fontBtnText: { fontWeight: '700', color: theme.colors.primary },
+  fontInfo: { color: '#64748b' },
+  title: { fontSize: 20, fontWeight: '700', color: '#111' },
+  perawi: { color: '#666', marginTop: 4 },
+  arab: { marginTop: 12, color: '#111', textAlign: 'right', fontFamily: 'NotoNaskhArabic' },
+  latin: { marginTop: 10, color: '#111' },
+  indo: { marginTop: 10, color: '#111' },
+  ayatTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  numberPill: { backgroundColor: '#ede9fe', borderColor: theme.colors.primaryLight, borderWidth: 1, borderRadius: 16, paddingVertical: 4, paddingHorizontal: 10, alignSelf: 'flex-start' },
+  numberPillText: { color: theme.colors.primaryDark, fontWeight: '800', textAlign: 'center' },
+  actionRow: { flexDirection: 'row', alignItems: 'center' },
+  iconBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f1f5f9' },
   fontBtnText: { fontWeight: '700', color: theme.colors.primary },
   fontInfo: { color: '#64748b' },
   title: { fontSize: 20, fontWeight: '700', color: '#111' },

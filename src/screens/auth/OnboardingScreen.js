@@ -41,7 +41,8 @@ export default function OnboardingScreen({ navigation }) {
     try {
       await AsyncStorage.setItem('onboardingDone', '1');
     } catch {}
-    navigation.navigate('Login');
+    // Ubah: setelah onboarding, langsung ke Home (bypass Login)
+    navigation.navigate('Home');
   };
 
   return (

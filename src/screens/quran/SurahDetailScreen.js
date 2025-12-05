@@ -539,9 +539,6 @@ export default function SurahDetailScreen({ route, navigation }) {
                 <Ionicons name={isActive && isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={22} color="#6B21A8" />
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity style={styles.iconBtn} onPress={() => toggleBookmarkAyah(ayahNumber)}>
-              <Ionicons name={isBookmarked(ayahNumber) ? 'star' : 'star-outline'} size={20} color={isBookmarked(ayahNumber) ? '#f59e0b' : '#6B21A8'} />
-            </TouchableOpacity>
           </View>
         </View>
         {arabText ? <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arabText}</Text> : null}
@@ -694,9 +691,6 @@ return (
             </TouchableOpacity>
             <TouchableOpacity style={[styles.ctrlBtn]} onPress={fetchDetail}>
               <Text style={styles.ctrlText}>Refresh</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctrlBtn]} onPress={() => navigation.navigate('QuranBookmarks')}>
-              <Text style={styles.ctrlText}>Bookmarks</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.fontRow}>

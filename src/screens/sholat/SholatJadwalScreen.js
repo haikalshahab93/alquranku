@@ -1,464 +1,347 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { getAladhanHarianCity, getAladhanBulananCity, getAladhanQibla } from '../../api/aladhan';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { theme } from '../../ui';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { getAladhanHarianCity, getAladhanHarianCoords } from '../../api/aladhan';
+import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Helper untuk mendapatkan tanggal hari ini dalam format yyyy-mm-dd (zona waktu lokal)
-const getTodayISO = () => {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+const keys = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'sunset', 'isya', 'midnight'];
+const keysActive = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'sunset', 'isya'];
+const keysFull = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'sunset', 'isya', 'midnight', 'firstthird', 'lastthird'];
+const labels = { imsak: 'Imsak', subuh: 'Fajr', terbit: 'Shuruq', dzuhur: 'Dhuhr', ashar: 'Asr', maghrib: 'Maghrib', sunset: 'Sunset', isya: 'Isha', midnight: 'Qiyam', firstthird: 'First Third', lastthird: 'Last Third' };
+const displayFromApi = (t) => String(t || '').replace(/\s*\(.*?\)\s*/g, '').trim();
+const parse = (t, base) => {
+  if (!t) return null;
+  const s = displayFromApi(t); // remove any (XX) suffix
+  // supports formats like "05:53", "05:53 AM", "17:30", etc.
+  const m12 = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+  const d = new Date(base);
+  if (m12) {
+    let h = parseInt(m12[1], 10); const min = parseInt(m12[2], 10); const ap = m12[3].toUpperCase();
+    if (ap === 'PM' && h !== 12) h += 12; if (ap === 'AM' && h === 12) h = 0;
+    d.setHours(h, min, 0, 0); return d;
+  } else if (m24) {
+    const h = parseInt(m24[1], 10); const min = parseInt(m24[2], 10);
+    d.setHours(h, min, 0, 0); return d;
+  }
+  return null;
+};
+const fmtTime = d => {
+  try {
+    const opts = Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions();
+    const hour12 = typeof opts.hour12 === 'boolean' ? opts.hour12 : false;
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12 });
+  } catch (e) {
+    const h = ('0' + d.getHours()).slice(-2);
+    const m = ('0' + d.getMinutes()).slice(-2);
+    return `${h}:${m}`;
+  }
+};
+
+const SHOLAT_SETTINGS = {
+  method: 'settings:sholat:method',
+  tz: 'settings:sholat:timezonestring',
+  tune: 'settings:sholat:tune',
 };
 
 export default function SholatJadwalScreen() {
-  const [city, setCity] = useState('Kuala Lumpur');
-  const [country, setCountry] = useState('Malaysia');
-  const [method, setMethod] = useState('2'); // default ISNA
+  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('');
+  const [data, setData] = useState(null);
+  const [now, setNow] = useState(new Date());
+  const [lat, setLat] = useState(null);
+  const [lon, setLon] = useState(null);
 
-  const [dateString, setDateString] = useState(() => getTodayISO());
-  const [tahun, setTahun] = useState(() => String(new Date().getFullYear()));
-  const [bulan, setBulan] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'));
+  // Settings
+  const [method, setMethod] = useState(3);
+  const [tzString, setTzString] = useState('');
+  const [tune, setTune] = useState('');
+  const [school, setSchool] = useState('');
+  const [midnightMode, setMidnightMode] = useState('');
+  const [latitudeAdjustmentMethod, setLatitudeAdjustmentMethod] = useState('');
+  const [calendarMethod, setCalendarMethod] = useState('');
+  const [shafaq, setShafaq] = useState('');
 
-  const [loadingHarian, setLoadingHarian] = useState(false);
-  const [loadingBulanan, setLoadingBulanan] = useState(false);
-  const [errorHarian, setErrorHarian] = useState(null);
-  const [errorBulanan, setErrorBulanan] = useState(null);
-  const [dataHarian, setDataHarian] = useState(null);
-  const [dataBulanan, setDataBulanan] = useState(null);
-  const [statusInfo, setStatusInfo] = useState(null);
-  const [qiblaDeg, setQiblaDeg] = useState(null);
-  // removed unused alarms/hijriInfo
-  // [removed] legacy zone auto-suggest dihapus setelah migrasi ke Aladhan API
-
-  // Lokasi otomatis (web): gunakan Geolocation API + reverse geocoding (Nominatim)
-  const [autoLocating, setAutoLocating] = useState(false);
-  const [locError, setLocError] = useState(null);
-
-  const fetchHarian = async (_city, _country) => {
+  const loadSettings = async () => {
     try {
-      setLoadingHarian(true);
-      setErrorHarian(null);
-      setDataHarian(null);
-      const cityParam = (_city ?? city).trim();
-      const countryParam = (_country ?? country).trim();
-      const res = await getAladhanHarianCity(cityParam, countryParam, dateString.trim(), parseInt(method, 10));
-      const payload = res?.data ? res : { data: res };
-      setDataHarian(payload);
-      const jadwal = payload?.data?.jadwal || {};
-      const iso = payload?.data?.date || dateString.trim();
-      setStatusInfo(computeStatusFromJadwal(iso, jadwal));
-      // Qibla dari koordinat meta
-      const lat = payload?.data?.meta?.latitude;
-      const lon = payload?.data?.meta?.longitude;
-      if (typeof lat === 'number' && typeof lon === 'number') {
-        try {
-          const deg = await getAladhanQibla(lat, lon);
-          setQiblaDeg(deg);
-        } catch (_) { setQiblaDeg(null); }
-      } else { setQiblaDeg(null); }
-    } catch (e) {
-      setErrorHarian(e?.message || 'Gagal memuat jadwal harian');
-    } finally {
-      setLoadingHarian(false);
-    }
+      const [m1, tz1, tn1, sc1, mm1, lam1, cm1, sf1] = await Promise.all([
+        AsyncStorage.getItem('aladhan_method'),
+        AsyncStorage.getItem('aladhan_timezonestring'),
+        AsyncStorage.getItem('aladhan_tune'),
+        AsyncStorage.getItem('aladhan_school'),
+        AsyncStorage.getItem('aladhan_midnightMode'),
+        AsyncStorage.getItem('aladhan_latitudeAdjustmentMethod'),
+        AsyncStorage.getItem('aladhan_calendarMethod'),
+        AsyncStorage.getItem('aladhan_shafaq'),
+      ]);
+      const [m2, tz2, tn2] = await Promise.all([
+        AsyncStorage.getItem(SHOLAT_SETTINGS.method),
+        AsyncStorage.getItem(SHOLAT_SETTINGS.tz),
+        AsyncStorage.getItem(SHOLAT_SETTINGS.tune),
+      ]);
+      const m = m1 ?? m2; const tz = tz1 ?? tz2; const tn = tn1 ?? tn2;
+      if (m != null) setMethod(Number(m));
+      if (tz != null) setTzString(tz);
+      if (tn != null) setTune(tn);
+      if (sc1 != null) setSchool(sc1);
+      if (mm1 != null) setMidnightMode(mm1);
+      if (lam1 != null) setLatitudeAdjustmentMethod(lam1);
+      if (cm1 != null) setCalendarMethod(cm1);
+      if (sf1 != null) setShafaq(sf1);
+    } catch {}
   };
 
-  const fetchBulanan = async (_city, _country) => {
+  useEffect(() => { loadSettings(); }, []);
+
+  // Fallback lokasi berbasis IP jika geolocation tidak tersedia/ditolak
+  const fetchIpLocation = async () => {
     try {
-      setLoadingBulanan(true);
-      setErrorBulanan(null);
-      setDataBulanan(null);
-      const cityParam = (_city ?? city).trim();
-      const countryParam = (_country ?? country).trim();
-      const res = await getAladhanBulananCity(cityParam, countryParam, tahun.trim(), bulan.trim(), parseInt(method, 10));
-      const payload = res?.data ? res : { data: res };
-      setDataBulanan(payload);
-    } catch (e) {
-      setErrorBulanan(e?.message || 'Gagal memuat jadwal bulanan');
-    } finally {
-      setLoadingBulanan(false);
-    }
+      const resp = await fetch('https://ipapi.co/json');
+      const json = await resp.json();
+      const ipLat = json?.latitude; const ipLon = json?.longitude;
+      if (ipLat && ipLon) { setLat(ipLat); setLon(ipLon); }
+      setCity(json?.city || json?.region || json?.region_code || '');
+      setCountry(json?.country_name || json?.country || '');
+    } catch {}
   };
 
-  const attemptAutoLocate = async () => {
-    try {
-      setAutoLocating(true);
-      setLocError(null);
-      setErrorHarian(null);
-      
-      // Native (Android/iOS) via expo-location
-      let coords = null;
+  // Tick time every second for countdown
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+
+  // Detect location (GPS or browser) and fill city/country
+  useEffect(() => { (async () => { try {
+    if (Platform.OS !== 'web') {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { await fetchIpLocation(); return; }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setLat(pos.coords.latitude); setLon(pos.coords.longitude);
       try {
-        const isNative = typeof navigator === 'undefined';
-        if (isNative) {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
-            throw new Error('Izin lokasi ditolak');
+        const rg = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        const addr = rg?.[0] || {};
+        setCity(addr.city || addr.region || addr.district || addr.name || '');
+        setCountry(addr.country || '');
+      } catch { await fetchIpLocation(); }
+    } else {
+      if ('geolocation' in navigator) {
+        const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 }));
+        const { latitude, longitude } = pos.coords; setLat(latitude); setLon(longitude);
+        try {
+          const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`;
+          const resp = await fetch(url); const json = await resp.json(); const addr = json?.address || {};
+          setCity(addr.city || addr.town || addr.village || addr.state_district || addr.state || addr.county || '');
+          setCountry(addr.country || '');
+        } catch { await fetchIpLocation(); }
+      } else {
+        await fetchIpLocation();
+      }
+    }
+  } catch (e) { console.warn(e); await fetchIpLocation(); } })(); }, []);
+
+  // Mulai "watch" posisi agar lat/lon otomatis ikut bergerak saat pengguna pindah lokasi (web & native)
+  useEffect(() => {
+    let sub; // expo-location subscription (native)
+    let watchId; // geolocation watch id (web)
+    (async () => {
+      try {
+        if (Platform.OS !== 'web') {
+          const { status } = await Location.getForegroundPermissionsAsync();
+          if (status === 'granted') {
+            sub = await Location.watchPositionAsync(
+              { accuracy: Location.Accuracy.Balanced, distanceInterval: 200 },
+              (pos) => {
+                setLat(pos.coords.latitude);
+                setLon(pos.coords.longitude);
+              }
+            );
           }
-          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        } else if ('geolocation' in navigator) {
+          watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+              setLat(pos.coords.latitude);
+              setLon(pos.coords.longitude);
+            },
+            (err) => { /* silent */ },
+            { enableHighAccuracy: true, maximumAge: 10000 }
+          );
         }
       } catch (e) {
-        // Jika gagal native, akan lanjut coba web
+        // ignore
       }
-      
-      // Web fallback via navigator.geolocation
-      if (!coords) {
-        if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-          setLocError('Geolocation tidak tersedia di perangkat ini');
-          setAutoLocating(false);
-          return;
-        }
-        const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000,
-          });
-        });
-        coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
-      }
-      
-      const { latitude, longitude } = coords || {};
-      if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-        setLocError('Koordinat tidak valid');
-        setAutoLocating(false);
-        return;
-      }
-      // Reverse geocoding ke OpenStreetMap Nominatim
-      const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`;
-      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      const json = await resp.json();
-      const addr = json?.address || {};
-      const resolvedCity = addr.city || addr.town || addr.village || addr.state_district || addr.state || addr.county;
-      const resolvedCountry = addr.country || '';
-      if (resolvedCity) setCity(resolvedCity);
-      if (resolvedCountry) setCountry(resolvedCountry);
-      // Setelah set city/country, ambil jadwal harian otomatis
-      await fetchHarian(resolvedCity || city, resolvedCountry || country);
-      // Ambil bulanan otomatis untuk tahun/bulan sekarang
-      await fetchBulanan(resolvedCity || city, resolvedCountry || country);
-    } catch (e) {
-      setLocError(e?.message || 'Gagal mendeteksi lokasi otomatis');
-    } finally {
-      setAutoLocating(false);
-    }
-  };
-
-  useEffect(() => {
-    attemptAutoLocate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })();
+    return () => {
+      try { if (sub && typeof sub.remove === 'function') sub.remove(); } catch {}
+      try { if (watchId != null && 'geolocation' in navigator) navigator.geolocation.clearWatch(watchId); } catch {}
+    };
   }, []);
 
-  const parseTimeOnDate = (dateIso, hhmm) => {
-    if (!dateIso || !hhmm) return null;
-    const [hh, mm] = String(hhmm).split(':').map((x) => parseInt(x, 10));
-    if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
-    const d = new Date(dateIso + 'T00:00:00');
-    d.setHours(hh);
-    d.setMinutes(mm);
-    d.setSeconds(0);
-    d.setMilliseconds(0);
-    return d;
-  };
-
-  const computeStatusFromJadwal = (dateIso, jadwal) => {
-    const ORDER = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'isya'];
-    const now = new Date();
-    const times = ORDER
-      .map((k) => ({ key: k, at: parseTimeOnDate(dateIso, jadwal?.[k]) }))
-      .filter((x) => x.at instanceof Date && !Number.isNaN(x.at.getTime()));
-    if (times.length === 0) return null;
-    const upcoming = times.find((t) => t.at.getTime() > now.getTime());
-    if (upcoming) {
-      const diffMin = Math.round((upcoming.at.getTime() - now.getTime()) / 60000);
-      const label = labelForKey(upcoming.key);
-      return { nextKey: upcoming.key, nextAt: upcoming.at, headerText: `Menuju ${label} dalam ± ${diffMin} menit`, type: 'upcoming', diffMin };
+  // Fetch schedule: prefer coords (lat/lon) then fallback to city/country
+  useEffect(() => { (async () => { try {
+    const iso = new Date().toISOString().slice(0, 10);
+    const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : undefined; };
+    const options = {
+      method,
+      timezonestring: tzString || undefined,
+      tune: tune || undefined,
+      school: toNum(school),
+      midnightMode: toNum(midnightMode),
+      latitudeAdjustmentMethod: toNum(latitudeAdjustmentMethod),
+      calendarMethod: toNum(calendarMethod),
+      shafaq: (shafaq || '').trim() || undefined,
+    };
+    if (lat != null && lon != null) {
+      const res = await getAladhanHarianCoords(lat, lon, iso, options);
+      setData(res?.data);
+    } else if (city && country) {
+      const res = await getAladhanHarianCity(city, country, iso, options);
+      setData(res?.data);
     }
-    const last = times[times.length - 1];
-    const diffMin = Math.round((now.getTime() - last.at.getTime()) / 60000);
-    const label = labelForKey(last.key);
-    return { nextKey: null, nextAt: null, headerText: `Waktu ${label} sudah lewat ± ${diffMin} menit yang lalu`, type: 'passed', diffMin, lastKey: last.key };
-  };
+  } catch (e) { console.warn(e); } })(); }, [lat, lon, city, country, method, tzString, tune, school, midnightMode, latitudeAdjustmentMethod, calendarMethod, shafaq]);
 
-  const labelForKey = (k) => {
-    switch (k) {
-      case 'imsak': return 'Imsak';
-      case 'subuh': return 'Subuh';
-      case 'terbit': return 'Terbit';
-      case 'dzuhur': return 'Dzuhur';
-      case 'ashar': return 'Ashar';
-      case 'maghrib': return 'Maghrib';
-      case 'isya': return 'Isya';
-      case 'sunset': return 'Terbenam';
-      case 'midnight': return 'Tengah Malam';
-      default: return k;
+  const times = useMemo(() => {
+    const base = new Date();
+    const j = data?.jadwal || {};
+    return keys.map(k => ({ key: k, label: labels[k], raw: j[k], display: displayFromApi(j[k]), time: parse(j[k], base) })).filter(x => !!x.time);
+  }, [data]);
+
+  const timesFull = useMemo(() => {
+    const base = new Date();
+    const j = data?.jadwal || {};
+    return keysFull.map(k => ({ key: k, label: labels[k], raw: j[k], display: displayFromApi(j[k]), time: parse(j[k], base) })).filter(x => !!x.time);
+  }, [data]);
+
+  const timesActive = useMemo(() => {
+    const base = new Date();
+    const j = data?.jadwal || {};
+    return keysActive.map(k => ({ key: k, label: labels[k], raw: j[k], display: displayFromApi(j[k]), time: parse(j[k], base) })).filter(x => !!x.time);
+  }, [data]);
+
+  const curNext = useMemo(() => {
+    if (!timesActive.length) return { cur: null, next: null };
+    for (let i = 0; i < timesActive.length; i++) {
+      const t = timesActive[i].time; const n = timesActive[i + 1]?.time || null;
+      if (now >= t && (!n || now < n)) return { cur: timesActive[i], next: timesActive[i + 1] || null };
+      if (now < t) return { cur: timesActive[Math.max(i - 1, 0)], next: timesActive[i] };
     }
-  };
+    return { cur: timesActive[timesActive.length - 1], next: null };
+  }, [timesActive, now]);
 
-  const computeStatusDisplay = (info) => {
-    if (!info) return { main: '', sub: '' };
-    if (info.type === 'upcoming') {
-      const label = labelForKey(info.nextKey);
-      return { main: `MENUJU ${label}`, sub: `dalam ± ${info.diffMin} menit` };
+  const leftLabel = useMemo(() => {
+    const n = curNext.next?.time; if (!n) return '—'; const ms = n - now; if (ms <= 0) return 'Now';
+    const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return `${h > 0 ? h + ' hours ' : ''}${m} min left`;
+  }, [curNext, now]);
+
+  const readableDate = useMemo(() => {
+    const s = data?.date;
+    let dObj = now;
+    if (typeof s === 'string' && /^\d{1,2}-\d{1,2}-\d{4}$/.test(s)) {
+      const [dd, mm, yyyy] = s.split('-').map(v => parseInt(v, 10));
+      dObj = new Date(yyyy, mm - 1, dd);
     }
-    if (info.type === 'passed') {
-      const label = labelForKey(info.lastKey || '');
-      return { main: `WAKTU ${label} SUDAH LEWAT`, sub: `± ${info.diffMin} menit yang lalu` };
-    }
-    return { main: '', sub: '' };
-  };
+    return dObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }, [data, now]);
 
-  const formatHijriDisplay = (hijri) => {
-    if (!hijri) return '';
-    const dateStr = hijri?.date; // dd-mm-yyyy
-    const parts = String(dateStr || '').split('-');
-    const day = parts[0] || '';
-    const year = parts[2] || hijri?.year || '';
-    const monthName = hijri?.month?.en || hijri?.month?.ar || '';
-    return `${day} ${monthName} ${year} H`;
-  };
+  const hijri = useMemo(() => {
+    const h = data?.hijri;
+    if (!h) return '';
+    const hdate = typeof h?.date === 'string' ? h.date : '';
+    const hday = /^\d{1,2}-\d{1,2}-\d{4}$/.test(hdate) ? hdate.split('-')[0] : (h?.day || '');
+    const monthName = h?.month?.en || h?.month?.ar || '';
+    const year = h?.year || (/^\d{1,2}-\d{1,2}-\d{4}$/.test(hdate) ? hdate.split('-')[2] : '');
+    return `${monthName} ${hday}${year ? ', ' + year : ''}`;
+  }, [data]);
 
-  const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-  const formatMasehiDisplay = (iso) => {
-    if (!iso) return '';
-    const d = new Date(`${iso}T00:00:00`);
-    if (Number.isNaN(d.getTime())) return iso;
-    const day = d.getDate();
-    const monthName = MONTH_NAMES[d.getMonth()];
-    const year = d.getFullYear();
-    return `${day} ${monthName} ${year}`;
+  // Meta & method info from API
+  const meta = data?.meta || {};
+  const methodId = meta?.method;
+  const methodNames = {
+    0: 'Shia Ithna-Ashari',
+    1: 'University of Islamic Sciences, Karachi',
+    2: 'Islamic Society of North America',
+    3: 'Muslim World League',
+    4: 'Umm al-Qura, Makkah',
+    5: 'Egyptian General Authority of Survey',
+    7: 'Institute of Geophysics, University of Tehran',
+    8: 'Gulf Region',
+    9: 'Kuwait',
+    10: 'Qatar',
+    11: 'Majlis Ugama Islam Singapore',
+    12: 'Union of Islamic Organizations of France',
+    13: 'Diyanet İşleri Başkanlığı, Turkey',
+    14: 'Spiritual Administration of Muslims of Russia'
   };
+  const methodName = methodNames[methodId] || (methodId != null ? `Method ${methodId}` : '');
+  const coordText = (meta?.latitude != null && meta?.longitude != null)
+    ? `${Number(meta.latitude).toFixed(4)}, ${Number(meta.longitude).toFixed(4)}`
+    : ((lat != null && lon != null) ? `${lat.toFixed(4)}, ${lon.toFixed(4)}` : '');
 
-  // Tambahan helper untuk tampilan bulanan lebih menarik
-  const normalizeToISO = (s) => {
-    const str = String(s || '');
-    const parts = str.split('-');
-    if (parts.length === 3) {
-      // yyyy-mm-dd atau dd-mm-yyyy
-      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
-      return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-    }
-    return str;
-  };
-  const DOW = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-  const getDayNameShort = (iso) => {
-    if (!iso) return '';
-    const d = new Date(`${iso}T00:00:00`);
-    if (Number.isNaN(d.getTime())) return '';
-    return DOW[d.getDay()];
-  };
-  const isSameISO = (a, b) => String(a || '') === String(b || '');
+  // Timezone dari meta API (dinamis) + Timezone sekarang (perangkat)
+  const tzApi = data?.meta?.timezone || '';
+  const deviceTzName = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })();
+  const tzOffsetMin = -new Date().getTimezoneOffset(); // positif untuk GMT+
+  const tzAbs = Math.abs(tzOffsetMin);
+  const tzH = String(Math.floor(tzAbs / 60)).padStart(2, '0');
+  const tzM = String(tzAbs % 60).padStart(2, '0');
+  const tzSign = tzOffsetMin >= 0 ? '+' : '-';
+  const tzOffsetStr = `GMT${tzSign}${tzH}:${tzM}`;
+  const tzNow = deviceTzName ? `${deviceTzName} (${tzOffsetStr})` : tzOffsetStr;
 
-  const JadwalCard = ({ title, children }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      {children}
-    </View>
-  );
+  const locationHeader = useMemo(() => {
+    return data?.lokasi || city || ((lat != null && lon != null) ? `${lat.toFixed(3)}, ${lon.toFixed(3)}` : 'Mendeteksi lokasi…');
+  }, [data, city, lat, lon]);
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="always">
-      <Text style={styles.title}>Jadwal Sholat</Text>
-      {/* Deteksi lokasi otomatis dinonaktifkan */}
-      {autoLocating && <Text style={{ color: '#94a3b8', marginBottom: 6 }}>Mendeteksi lokasi otomatis...</Text>}
-      {!!locError && <Text style={{ color: '#ef4444', marginBottom: 6 }}>{locError}</Text>}
-      
-      {/* Kartu lokasi sederhana agar mudah */}
-      <JadwalCard title="Lokasi">
-        <View style={styles.row}>
-          <TextInput value={city} onChangeText={setCity} placeholder="Kota" placeholderTextColor="#64748b" autoCorrect={false} autoCapitalize="words" selectTextOnFocus style={[styles.input, styles.inputHalf]} />
-          <TextInput value={country} onChangeText={setCountry} placeholder="Negara" placeholderTextColor="#64748b" autoCorrect={false} autoCapitalize="words" selectTextOnFocus style={[styles.input, styles.inputHalf, { marginLeft: 8 }]} />
+    <ScrollView style={{ flex: 1, backgroundColor: '#f4f4f4' }}>
+      <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, paddingBottom: 28, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>{locationHeader} <Ionicons name="chevron-down" size={18} color="#fff" /></Text>
+          <Ionicons name="settings-outline" size={22} color="#fff" />
         </View>
-        <View style={styles.chipRow}>
-          {['Jakarta','Bandung','Surabaya','Yogyakarta','Denpasar','Medan','Makassar'].map((c) => (
-            <TouchableOpacity key={c} style={styles.chipBtn} onPress={() => setCity(c)}>
-              <Text style={styles.chipBtnText}>{c}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#fff', opacity: 0.9, letterSpacing: 1 }}>{(curNext.cur?.label || '–').toUpperCase()}</Text>
+            <Text style={{ color: '#fff', fontSize: 40, fontWeight: '700', marginTop: 2 }}>{curNext.cur ? (curNext.cur.display || displayFromApi(curNext.cur.raw)) : '—'}</Text>
+            <Text style={{ color: '#e6e6e6', marginTop: 6 }}>{leftLabel}</Text>
+          </View>
+          <Ionicons name="moon" size={64} color="#ffffffaa" />
         </View>
-        <View style={styles.chipRow}>
-          {['Indonesia','Malaysia','Singapore','Brunei'].map((cty) => (
-            <TouchableOpacity key={cty} style={styles.chipBtn} onPress={() => setCountry(cty)}>
-              <Text style={styles.chipBtnText}>{cty}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <TouchableOpacity style={styles.btnGhost} onPress={attemptAutoLocate} disabled={autoLocating}>
-          <Text style={styles.btnGhostText}>{autoLocating ? 'Mendeteksi...' : 'Deteksi Lokasi Otomatis'}</Text>
-        </TouchableOpacity>
-        <Text style={{ color: '#e5e7eb', marginTop: 6 }}>{`${city}, ${country}`}</Text>
-      </JadwalCard>
+      </LinearGradient>
 
-      <JadwalCard title="Harian (yyyy-mm-dd)">
-        {/* Input kota/negara dipindah ke kartu Lokasi */}
-        <View style={styles.row}>
-          <TextInput value={method} onChangeText={setMethod} keyboardType="numeric" placeholder="Metode (kode)" placeholderTextColor="#64748b" style={[styles.input, styles.inputHalf]} />
-          <TextInput value={dateString} onChangeText={setDateString} placeholder="Tanggal (yyyy-mm-dd)" placeholderTextColor="#64748b" style={[styles.input, styles.inputHalf, { marginLeft: 8 }]} />
+      <View style={{ backgroundColor: '#fff', marginTop: -18, marginHorizontal: 12, borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 }}>
+        <View style={{ padding: 16, borderBottomWidth: 1, borderColor: '#eee' }}>
+          <Text style={{ textAlign: 'center', fontWeight: '600' }}>{readableDate}</Text>
+          <Text style={{ textAlign: 'center', color: '#666', marginTop: 4 }}>{hijri}</Text>
+          {tzNow ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 4, fontSize: 12 }}>Zona waktu (sekarang): {tzNow}</Text> : null}
+          {tzApi ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 2, fontSize: 12 }}>Zona waktu (API): {tzApi}</Text> : null}
+          {coordText ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 2, fontSize: 12 }}>Coords: {coordText}</Text> : null}
+          {methodName ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 2, fontSize: 12 }}>Method: {methodName}</Text> : null}
         </View>
-        <TouchableOpacity style={styles.btn} onPress={() => fetchHarian()} disabled={loadingHarian}>
-          <Text style={styles.btnText}>{loadingHarian ? 'Memuat...' : 'Lihat Harian'}</Text>
-        </TouchableOpacity>
-        {errorHarian && <Text style={styles.error}>{errorHarian}</Text>}
-        {dataHarian && (
-          <View style={styles.resultBox}>
-            <View style={styles.headerRow}>
-              <Text style={styles.headerLeft}>{formatHijriDisplay(dataHarian?.data?.hijri)}</Text>
-              <Text style={styles.headerRight}>{formatMasehiDisplay(dataHarian?.data?.date)}</Text>
-            </View>
-            {(() => { const displayStatus = computeStatusDisplay(statusInfo); return (
-              (displayStatus.main || displayStatus.sub) && (
-                <View style={styles.statusRow}>
-                  <View style={{ flex: 1 }}>
-                    {!!displayStatus.main && <Text style={styles.statusMain}>{displayStatus.main}</Text>}
-                    {!!displayStatus.sub && <Text style={styles.statusSub}>{displayStatus.sub}</Text>}
-                  </View>
-                  <TouchableOpacity style={styles.qiblatBtn} onPress={() => {}}>
-                    <Text style={styles.qiblatText}>{typeof qiblaDeg === 'number' ? `${Math.round(qiblaDeg)}°` : 'QIBLAT'}</Text>
-                  </TouchableOpacity>
+        {timesFull.map(t => {
+          const active = curNext.cur?.key === t.key; return (
+            <View key={t.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: '#f0f0f0' }}>
+              <Text style={{ fontSize: 16, color: '#222' }}>{t.label}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, borderWidth: active ? 2 : 1, borderColor: active ? theme.colors.primary : '#ddd' }}>
+                  <Text style={{ fontWeight: '600', color: active ? theme.colors.primary : '#333' }}>{t.display || displayFromApi(t.raw)}</Text>
                 </View>
-              )
-            ); })()}
-            <View style={styles.locRow}>
-              <Text style={styles.locIcon}>📍</Text>
-              <Text style={styles.locText}>{dataHarian?.data?.lokasi}</Text>
-            </View>
-            <View style={styles.listBox}>
-              {['imsak','subuh','terbit','dzuhur','ashar','maghrib','isya','sunset','midnight'].map((k) => {
-                 const v = dataHarian?.data?.jadwal?.[k];
-                 if (!v) return null;
-                 const isActive = (statusInfo?.nextKey ?? statusInfo?.lastKey) === k;
-                 return (
-                   <View key={k} style={[styles.listRow, isActive && styles.listRowActive]}>
-                     <Text style={[styles.listLabel, isActive && styles.listLabelActive]}>{labelForKey(k)}</Text>
-                     <View style={styles.listRight}>
-                       <Text style={[styles.listVal, isActive && styles.listValActive]}>{v}</Text>
-                     </View>
-                   </View>
-                 );
-               })}
-            </View>
-            {!!dataHarian?.data?.meta && (
-              <View style={{ marginTop: 10 }}>
-                <Text style={styles.metaTitle}>Info Lokasi</Text>
-                <View style={styles.grid}>
-                  <View style={styles.gridRow}><Text style={styles.gridLabel}>Koordinat</Text><Text style={styles.gridVal}>{`${dataHarian.data.meta.latitude}, ${dataHarian.data.meta.longitude}`}</Text></View>
-                  <View style={styles.gridRow}><Text style={styles.gridLabel}>Zona Waktu</Text><Text style={styles.gridVal}>{dataHarian.data.meta.timezone}</Text></View>
-                  <View style={styles.gridRow}><Text style={styles.gridLabel}>Metode</Text><Text style={styles.gridVal}>{dataHarian.data.meta.method}</Text></View>
-                </View>
+                <Ionicons name={active ? 'volume-high' : 'volume-mute'} size={18} color={active ? theme.colors.primary : '#bbb'} style={{ marginLeft: 8 }} />
               </View>
-            )}
-          </View>
-        )}
-      </JadwalCard>
-
-      <JadwalCard title="Bulanan (tahun/bulan)">
-        {/* Input kota/negara dipindah ke kartu Lokasi */}
-        <View style={styles.row}>
-          <TextInput value={method} onChangeText={setMethod} keyboardType="numeric" placeholder="Metode (kode)" placeholderTextColor="#64748b" style={[styles.input, styles.inputHalf]} />
-          <View style={{ flex: 1, flexDirection: 'row' }}>
-            <TextInput value={tahun} onChangeText={setTahun} keyboardType="numeric" placeholder="Tahun (yyyy)" placeholderTextColor="#64748b" style={[styles.input, { flex: 1 }]} />
-            <TextInput value={bulan} onChangeText={setBulan} keyboardType="numeric" placeholder="Bulan (1-12)" placeholderTextColor="#64748b" style={[styles.input, { flex: 1, marginLeft: 8 }]} />
-          </View>
+            </View>
+          );
+        })}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 14 }}>
+          <TouchableOpacity style={{ backgroundColor: theme.colors.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>{curNext.cur?.label ? 'Prayers' : 'Loading'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={{ borderColor: '#ddd', borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}>
+            <Text style={{ color: '#333' }}>{hijri ? 'Hijri' : '—'}</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.btn} onPress={() => fetchBulanan()} disabled={loadingBulanan}>
-          <Text style={styles.btnText}>{loadingBulanan ? 'Memuat...' : 'Lihat Bulanan'}</Text>
-        </TouchableOpacity>
-        {errorBulanan && <Text style={styles.error}>{errorBulanan}</Text>}
-        {Array.isArray(dataBulanan?.data) && (
-          <View style={styles.resultBox}>
-            <Text style={styles.resultTitle}>{`${city}, ${country}`}</Text>
-            <Text style={styles.resultSubtitle}>{MONTH_NAMES[Math.max(0, Math.min(11, parseInt(bulan, 10) - 1))]} {tahun}</Text>
-            {(dataBulanan?.data || []).map((j, idx) => {
-              const tanggalRaw = j.masihi || j.date || j.tanggal;
-              const iso = normalizeToISO(tanggalRaw);
-              const dayName = getDayNameShort(iso);
-              const isWeekend = dayName === 'Sab' || dayName === 'Min';
-              const isToday = isSameISO(iso, getTodayISO());
-              const row = {
-                imsak: j.imsak,
-                subuh: j.subuh,
-                terbit: j.terbit,
-                dzuhur: j.dzuhur,
-                ashar: j.ashar,
-                maghrib: j.maghrib,
-                isya: j.isya,
-                sunset: j.sunset,
-                midnight: j.midnight,
-              };
-              return (
-                <View key={idx} style={[styles.dayBox, isWeekend && styles.dayBoxWeekend, isToday && styles.dayBoxToday]}>
-                  <View style={styles.dayHeader}>
-                    <Text style={styles.dayName}>{dayName}</Text>
-                    <Text style={styles.dayDate}>{formatMasehiDisplay(iso || tanggalRaw)}</Text>
-                  </View>
-                  <View style={styles.timeGrid}>
-                    {Object.entries(row).map(([k,v]) => v && (
-                      <View key={k} style={styles.timeChip}>
-                        <Text style={styles.chipLabel}>{labelForKey(k)}</Text>
-                        <Text style={styles.chipVal}>{v}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </JadwalCard>
+      </View>
+      <View style={{ height: 24 }} />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 16 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  card: { backgroundColor: '#0f172a', borderRadius: 12, padding: 12, marginBottom: 14 },
-  cardTitle: { color: '#e2e8f0', fontWeight: '700', marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: '#111827', backgroundColor: '#f8fafc', marginBottom: 8 },
-  btn: { backgroundColor: '#10b981', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 4 },
-  btnText: { color: '#fff', fontWeight: '700' },
-  error: { color: '#ef4444', marginTop: 6 },
-  resultBox: { backgroundColor: '#111827', borderRadius: 12, padding: 12, marginTop: 10 },
-  resultTitle: { color: '#e5e7eb', fontWeight: '700', marginBottom: 4 },
-  resultSubtitle: { color: '#9ca3af', marginBottom: 8 },
-  dayBoxWeekend: { borderColor: '#334155' },
-  dayBoxToday: { borderColor: '#d1b892', backgroundColor: '#111827' },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  dayName: { color: '#e5e7eb', fontWeight: '700' },
-  dayDate: { color: '#e5e7eb' },
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 },
-  timeChip: { backgroundColor: '#0f172a', borderColor: '#1f2937', borderWidth: 1, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10, marginRight: 8, marginBottom: 8 },
-  chipLabel: { color: '#9ca3af', fontSize: 12 },
-  chipVal: { color: '#e5e7eb', fontWeight: '700' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 },
-  chipBtn: { backgroundColor: '#0b1220', borderColor: '#1f2937', borderWidth: 1, borderRadius: 20, paddingVertical: 6, paddingHorizontal: 10, marginRight: 8, marginTop: 6 },
-  chipBtnText: { color: '#e5e7eb' },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  inputHalf: { flex: 1 },
-  dayBox: { backgroundColor: '#0f172a', borderRadius: 8, padding: 8, marginTop: 8 },
-  dayTitle: { color: '#9ca3af', fontWeight: '600', marginBottom: 6 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  headerLeft: { color: '#e5e7eb', fontWeight: '700', fontSize: 16 },
-  headerRight: { color: '#e5e7eb', fontSize: 16 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  statusMain: { color: '#9ca3af', fontWeight: '700', letterSpacing: 0.5 },
-  statusSub: { color: '#9ca3af', marginTop: 2 },
-  qiblatBtn: { backgroundColor: '#f3f4f6', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
-  qiblatText: { color: '#111827', fontWeight: '700' },
-  locRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: 6 },
-  locIcon: { color: '#e5e7eb', marginRight: 6 },
-  locText: { color: '#e5e7eb' },
-  listBox: { marginTop: 8 },
-  listRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0f172a', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 12, marginBottom: 8 },
-  listRowActive: { backgroundColor: '#1f2937' },
-  listLabel: { color: '#e5e7eb', fontSize: 16, fontWeight: '600' },
-  listLabelActive: { color: '#9ca3af' },
-  listRight: { flexDirection: 'row', alignItems: 'center' },
-  listVal: { color: '#e5e7eb', fontSize: 16, fontWeight: '700', marginRight: 12 },
-  listValActive: { color: '#d1b892' },
-  metaTitle: { color: '#e5e7eb', fontWeight: '700', marginTop: 8 },
-  btnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#1f2937', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 8 },
-  btnGhostText: { color: '#e5e7eb', fontWeight: '700' },
-});
