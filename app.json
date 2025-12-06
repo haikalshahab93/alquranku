@@ -3,7 +3,7 @@
     "name": "ALQURANKU",
     "slug": "alquranku",
     "scheme": "alquranku",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -21,6 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.alfarisy.infoalquran",
+      "versionCode": 2,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
