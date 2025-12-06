@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share, SafeAreaView } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { getSuratList, getSuratDetail } from '../../api/quran';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -349,7 +350,10 @@ export default function SurahListScreen({ navigation }) {
       <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomor, nama_latin: item.namaLatin || item.nama_latin, namaLatin: item.namaLatin || item.nama_latin })}>
         <View style={styles.itemHeader}>
           <Text style={styles.itemNumber}>{item.nomor}</Text>
-          <Text style={styles.itemLatin}>{item.namaLatin || item.nama_latin}</Text>
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" style={styles.itemIcon}>
+            <Path d="M4 4h12a2 2 0 012 2v12l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" stroke="#6b7280" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+          <Text style={styles.itemLatin} numberOfLines={1} ellipsizeMode="tail">{item.namaLatin || item.nama_latin}</Text>
           <TouchableOpacity style={styles.infoToggle} onPress={() => toggleName(item.nomor)}>
             <Text style={styles.infoToggleText}>{isNameExpanded ? 'Tutup nama' : 'Lihat nama'}</Text>
           </TouchableOpacity>
@@ -368,7 +372,7 @@ export default function SurahListScreen({ navigation }) {
             <Text style={styles.nameLatin}>{item.namaLatin || item.nama_latin}</Text>
           </View>
         )}
-        <Text style={styles.itemMeta}>{item.arti} • {(item.jumlahAyat || item.jumlah_ayat)} ayat • {(item.tempatTurun || item.tempat_turun)}</Text>
+        <Text style={styles.itemMeta} numberOfLines={2} ellipsizeMode="tail">{item.arti} • {(item.jumlahAyat || item.jumlah_ayat)} ayat • {(item.tempatTurun || item.tempat_turun)}</Text>
         {isExpanded && (
           loadingDetail[item.nomor] ? (
             <View style={styles.expandLoading}><ActivityIndicator size="small" /></View>
@@ -430,7 +434,7 @@ export default function SurahListScreen({ navigation }) {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1 }}>
       <FlatList
         data={pagedSurahs}
         keyExtractor={(item) => String(item.nomor)}
@@ -496,7 +500,7 @@ export default function SurahListScreen({ navigation }) {
           </View>
         )}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

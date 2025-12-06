@@ -25,7 +25,7 @@ const OPENAI_BASE_URL = extra?.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 function mockReply(messages) {
   const last = messages?.[messages.length - 1]?.content || '';
   const intro = 'Saya Asisten LLM (mode demo). '
-    + 'Untuk mengaktifkan penyedia sesungguhnya, set extra LLM_PROVIDER dan API key di konfigurasi Expo.';
+      'Untuk mengaktifkan penyedia sesungguhnya, set extra LLM_PROVIDER dan API key di konfigurasi Expo.';
   if (!last) {
     return `${intro}\nSilakan tulis pertanyaan terkait surah, tafsir, doa, atau hadits.`;
   }

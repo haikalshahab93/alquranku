@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { getDoaList } from '../../api/doa';
 import { theme } from '../../ui';
 
@@ -88,15 +90,21 @@ export default function DoaListScreen({ navigation }) {
     const tags = Array.isArray(item?.tag) ? item.tag.join(', ') : '';
     return (
       <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('DoaDetail', { id })}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        {!!tags && <Text style={styles.cardTags}>{tags}</Text>}
+        <View style={styles.itemRow}>
+          <Svg width={20} height={20} viewBox="0 0 24 24" style={styles.itemIcon}>
+            <Path fill="#6b7280" d="M9 11c0-1.657 1.343-3 3-3s3 1.343 3 3v6h-2v-6a1 1 0 10-2 0v6H9v-6z"/>
+            <Path fill="#6b7280" d="M7 11a5 5 0 0110 0v7h-2v-7a3 3 0 10-6 0v7H7v-7z" opacity=".4"/>
+          </Svg>
+          <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
+        </View>
+        {!!tags && <Text style={styles.cardTags} numberOfLines={1} ellipsizeMode="tail">{tags}</Text>}
         {/* deskripsi/arti disembunyikan sesuai permintaan */}
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Daftar Doa</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -149,7 +157,7 @@ export default function DoaListScreen({ navigation }) {
           )}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -163,6 +171,8 @@ const styles = StyleSheet.create({
   search: { margin: 16, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#0f172a', backgroundColor: '#fff' },
   list: { padding: 16 },
   card: { flex: 1, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  itemRow: { flexDirection: 'row', alignItems: 'center' },
+  itemIcon: { marginRight: 8 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   cardTags: { color: '#64748b', marginTop: 4 },
   cardDesc: { color: '#334155', marginTop: 4 },

@@ -63,10 +63,48 @@ async function writeCache(key, payload) {
 export async function getHaditsArbainSemua() {
   const key = cacheKey('arbain_all');
   try {
-    const data = await getJSON(`${MYQURAN_V2_BASE}/hadits/arbain`);
-    if (data && typeof data === 'object') {
-      try { data.__fromCache = false; } catch {}
+    const raw = await getJSON(`${MYQURAN_V2_BASE}/hadits/arbain`);
+    // Normalisasi ke array hadits
+    let arr = [];
+    if (Array.isArray(raw)) {
+      arr = raw;
+    } else if (Array.isArray(raw?.data)) {
+      arr = raw.data;
+    } else {
+      // Coba temukan array secara deep
+      const findArrayDeep = (obj, depth = 3) => {
+        if (!obj || depth < 0) return null;
+        if (Array.isArray(obj)) return obj;
+        if (typeof obj === 'object') {
+          for (const v of Object.values(obj)) {
+            if (Array.isArray(v)) return v;
+            const found = findArrayDeep(v, depth - 1);
+            if (Array.isArray(found)) return found;
+          }
+        }
+        return null;
+      };
+      const deepArr = findArrayDeep(raw, 4);
+      if (Array.isArray(deepArr)) arr = deepArr;
     }
+    // Jika jumlah kurang dari 40, fallback ambil per nomor 1..42 lalu gabungkan
+    if (!Array.isArray(arr) || arr.length < 40) {
+      const nums = Array.from({ length: 42 }, (_, i) => i + 1);
+      const results = await Promise.all(nums.map(async (n) => {
+        try {
+          const d = await getJSON(`${MYQURAN_V2_BASE}/hadits/arbain/${n}`);
+          // response bisa {data: {...}} atau langsung {...}
+          const item = d?.data ?? d;
+          return item;
+        } catch (e) {
+          return null;
+        }
+      }));
+      arr = results.filter(Boolean);
+    }
+    // Tandai sumber bukan cache
+    const data = { data: arr };
+    try { data.__fromCache = false; } catch {}
     await writeCache(key, data);
     return data;
   } catch (e) {

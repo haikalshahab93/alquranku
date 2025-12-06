@@ -1,15 +1,18 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { theme } from '../../ui';
 
 export default function UlamaDetailScreen({ navigation, route }) {
   const scholar = route?.params?.scholar;
   if (!scholar) {
     return (
-      <View style={styles.center}>
-        <Text>Data ulama tidak ditemukan.</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}><Text style={styles.backText}>Kembali</Text></TouchableOpacity>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <View style={styles.center}>
+          <Text>Data ulama tidak ditemukan.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}><Text style={styles.backText}>Kembali</Text></TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
   const hijriSpan = [scholar.birth_hijri, scholar.death_hijri].filter(Boolean).join(' — ');
@@ -68,7 +71,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
     if (teachers) { groups.push(teachers); teachers.items.forEach(i => used.add(i.key)); }
     const students = pickBySubstr('Murid', STUDENT_SUBSTR);
     if (students) { groups.push(students); students.items.forEach(i => used.add(i.key)); }
-    const klass = pickGroup('Klasifikasi (Madhhab/Sekolah/Sekte)', CLASS_KEYS);
+    const klass = pickGroup('Klasifikasi (Madhhab/Sekolah/Sekete)', CLASS_KEYS);
     if (klass) { groups.push(klass); klass.items.forEach(i => used.add(i.key)); }
     const links = pickBySubstr('Tautan / Referensi', LINK_SUBSTR);
     if (links) { groups.push(links); links.items.forEach(i => used.add(i.key)); }
@@ -126,47 +129,47 @@ export default function UlamaDetailScreen({ navigation, route }) {
   );
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <LinearGradient colors={["#ede9fe","#faf5ff"]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
-        <Text style={styles.title}>{scholar.name}</Text>
-        {!!scholar.name_ar && <Text style={styles.titleAr}>{scholar.name_ar}</Text>}
-        {!!scholar.origin && <Text style={styles.meta}>Asal: {scholar.origin}</Text>}
-        {!!hijriSpan && <Text style={styles.meta}>Hijri: {hijriSpan}</Text>}
-        {!!gregSpan && <Text style={styles.meta}>Masehi: {gregSpan}</Text>}
-      </LinearGradient>
-      {!!scholar.bio && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Biografi Singkat</Text>
-          <Text style={styles.cardText}>{scholar.bio}</Text>
-        </View>
-      )}
-      {!!scholar.works && scholar.works.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Karya</Text>
-          {scholar.works.map((w, i) => (
-            <Text key={i} style={styles.cardText}>• {w}</Text>
-          ))}
-        </View>
-      )}
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <LinearGradient colors={[theme.colors.primaryLight, theme.colors.white]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">{scholar.name}</Text>
+          {!!scholar.name_ar && <Text style={styles.titleAr} numberOfLines={1} ellipsizeMode="tail">{scholar.name_ar}</Text>}
+          {!!scholar.origin && <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">Asal: {scholar.origin}</Text>}
+          {!!hijriSpan && <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
+          {!!gregSpan && <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
+        </LinearGradient>
+        {!!scholar.bio && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Biografi Singkat</Text>
+            <Text style={styles.cardText}>{scholar.bio}</Text>
+          </View>
+        )}
+        {!!scholar.works && scholar.works.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Karya</Text>
+            {scholar.works.map((w, i) => (
+              <Text key={i} style={styles.cardText}>• {w}</Text>
+            ))}
+          </View>
+        )}
 
-      {/* Sub-seksi terdeteksi dari raw */}
-      {grouped.map(renderGroup)}
+        {grouped.map(renderGroup)}
 
-      {/* Semua Atribut (Raw) */}
-      {rawKeys.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Semua Atribut (Raw)</Text>
-          {rawKeys.map((k) => (
-            <View key={k} style={styles.kvRow}>
-              <Text style={styles.kvKey}>{k}</Text>
-              <View style={styles.kvValBox}>{renderValue(raw[k])}</View>
-            </View>
-          ))}
-        </View>
-      )}
+        {rawKeys.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Semua Atribut (Raw)</Text>
+            {rawKeys.map((k) => (
+              <View key={k} style={styles.kvRow}>
+                <Text style={styles.kvKey}>{k}</Text>
+                <View style={styles.kvValBox}>{renderValue(raw[k])}</View>
+              </View>
+            ))}
+          </View>
+        )}
 
-      <View style={{ height: 24 }} />
-    </ScrollView>
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -174,16 +177,16 @@ const styles = StyleSheet.create({
   container: { padding: 16 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   backLink: { marginTop: 8 },
-  backText: { color: '#0ea5e9' },
-  headerCard: { borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e9d5ff' },
-  title: { fontSize: 20, fontWeight: '800', color: '#111' },
-  titleAr: { color: '#475569', marginTop: 4 },
-  meta: { color: '#64748b', marginTop: 6 },
-  card: { padding: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 12, marginTop: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
+  backText: { color: theme.colors.primary },
+  headerCard: { borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.colors.primaryLight, backgroundColor: theme.colors.white },
+  title: { fontSize: 20, fontWeight: '800', color: theme.colors.text },
+  titleAr: { color: theme.colors.muted, marginTop: 4 },
+  meta: { color: theme.colors.muted, marginTop: 6 },
+  card: { padding: 16, borderWidth: 1, borderColor: theme.colors.primaryLight, backgroundColor: theme.colors.white, borderRadius: 12, marginTop: 12 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
   cardText: { color: '#334155', marginTop: 6 },
   kvRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8 },
-  kvKey: { width: 140, color: '#64748b' },
+  kvKey: { width: 140, color: theme.colors.muted },
   kvValBox: { flex: 1 },
   kvVal: { color: '#334155' },
   subList: { marginTop: 6 },

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Share } from 'react-native';
 import { getDoaDetail } from '../../api/doa';
 import { theme } from '../../ui';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function DoaDetailScreen({ route }) {
   const { id } = route.params || {};

@@ -215,9 +215,9 @@ export default function SettingsScreen() {
       </View>
       {/* Preview Kalkulasi */}
       <View style={{ backgroundColor: '#eef2ff', borderWidth: 1, borderColor: '#c7d2fe', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontWeight: 'bold', color: '#3730a3' }}>Preview kalkulasi (hari ini)</Text>
-          <TouchableOpacity onPress={doPreview} style={{ backgroundColor: '#3730a3', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ fontWeight: 'bold', color: '#3730a3', flex: 1, minWidth: 0 }}>Preview kalkulasi (hari ini)</Text>
+          <TouchableOpacity onPress={doPreview} style={{ backgroundColor: '#3730a3', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginLeft: 12, alignSelf: 'flex-start', flexShrink: 0 }}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>Preview berdasarkan lokasi</Text>
           </TouchableOpacity>
         </View>

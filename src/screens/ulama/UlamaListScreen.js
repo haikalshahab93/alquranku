@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { SafeAreaView, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../../ui';
 
@@ -51,15 +51,15 @@ export default function UlamaListScreen({ navigation }) {
     return (
       <TouchableOpacity style={[styles.item, isGrid && styles.itemGrid]} onPress={() => navigation.navigate('UlamaDetail', { scholar: item })}>
         <View style={styles.itemHeaderRow}>
-          <Text style={styles.itemTitle}>{item.name}</Text>
+          <Text style={styles.itemTitle} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           {hasRaw && (
             <View style={styles.badge}><Text style={styles.badgeText}>Lengkap</Text></View>
           )}
         </View>
-        {!!item.name_ar && <Text style={styles.itemTitleAr}>{item.name_ar}</Text>}
-        <Text style={styles.itemMeta}>{item.origin || '-'}</Text>
-        {!!hijriSpan && <Text style={styles.itemMeta}>Hijri: {hijriSpan}</Text>}
-        {!!gregSpan && <Text style={styles.itemMeta}>Masehi: {gregSpan}</Text>}
+        {!!item.name_ar && <Text style={styles.itemTitleAr} numberOfLines={1} ellipsizeMode="tail">{item.name_ar}</Text>}
+        <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">{item.origin || '-'}</Text>
+        {!!hijriSpan && <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
+        {!!gregSpan && <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
       </TouchableOpacity>
     );
   };
@@ -87,15 +87,15 @@ export default function UlamaListScreen({ navigation }) {
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      <LinearGradient colors={[theme.colors.light, theme.colors.background]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <LinearGradient colors={[theme.colors.primaryLight, theme.colors.white]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
         <Text style={styles.title}>Ulama Islam</Text>
         <Text style={styles.subtitle}>Kumpulan data ulama dan karya-karyanya</Text>
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Cari ulama (nama/asal/karya)"
-          placeholderTextColor="#64748b"
+          placeholderTextColor={theme.colors.muted}
           style={[styles.search, isGrid && styles.searchWide]}
         />
         <Text style={styles.resultInfo}>{`Hasil: ${filtered.length} dari ${ULAMA.length}`}</Text>
@@ -114,35 +114,35 @@ export default function UlamaListScreen({ navigation }) {
         numColumns={numCols}
         columnWrapperStyle={isGrid ? styles.columnWrapper : undefined}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerCard: { padding: 16, borderBottomWidth: 1, borderColor: '#e5e7eb' },
-  title: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  subtitle: { color: '#64748b', marginTop: 4, marginBottom: 8 },
-  search: { borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  headerCard: { padding: 16, borderBottomWidth: 1, borderColor: theme.colors.primaryLight },
+  title: { fontSize: 20, fontWeight: '800', color: theme.colors.text },
+  subtitle: { color: theme.colors.muted, marginTop: 4, marginBottom: 8 },
+  search: { borderWidth: 1, borderColor: theme.colors.primaryLight, backgroundColor: theme.colors.white, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   searchWide: { alignSelf: 'center', maxWidth: 560, width: '100%' },
-  resultInfo: { color: '#64748b', marginTop: 8 },
+  resultInfo: { color: theme.colors.muted, marginTop: 8 },
   list: { padding: 16 },
   listGrid: { paddingHorizontal: 10 },
   columnWrapper: { justifyContent: 'space-between', marginBottom: 12 },
-  item: { padding: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 12, marginBottom: 12 },
+  item: { padding: 12, borderWidth: 1, borderColor: theme.colors.primaryLight, backgroundColor: theme.colors.white, borderRadius: 12, marginBottom: 12 },
   itemGrid: { flex: 1, marginHorizontal: 6 },
-  itemHeaderRow: { flexDirection: 'row', alignItems: 'center' },
-  badge: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: '#ecfeff', borderWidth: 1, borderColor: '#06b6d4' },
-  badgeText: { fontSize: 12, color: '#0e7490' },
-  itemTitle: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
-  itemTitleAr: { fontSize: 14, color: '#475569', marginTop: 2 },
-  itemMeta: { color: '#64748b', marginTop: 2 },
+  itemHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  badge: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, backgroundColor: 'rgba(139,92,246,0.1)', borderWidth: 1, borderColor: theme.colors.primaryLight, flexShrink: 0, alignSelf: 'flex-start' },
+  badgeText: { fontSize: 12, color: theme.colors.primaryDark },
+  itemTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text, flex: 1, minWidth: 0 },
+  itemTitleAr: { fontSize: 14, color: theme.colors.muted, marginTop: 2 },
+  itemMeta: { color: theme.colors.muted, marginTop: 2 },
   center: { alignItems: 'center', padding: 16 },
   footerBox: { alignItems: 'center', paddingVertical: 12 },
   paginationRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  pageBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#eef2ff', borderWidth: 1, borderColor: '#c7d2fe' },
+  pageBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(139,92,246,0.08)', borderWidth: 1, borderColor: theme.colors.primaryLight },
   pageBtnDisabled: { backgroundColor: '#f1f5f9', borderColor: '#e5e7eb' },
-  pageBtnText: { color: '#4f46e5', fontWeight: '600' },
+  pageBtnText: { color: theme.colors.primaryDark, fontWeight: '600' },
   pageBtnTextDisabled: { color: '#94a3b8' },
-  pageInfo: { color: '#64748b' },
-  footerInfo: { color: '#64748b', marginTop: 8 },
+  pageInfo: { color: theme.colors.muted },
+  footerInfo: { color: theme.colors.muted, marginTop: 8 },
 });

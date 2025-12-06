@@ -179,11 +179,65 @@ Catatan: pastikan Anda sudah login Git atau menyiapkan Personal Access Token (PA
 npx eas build -p android --profile android-apk --non-interactive
 ```
 
-### Build AAB (untuk Play Store)
-```bash
-npx eas build -p android --profile android-production --non-interactive
-```
+## Panduan Update ke Play Store (AAB)
 
+Langkah lengkap agar rilis ke Play Store konsisten dan mudah di-maintain:
+
+1) Prasyarat
+- Pastikan sudah login Expo: `npx expo login`
+- EAS CLI terpasang: `npm i -g eas-cli` (opsional jika belum)
+- Package Android sudah benar: `com.alfarisy.infoalquran` (lihat `app.json` > `android.package`)
+- Ikon & splash sudah siap: `assets/icon.png`, `assets/adaptive-icon.png`, `assets/splash-icon.png`
+
+2) Versioning aplikasi
+- Buka `app.json` dan naikkan `expo.version` (mis. dari `1.0.0` ke `1.0.1`)
+- (Opsional/Disarankan) Tambahkan `android.versionCode` jika Play Console meminta increment manual.
+  Contoh:
+  ```json
+  {
+    "expo": {
+      "version": "1.0.1",
+      "android": {
+        "package": "com.alfarisy.infoalquran",
+        "versionCode": 2
+      }
+    }
+  }
+  ```
+- Simpan perubahan dan commit.
+
+3) Build AAB (untuk Play Store)
+- Jalankan: `npx eas build -p android --profile android-production --non-interactive`
+- Setelah selesai, catat URL artefak AAB yang diberikan.
+
+4) Uji & verifikasi
+- Buka aplikasi di dev (Expo Go) atau web untuk sanity check fitur utama (Surah, Doa, Hadits, Ulama, Pengaturan).
+- Pastikan perbaikan UI terbaru tampil rapi (badge, tombol, pager, dll.).
+
+5) Upload ke Google Play Console
+- Masuk ke Play Console > App Anda > Release > Production/Internal test.
+- Upload berkas AAB dari hasil EAS Build.
+- Isi catatan rilis (what’s new), versi, dan cek kebijakan (privacy policy sudah ada di `docs/Alquranku-Privacy-Policy-and-Terms.rtf`).
+- Lanjutkan review dan publikasi.
+
+6) Submit via EAS (opsional)
+- Jika ingin submit langsung dari EAS: `npx eas submit -p android --profile production`
+- Pastikan kredensial Play Console sudah dikonfigurasi di akun EAS Anda.
+
+7) Penandaan rilis
+- Setelah rilis, buat tag git: `git tag v1.0.1 && git push --tags`
+- Tambahkan catatan rilis di GitHub (Release Notes) untuk dokumentasi.
+
+## Panduan Push ke GitHub (ringkas)
+
+1) Cek status perubahan: `git status`
+2) Tambahkan semua perubahan: `git add -A`
+3) Commit dengan pesan yang jelas: `git commit -m "docs: Play Store guide; fix UI & Ionicons in Doa; hadits pager"`
+4) Push ke remote: `git push`
+
+Tips:
+- Gunakan pesan commit yang informatif (prefix seperti `feat:`, `fix:`, `docs:`) agar riwayat mudah ditelusuri.
+- Simpan link artefak AAB di README atau di Release Notes GitHub untuk rujukan cepat.
 File artefak akan tersedia di dashboard Expo (EAS) dan diunduh ke folder `dist/` oleh skrip otomatis.
 
 ### Catatan Rilis (1.1.0)

@@ -432,13 +432,13 @@ export default function HomeScreen({ navigation }) {
       )}
 
       <View style={styles.list}>
-        <FeatureTile title="Surat" desc="Baca Al-Quran per surat" onPress={() => navigation.navigate('SurahList')} />
-        <FeatureTile title="Doa" desc="Doa harian dan dzikir" onPress={() => navigation.navigate('DoaList')} />
-        <FeatureTile title="Hadits" desc="Kumpulan hadits pilihan" onPress={() => navigation.navigate('HaditsMenu')} />
-        <FeatureTile title="Hijriyah" desc="Kalender hijriyah" onPress={() => navigation.navigate('HijriCalendar')} />
-        <FeatureTile title="Kiblat" desc="Arah kiblat" onPress={() => navigation.navigate('Qibla')} />
-        <FeatureTile title="Sholat" desc="Jadwal sholat" onPress={() => navigation.navigate('SholatJadwal')} />
-        <FeatureTile title="Ulama" desc="Data ulama Islam" onPress={() => navigation.navigate('UlamaList')} />
+        <FeatureTile title="Surat" icon="book-outline" onPress={() => navigation.navigate('SurahList')} />
+        <FeatureTile title="Doa" icon="prayer-outline" onPress={() => navigation.navigate('DoaList')} />
+        <FeatureTile title="Hadits" icon="list-circle-outline" onPress={() => navigation.navigate('HaditsMenu')} />
+        <FeatureTile title="Hijriyah" icon="calendar-outline" onPress={() => navigation.navigate('HijriCalendar')} />
+        <FeatureTile title="Kiblat" icon="compass-outline" onPress={() => navigation.navigate('Qibla')} />
+        <FeatureTile title="Sholat" icon="time-outline" onPress={() => navigation.navigate('SholatJadwal')} />
+        <FeatureTile title="Ulama" icon="people-outline" onPress={() => navigation.navigate('UlamaList')} />
       </View>
 
       <View style={styles.footer}>
@@ -449,12 +449,12 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: '#f8fafc' },
+  container: { padding: 16, backgroundColor: theme.colors.bg },
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   logo: { width: 48, height: 48, marginRight: 8 },
-  title: { fontSize: 24, fontWeight: '800', color: '#111', textAlign: 'center' },
-  subtitle: { color: '#64748b', marginTop: 4, marginBottom: 16, textAlign: 'center' },
-  list: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' },
+  title: { fontSize: 24, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
+  subtitle: { color: theme.colors.muted, marginTop: 4, marginBottom: 16, textAlign: 'center' },
+  list: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   card: { padding: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, marginBottom: 14 },
   cardBg: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e9d5ff' },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#1f2937' },
