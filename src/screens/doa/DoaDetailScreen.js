@@ -3,6 +3,7 @@ import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity
 import { getDoaDetail } from '../../api/doa';
 import { theme } from '../../ui';
 import { Ionicons } from '@expo/vector-icons';
+import { isDoaFavorite, toggleDoaFavorite, setLastReadDoa } from '../../api/doa';
 
 export default function DoaDetailScreen({ route }) {
   const { id } = route.params || {};
@@ -12,25 +13,23 @@ export default function DoaDetailScreen({ route }) {
   const [textScale, setTextScale] = useState(1.0);
   const increaseTextScale = () => setTextScale((s) => Math.min(2, +(s + 0.1).toFixed(1)));
   const decreaseTextScale = () => setTextScale((s) => Math.max(0.8, +(s - 0.1).toFixed(1)));
-
-  const fetchDetail = async () => {
-    try {
-      setLoading(true);
-      const res = await getDoaDetail(id);
-      const d = res?.data ?? res;
-      setDetail(d);
-      setFromCache(!!d?.__fromCache);
-    } catch (e) {
-      console.warn('Gagal memuat detail doa', e?.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [fav, setFav] = useState(false);
 
   useEffect(() => {
-    fetchDetail();
+    let mounted = true;
+    // set terakhir dibaca
+    setLastReadDoa(id);
+    // cek favorit
+    isDoaFavorite(id).then((v) => { if (mounted) setFav(!!v); }).catch(() => {});
+    return () => { mounted = false; };
   }, [id]);
 
+  const toggleFav = async () => {
+    const v = await toggleDoaFavorite(id);
+    setFav(!!v);
+  };
+
+  fetchDetail();
   if (loading) {
     return (
       <View style={styles.center}><ActivityIndicator size="large" /></View>
@@ -81,7 +80,10 @@ export default function DoaDetailScreen({ route }) {
           <Text style={styles.numberPillText}>{id != null ? id : '-'}</Text>
         </View>
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.iconBtn} onPress={shareDoa}>
+          <TouchableOpacity style={styles.iconBtn} onPress={toggleFav}>
+            <Ionicons name={fav ? 'heart' : 'heart-outline'} size={20} color={fav ? '#dc2626' : '#6B21A8'} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.iconBtn, { marginLeft: 8 }]} onPress={shareDoa}>
             <Ionicons name="share-social-outline" size={20} color="#6B21A8" />
           </TouchableOpacity>
         </View>

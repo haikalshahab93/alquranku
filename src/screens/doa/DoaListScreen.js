@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { getDoaList } from '../../api/doa';
 import { theme } from '../../ui';
+import { getDoaFavorites, getLastReadDoa } from '../../api/doa';
 
 function normalizeArray(data) {
   if (Array.isArray(data)) return data;
@@ -84,10 +85,24 @@ export default function DoaListScreen({ navigation }) {
   const goPrev = () => setPage((p) => Math.max(0, p - 1));
   const goNext = () => setPage((p) => Math.min(totalPages - 1, p + 1));
 
+  const [favorites, setFavorites] = useState([]);
+  const [lastRead, setLastRead] = useState(null);
+
+  useEffect(() => {
+    const loadMeta = async () => {
+      const favs = await getDoaFavorites();
+      const lr = await getLastReadDoa();
+      setFavorites(Array.isArray(favs) ? favs : []);
+      setLastRead(lr);
+    };
+    loadMeta();
+  }, []);
+
   const renderItem = ({ item }) => {
     const id = item?.id;
     const title = item?.nama || `Doa ${id}`;
     const tags = Array.isArray(item?.tag) ? item.tag.join(', ') : '';
+    const isFav = favorites.includes(id);
     return (
       <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('DoaDetail', { id })}>
         <View style={styles.itemRow}>
@@ -96,6 +111,7 @@ export default function DoaListScreen({ navigation }) {
             <Path fill="#6b7280" d="M7 11a5 5 0 0110 0v7h-2v-7a3 3 0 10-6 0v7H7v-7z" opacity=".4"/>
           </Svg>
           <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
+          {isFav ? <Text style={styles.favBadge}>❤</Text> : null}
         </View>
         {!!tags && <Text style={styles.cardTags} numberOfLines={1} ellipsizeMode="tail">{tags}</Text>}
         {/* deskripsi/arti disembunyikan sesuai permintaan */}
@@ -131,6 +147,12 @@ export default function DoaListScreen({ navigation }) {
         placeholderTextColor="#64748b"
         style={styles.search}
       />
+      {lastRead?.id ? (
+        <TouchableOpacity style={styles.lastReadCard} onPress={() => navigation.navigate('DoaDetail', { id: lastRead.id })}>
+          <Text style={styles.lastReadTitle}>Lanjutkan Doa Terakhir</Text>
+          <Text style={styles.lastReadSub}>{`Doa #${lastRead.id}`}</Text>
+        </TouchableOpacity>
+      ) : null}
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" /></View>
       ) : error ? (
@@ -173,7 +195,12 @@ const styles = StyleSheet.create({
   card: { flex: 1, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   itemRow: { flexDirection: 'row', alignItems: 'center' },
   itemIcon: { marginRight: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', flex: 1, minWidth: 0 },
+  favBadge: { marginLeft: 8, color: '#dc2626', fontSize: 14, fontWeight: '800' },
+  // Last read card
+  lastReadCard: { marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff' },
+  lastReadTitle: { fontWeight: '800', color: theme.colors.primary, marginBottom: 2 },
+  lastReadSub: { color: '#334155' },
   cardTags: { color: '#64748b', marginTop: 4 },
   cardDesc: { color: '#334155', marginTop: 4 },
   pagerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8 },

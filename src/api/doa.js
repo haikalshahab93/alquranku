@@ -70,3 +70,69 @@ export async function getDoaDetail(id) {
     throw e;
   }
 }
+
+// Favorit & Terakhir Dibaca (AsyncStorage)
+const FAVORITES_KEY = 'doa:favorites';
+const LAST_READ_KEY = 'doa:lastRead';
+
+export async function getDoaFavorites() {
+  try {
+    const raw = await AsyncStorage.getItem(FAVORITES_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function toggleDoaFavorite(id) {
+  const iid = parseInt(id, 10);
+  if (Number.isNaN(iid)) return false;
+  try {
+    const current = await getDoaFavorites();
+    const set = new Set(current);
+    let isFav;
+    if (set.has(iid)) {
+      set.delete(iid);
+      isFav = false;
+    } else {
+      set.add(iid);
+      isFav = true;
+    }
+    const next = Array.from(set);
+    await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+    return isFav;
+  } catch {
+    return false;
+  }
+}
+
+export async function isDoaFavorite(id) {
+  const iid = parseInt(id, 10);
+  if (Number.isNaN(iid)) return false;
+  const favs = await getDoaFavorites();
+  return favs.includes(iid);
+}
+
+export async function setLastReadDoa(id) {
+  const iid = parseInt(id, 10);
+  if (Number.isNaN(iid)) return false;
+  try {
+    const payload = { id: iid, ts: Date.now() };
+    await AsyncStorage.setItem(LAST_READ_KEY, JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function getLastReadDoa() {
+  try {
+    const raw = await AsyncStorage.getItem(LAST_READ_KEY);
+    const obj = raw ? JSON.parse(raw) : null;
+    if (!obj || typeof obj.id !== 'number') return null;
+    return obj; // { id, ts }
+  } catch {
+    return null;
+  }
+}
