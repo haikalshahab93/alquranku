@@ -51,8 +51,8 @@
         {
           "color": "#8b5cf6",
           "sounds": [
-            "assets/sounds/adhan.wav",
-            "assets/sounds/default_preview.wav"
+            "assets/sounds/adhan.mp3",
+            "assets/sounds/default_preview.mp3"
           ]
         }
       ]

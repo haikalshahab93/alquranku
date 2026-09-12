@@ -11,8 +11,8 @@ import { bigGetAllKeys, bigRemoveItem, bigStats } from '../../api/bigStore';
 import { listOfflineAudio, deleteAllOfflineAudio } from '../../api/offlineAudio';
 
 // Sumber audio preview (dua-duanya dibundel lewat config plugin expo-notifications)
-const ADHAN_PREVIEW = require('../../../assets/sounds/adhan.wav');
-const DEFAULT_PREVIEW = require('../../../assets/sounds/default_preview.wav');
+const ADHAN_PREVIEW = require('../../../assets/sounds/adhan.mp3');
+const DEFAULT_PREVIEW = require('../../../assets/sounds/default_preview.mp3');
 
 // === Pilihan berbahasa manusiawi (nilai tersimpan tetap sama seperti sebelumnya) ===
 const METODE_OPSI = [

@@ -54,7 +54,7 @@ Notifications.setNotificationHandler({
 // Pilihan suara pengingat: 'default' (bunyi sistem) atau 'adhan' (custom, dibundel via plugin)
 export const SOUND_CHOICES = {
   default: { label: 'Bunyi Default', channelSound: 'default', contentSound: 'default' },
-  adhan: { label: 'Adzan', channelSound: 'adhan.wav', contentSound: 'adhan.wav' },
+  adhan: { label: 'Adzan', channelSound: 'adhan.mp3', contentSound: 'adhan.mp3' },
 };
 
 async function ensureAndroidChannel(soundChoice = 'default') {
