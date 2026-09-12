@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Animated, Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../../ui';
-import { getHijriMonthly, mapMonthlyToDay } from '../../api/kalender';
+import { mapMonthlyToDay } from '../../api/kalender';
 
 // Konversi Gregorian -> Julian Day Number (JDN)
 function gregorianToJDN(y, m, d) {
@@ -85,15 +85,14 @@ export default function HijriCalendarScreen() {
   const [saving, setSaving] = useState(false);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
-  const [apiMonthly, setApiMonthly] = useState(null);
-  const [apiDayMap, setApiDayMap] = useState({});
+  const [showHijriOnly, setShowHijriOnly] = useState(false);
 
   // Animasi transisi bulan (fade)
   const animMonth = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.sequence([
-      Animated.timing(animMonth, { toValue: 0, duration: 120, useNativeDriver: true }),
-      Animated.timing(animMonth, { toValue: 1, duration: 160, useNativeDriver: true }),
+      Animated.timing(animMonth, { toValue: 0, duration: 120 }),
+      Animated.timing(animMonth, { toValue: 1, duration: 160 }),
     ]).start();
   }, [viewYear, viewMonth]);
 
@@ -133,7 +132,8 @@ export default function HijriCalendarScreen() {
   const onReset = () => { setViewYear(today.year); setViewMonth(today.month); };
 
   const gNow = new Date();
-  const gTodayLabel = `${gNow.getDate()} ${GREGORIAN_MONTH_NAMES_ID[gNow.getMonth()]} ${gNow.getFullYear()}`;
+  const todayLabelFull = `${Math.max(1, Math.round(today.day))} ${MONTH_NAMES_ID[today.month - 1]} ${today.year} H`;
+  const todayGregorian = `${gNow.getDate()} ${GREGORIAN_MONTH_NAMES_ID[gNow.getMonth()]} ${gNow.getFullYear()}`;
 
   useEffect(() => {
     (async () => {
@@ -151,14 +151,11 @@ export default function HijriCalendarScreen() {
     setApiLoading(true);
     setApiError(null);
     try {
-      const data = await getHijriMonthly(year, month);
-      setApiMonthly(data);
-      const dayMap = mapMonthlyToDay(data, len);
-      setApiDayMap(dayMap);
+      // Kalender hanya pakai perhitungan bawaan (civil arithmetic).
+      // Tidak pakai API eksternal yang sering bermasalah.
+      // Data selayaknya tetap bisa diisi nanti dari sumber lain bila ada.
     } catch (e) {
-      setApiError('Gagal memuat data kalender dari API MyQuran');
-      setApiMonthly(null);
-      setApiDayMap({});
+      setApiError('Gagal memuat kalender bulan. Coba lagi nanti.');
     } finally {
       setApiLoading(false);
     }
@@ -219,12 +216,12 @@ export default function HijriCalendarScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Kalender Hijriah</Text>
       <Text style={styles.subtitle}>
-        Hari ini: {today.day} {MONTH_NAMES_ID[today.month - 1]} {today.year} H • Masehi: {gTodayLabel}
+        Hari ini: {todayLabelFull} • Masehi: {todayGregorian}
       </Text>
 
       <Text style={styles.monthTitleCenter}>{MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
       <Text style={styles.subtitle}>{`Rentang Masehi: ${gregRangeLabel}`}</Text>
-      {!!apiLoading && <Text style={styles.apiInfo}>Memuat data kalender dari API MyQuran…</Text>}
+      {!!apiLoading && <Text style={styles.apiInfo}>Memuat kalender bulan…</Text>}
       {!!apiError && (
         <View style={{ padding: 8, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fee2e2', borderRadius: 8, marginBottom: 8 }}>
           <Text style={styles.apiInfoErr}>{apiError}</Text>
@@ -233,8 +230,6 @@ export default function HijriCalendarScreen() {
           </TouchableOpacity>
         </View>
       )}
-      {!!apiMonthly && !apiLoading && !apiError && <Text style={styles.apiInfo}>Data MyQuran tersedia untuk bulan ini.</Text>}
-
       <View style={styles.navButtonsRow}>
         <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onPrev}><Text style={styles.btnGhostText}>← Sebelumnya</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onNext}><Text style={styles.btnGhostText}>Berikutnya →</Text></TouchableOpacity>
@@ -249,7 +244,7 @@ export default function HijriCalendarScreen() {
         ))}
       </View>
 
-      <Animated.View style={[styles.grid, { opacity: animMonth }]}> 
+      <View style={[styles.grid, { opacity: animMonth }]}>
         {cells.map((cell, idx) => {
           if (cell === null) {
             return (
@@ -257,25 +252,12 @@ export default function HijriCalendarScreen() {
             );
           }
           const day = cell;
-          const isToday = isTodayInView && day === today.day;
+          const isToday = isTodayInView && day === Math.max(1, Math.round(today.day));
           const jdn = Math.floor(islamicToJDN(viewYear, viewMonth, day));
           const gDateLocal = jdnToGregorian(jdn);
           const dow = new Date(gDateLocal.year, gDateLocal.month - 1, gDateLocal.day).getDay();
           const isFriday = dow === 5;
-          const apiItem = apiDayMap?.[day] || null;
           let gregLabel = `${gDateLocal.day} ${GREGORIAN_MONTH_NAMES_ID[gDateLocal.month - 1]}`;
-          if (apiItem && typeof apiItem === 'object') {
-            const candidates = [
-              apiItem?.masehi,
-              apiItem?.masehi_date,
-              apiItem?.masehi_tanggal,
-              apiItem?.gregorian,
-              apiItem?.tanggal_masehi,
-            ].filter((x) => typeof x === 'string' && x.trim().length > 0);
-            if (candidates.length) {
-              gregLabel = candidates[0];
-            }
-          }
           const hasMemo = !!memos[jdn];
           const isSelected = !!selected && selected.jdn === jdn;
           const ev = eventMap[day];
@@ -290,7 +272,7 @@ export default function HijriCalendarScreen() {
             </TouchableOpacity>
           );
         })}
-      </Animated.View>
+      </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <View style={styles.memoDot} />
@@ -357,15 +339,15 @@ const styles = StyleSheet.create({
   weekHeaderText: { width: '14.285%', textAlign: 'center', color: '#64748b', fontSize: 12, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '14.285%', aspectRatio: 1.1, borderRadius: 10, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', padding: 6,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2, marginBottom: 8 },
-  cellBlank: { backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
+    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)', elevation: 2, marginBottom: 8 },
+  cellBlank: { backgroundColor: 'transparent', elevation: 0 },
   cellFriday: { borderColor: '#eab308', borderWidth: 1 },
-  cellToday: { backgroundColor: theme.colors.primary },
+  cellToday: { backgroundColor: '#7C3AED', borderColor: '#7C3AED', borderWidth: 1 },
   cellSelected: { borderWidth: 2, borderColor: theme.colors.primary },
   cellInner: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
   cellHijri: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
   cellGreg: { color: '#334155', fontSize: 10, marginTop: 2 },
-  cellTextToday: { color: 'white', fontWeight: '700' },
+  cellTextToday: { color: '#fff', fontWeight: '800' },
   btn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
   btnPrimary: { backgroundColor: theme.colors.primaryDark, alignSelf: 'flex-start', marginBottom: 12 },
   btnGhost: { borderWidth: 1, borderColor: '#94a3b8', backgroundColor: 'white' },
@@ -378,7 +360,7 @@ const styles = StyleSheet.create({
   badgeMonthStart: { backgroundColor: '#3b82f6' },
   badgeSunna: { backgroundColor: '#22c55e' },
   memoCard: { marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, backgroundColor: '#fff', padding: 12,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+    boxShadow: '0px 3px 6px rgba(0, 0, 0, 0.05)', elevation: 3 },
   memoTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
   memoSubtitle: { fontSize: 12, color: '#475569', marginTop: 4 },
   memoInput: { marginTop: 8, minHeight: 100, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 10, textAlignVertical: 'top', backgroundColor: '#f8fafc' },

@@ -1,6 +1,6 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { bigGetItem, bigSetItem } from './bigStore';
 
 // Hadits API via myQuran v2
 const MYQURAN_V2_BASE = 'https://api.myquran.com/v2';
@@ -38,7 +38,9 @@ const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 const cacheKey = (name, params = '') => `cache:hadits:${name}${params ? ':' + params : ''}`;
 async function readCache(key, allowStale = false) {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    // Cache hadits bisa sangat besar (Bulughul Maram ~1597 teks penuh) -> bigStore (file),
+    // bukan AsyncStorage yang SQLite-nya cepat penuh.
+    const raw = await bigGetItem(key);
     if (!raw) return null;
     const obj = JSON.parse(raw);
     if (!obj || typeof obj.ts !== 'number') return null;
@@ -56,14 +58,14 @@ async function readCache(key, allowStale = false) {
 async function writeCache(key, payload) {
   try {
     const obj = { ts: Date.now(), payload };
-    await AsyncStorage.setItem(key, JSON.stringify(obj));
+    await bigSetItem(key, JSON.stringify(obj));
   } catch {}
 }
 
 export async function getHaditsArbainSemua() {
   const key = cacheKey('arbain_all');
   try {
-    const raw = await getJSON(`${MYQURAN_V2_BASE}/hadits/arbain`);
+    const raw = await getJSON(`${MYQURAN_V2_BASE}/hadits/arbain/semua`);
     // Normalisasi ke array hadits
     let arr = [];
     if (Array.isArray(raw)) {
@@ -130,12 +132,6 @@ export async function getHaditsArbainNomor(nomor) {
   }
 }
 
-export async function getHaditsArbainAcak() {
-  // Random tidak cocok disimpan sebagai deterministik; tidak di-cache.
-  const data = await getJSON(`${MYQURAN_V2_BASE}/hadits/arbain/random`);
-  return data;
-}
-
 export async function getHaditsBmNomor(nomor) {
   const key = cacheKey('bm_num', String(nomor));
   try {
@@ -150,11 +146,6 @@ export async function getHaditsBmNomor(nomor) {
     if (cached) return cached;
     throw e;
   }
-}
-
-export async function getHaditsBmAcak() {
-  const data = await getJSON(`${MYQURAN_V2_BASE}/hadits/bm/random`);
-  return data;
 }
 
 export async function getHaditsPerawiList() {
@@ -186,16 +177,5 @@ export async function getHaditsPerawiNomor(slug, nomor) {
     const cached = await readCache(key, true);
     if (cached) return cached;
     throw e;
-  }
-}
-
-export async function getHaditsPerawiAcak() {
-  try {
-    const data = await getJSON(`${MYQURAN_V2_BASE}/hadits/perawi/random`);
-    return data;
-  } catch (e) {
-    // Fallback ke "/acak" jika "/random" tidak tersedia
-    const data2 = await getJSON(`${MYQURAN_V2_BASE}/hadits/perawi/acak`);
-    return data2;
   }
 }

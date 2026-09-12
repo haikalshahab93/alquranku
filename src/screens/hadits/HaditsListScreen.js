@@ -204,9 +204,6 @@ export default function HaditsListScreen({ navigation }) {
       <View style={styles.headerRow}>
         <Text style={styles.title}>Arba’in Nawawi</Text>
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.randomBtn} onPress={() => navigation.navigate('HaditsDetail', { random: true })}>
-            <Text style={styles.randomText}>Acak</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={[styles.randomBtn, showAll && styles.activeBtn]} onPress={() => setShowAll((s) => !s)}>
             <Text style={[styles.randomText, showAll && styles.activeText]}>{showAll ? 'Tampilkan Halaman' : 'Tampilkan Semua'}</Text>
           </TouchableOpacity>
@@ -288,7 +285,7 @@ const styles = StyleSheet.create({
   activeText: { color: '#fff' },
   search: { margin: 16, borderWidth: 1, borderColor: theme.colors.primaryLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: theme.colors.text, backgroundColor: '#fff' },
   list: { padding: 16 },
-  item: { padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  item: { padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)' },
   itemRow: { flexDirection: 'row', alignItems: 'center' },
   itemIcon: { marginRight: 10 },
   itemTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text },

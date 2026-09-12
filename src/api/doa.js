@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { bigGetItem, bigSetItem } from './bigStore';
 
 // Doa API from EQuran
 const DOA_BASE = 'https://equran.id/api/doa';
@@ -8,7 +9,8 @@ const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 const cacheKey = (name, params = '') => `cache:doa:${name}${params ? ':' + params : ''}`;
 async function readCache(key, allowStale = false) {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    // Cache daftar doa -> bigStore (file), bukan AsyncStorage (SQLITE_FULL risk)
+    const raw = await bigGetItem(key);
     if (!raw) return [];
     const obj = JSON.parse(raw);
     if (!obj || typeof obj.ts !== 'number') return [];
@@ -26,7 +28,7 @@ async function readCache(key, allowStale = false) {
 async function writeCache(key, payload) {
   try {
     const obj = { ts: Date.now(), payload };
-    await AsyncStorage.setItem(key, JSON.stringify(obj));
+    await bigSetItem(key, JSON.stringify(obj));
   } catch {}
 }
 

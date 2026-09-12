@@ -2,11 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Share, Platform } from 'react-native';
 import { 
   getHaditsArbainNomor, 
-  getHaditsArbainAcak,
   getHaditsBmNomor,
-  getHaditsBmAcak,
   getHaditsPerawiNomor,
-  getHaditsPerawiAcak,
 } from '../../api/hadits';
 import { theme } from '../../ui';
 import { Ionicons } from '@expo/vector-icons'
@@ -27,7 +24,7 @@ function pickFields(payload) {
 }
 
 export default function HaditsDetailScreen({ route, navigation }) {
-  const { nomor, random, collection = 'arbain', slug } = route.params || {};
+  const { nomor, collection = 'arbain', slug } = route.params || {};
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -56,12 +53,12 @@ export default function HaditsDetailScreen({ route, navigation }) {
         setError(null);
         let res;
         if (collection === 'bm') {
-          res = random ? await getHaditsBmAcak() : await getHaditsBmNomor(currentNomor || nomor);
+          res = await getHaditsBmNomor(currentNomor || nomor);
         } else if (collection === 'perawi') {
-          res = random ? await getHaditsPerawiAcak() : await getHaditsPerawiNomor(perawiSlug || slug, currentNomor || nomor);
+          res = await getHaditsPerawiNomor(perawiSlug || slug, currentNomor || nomor);
         } else {
           // default: arbain
-          res = random ? await getHaditsArbainAcak() : await getHaditsArbainNomor(currentNomor || nomor);
+          res = await getHaditsArbainNomor(currentNomor || nomor);
         }
         setData(pickFields(res));
         // Tetapkan nomor & batas maksimal sesuai koleksi
@@ -81,7 +78,7 @@ export default function HaditsDetailScreen({ route, navigation }) {
         setLoading(false);
       }
     })();
-  }, [nomor, random, collection, slug, currentNomor, perawiSlug]);
+  }, [nomor, collection, slug, currentNomor, perawiSlug]);
 
   const fetchByNumber = async (target) => {
     try {

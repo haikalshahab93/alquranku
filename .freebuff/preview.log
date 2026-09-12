@@ -1,0 +1,13 @@
+
+> alquranku@1.0.0 web
+> expo start --web --port 8100 --offline
+
+Networking has been disabled
+Starting project at S:\sementara haikal\alquranku
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+Waiting on http://localhost:8100
+Logs for your project will appear below.
+Web .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 85.1% (513/556)
+Web Bundled 2100ms index.js (757 modules)
+ LOG  [web] Logs will appear in the browser console

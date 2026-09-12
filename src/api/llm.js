@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { getSurahList, getSurahDetail, getTafsir } from './quran';
 import { getDoaList, getDoaDetail } from './doa';
-import { getHaditsArbainNomor, getHaditsArbainAcak, getHaditsBmNomor, getHaditsBmAcak } from './hadits';
+import { getHaditsArbainNomor, getHaditsBmNomor } from './hadits';
 
 // Konfigurasi LLM via Expo extra (aman tanpa menyimpan key di repo)
 // Tambahkan di app.json atau app.config.js jika ingin mengaktifkan provider.
@@ -121,7 +121,8 @@ async function builtinReply(messages) {
     // Hadits Arbain / BM
     if (lc.includes('arbain')) {
       const num = lc.match(/\b(\d{1,3})\b/);
-      const data = num ? await getHaditsArbainNomor(parseInt(num[1],10)) : await getHaditsArbainAcak();
+      if (!num) return 'Sebutkan nomor haditsnya, contoh: "arbain nomor 10" (1-42).';
+      const data = await getHaditsArbainNomor(parseInt(num[1],10));
       const h = Array.isArray(data?.data) ? data.data[0] : data?.data || data;
       const teks = h?.arab || h?.matn || h?.teks || '';
       const indo = h?.id || h?.terjemah || '';
@@ -129,7 +130,8 @@ async function builtinReply(messages) {
     }
     if (lc.includes('bm') || lc.includes('bulugh')) {
       const num = lc.match(/\b(\d{1,4})\b/);
-      const data = num ? await getHaditsBmNomor(parseInt(num[1],10)) : await getHaditsBmAcak();
+      if (!num) return 'Sebutkan nomor haditsnya, contoh: "bm nomor 100" (1-1597).';
+      const data = await getHaditsBmNomor(parseInt(num[1],10));
       const h = Array.isArray(data?.data) ? data.data[0] : data?.data || data;
       const teks = h?.arab || h?.matn || h?.teks || '';
       const indo = h?.id || h?.terjemah || '';

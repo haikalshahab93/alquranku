@@ -113,6 +113,20 @@ export default function SholatJadwalScreen() {
 
   // Detect location (GPS or browser) and fill city/country
   useEffect(() => { (async () => { try {
+    // 1) Coba baca lokasi yang tersimpan (banyak aplikasi menyimpan 'last_known_location')
+    const saved = await AsyncStorage.getItem('last_known_location');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.lat === 'number' && typeof parsed.lon === 'number') {
+          setLat(parsed.lat); setLon(parsed.lon);
+          if (parsed.city) setCity(parsed.city);
+          if (parsed.country) setCountry(parsed.country);
+          return; // lokasi cukup, jangan request GPS/geolocation lagi
+        }
+      } catch {}
+    }
+    // 2) Jika tidak ada lokasi yang tersimpan, lakukan request seperti sebelumnya
     if (Platform.OS !== 'web') {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') { await fetchIpLocation(); return; }
@@ -237,7 +251,11 @@ export default function SholatJadwalScreen() {
   const readableDate = useMemo(() => {
     const s = data?.date;
     let dObj = now;
-    if (typeof s === 'string' && /^\d{1,2}-\d{1,2}-\d{4}$/.test(s)) {
+    if (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      // ISO (YYYY-MM-DD) dari lapisan API setelah normalisasi
+      const [yyyy, mm, dd] = s.split('-').map(v => parseInt(v, 10));
+      dObj = new Date(yyyy, mm - 1, dd);
+    } else if (typeof s === 'string' && /^\d{1,2}-\d{1,2}-\d{4}$/.test(s)) {
       const [dd, mm, yyyy] = s.split('-').map(v => parseInt(v, 10));
       dObj = new Date(yyyy, mm - 1, dd);
     }
@@ -310,7 +328,7 @@ export default function SholatJadwalScreen() {
         </View>
       </LinearGradient>
 
-      <View style={{ backgroundColor: '#fff', marginTop: -18, marginHorizontal: 12, borderRadius: 16, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 }}>
+      <View style={{ backgroundColor: '#fff', marginTop: -18, marginHorizontal: 12, borderRadius: 16, boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.08)', elevation: 3 }}>
         <View style={{ padding: 16, borderBottomWidth: 1, borderColor: '#eee' }}>
           <Text style={{ textAlign: 'center', fontWeight: '600' }}>{readableDate}</Text>
           <Text style={{ textAlign: 'center', color: '#666', marginTop: 4 }}>{hijri}</Text>

@@ -14,14 +14,10 @@ export default function HaditsPerawiEntryScreen({ route, navigation }) {
     }
   };
 
-  const openRandom = () => {
-    navigation.navigate('HaditsDetail', { collection: 'perawi', random: true });
-  };
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{name || 'Perawi'}</Text>
-      <Text style={styles.desc}>Masukkan nomor hadits untuk perawi ini, atau lihat acak.</Text>
+      <Text style={styles.desc}>Masukkan nomor hadits untuk perawi ini, lalu ketuk Lihat.</Text>
       <TextInput
         value={nomor}
         onChangeText={setNomor}
@@ -33,9 +29,6 @@ export default function HaditsPerawiEntryScreen({ route, navigation }) {
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={openByNumber}>
           <Text style={styles.btnText}>Lihat</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnAlt]} onPress={openRandom}>
-          <Text style={styles.btnTextAlt}>Acak</Text>
         </TouchableOpacity>
       </View>
     </View>

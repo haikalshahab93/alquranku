@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, TextInput, Switch, Linking, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, TextInput, Switch, Linking, ImageBackground, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 import { PurpleButton, OutlineLightButton, theme } from '../../ui';
@@ -49,6 +49,8 @@ export default function QiblaScreen({ navigation }) {
     let sub;
     (async () => {
       try {
+        // watchHeadingAsync hanya tersedia di native (iOS/Android), bukan di web
+        if (Platform.OS === 'web') return;
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
         sub = await Location.watchHeadingAsync((heading) => {

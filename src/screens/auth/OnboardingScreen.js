@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { theme } from '../../ui';
@@ -61,12 +62,17 @@ export default function OnboardingScreen({ navigation }) {
       >
         {slides.map((s, i) => (
           <View key={i} style={[styles.slide, { width }]}> 
-            {/* icon area */}
-            <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              {i === 0 && <FontAwesome5 name="book-open" size={48} color={theme.colors.primary} />}
-              {i === 1 && <FontAwesome5 name="hands" size={48} color={theme.colors.primary} />}
-              {i === 2 && <FontAwesome5 name="calendar" size={48} color={theme.colors.primary} />}
-            </View>
+            {/* Icon dalam kartu gradient ber-brand */}
+            <LinearGradient
+              colors={theme.gradients.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.slideIconWrap}
+            >
+              {i === 0 && <FontAwesome5 name="book-open" size={44} color="#ffffff" />}
+              {i === 1 && <FontAwesome5 name="hands" size={44} color="#ffffff" />}
+              {i === 2 && <FontAwesome5 name="calendar" size={44} color="#ffffff" />}
+            </LinearGradient>
             <Text style={styles.title}>{s.title}</Text>
             <Text style={styles.desc}>{s.desc}</Text>
           </View>
@@ -92,6 +98,15 @@ export default function OnboardingScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   slide: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
+  slideIconWrap: {
+    width: 120,
+    height: 120,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    ...theme.shadow.float,
+  },
   title: { fontSize: 22, fontWeight: '800', color: '#111', textAlign: 'center' },
   desc: { marginTop: 8, color: '#475569', textAlign: 'center' },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderTopWidth: 1, borderColor: '#eee' },
@@ -100,6 +115,6 @@ const styles = StyleSheet.create({
   dots: { flexDirection: 'row', alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 8, backgroundColor: '#e2e8f0', marginHorizontal: 4 },
   dotActive: { backgroundColor: theme.colors.primary },
-  nextBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.primaryDark },
+  nextBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 999, backgroundColor: theme.colors.primaryDark, ...theme.shadow.card },
   nextText: { color: '#fff', fontWeight: '700' },
 });

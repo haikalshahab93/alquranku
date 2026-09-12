@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   randomText: { color: theme.colors.primary, fontWeight: '700' },
   search: { margin: 16, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: '#0f172a', backgroundColor: '#fff' },
   list: { padding: 16 },
-  card: { flex: 1, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  card: { flex: 1, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)' },
   itemRow: { flexDirection: 'row', alignItems: 'center' },
   itemIcon: { marginRight: 8 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', flex: 1, minWidth: 0 },

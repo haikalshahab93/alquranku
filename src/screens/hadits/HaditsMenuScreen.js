@@ -12,7 +12,7 @@ export default function HaditsMenuScreen({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('HaditsBmEntry')}>
           <Text style={styles.cardTitle}>Bulughul Maram</Text>
-          <Text style={styles.cardDesc}>Cari berdasarkan nomor atau lihat acak</Text>
+          <Text style={styles.cardDesc}>Cari berdasarkan nomor hadits</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('HaditsPerawiList')}>
           <Text style={styles.cardTitle}>Hadits 9 Perawi</Text>

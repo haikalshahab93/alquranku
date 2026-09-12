@@ -1,6 +1,6 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { bigGetItem, bigSetItem } from './bigStore';
 
 // MyQuran v2 base
 const MYQURAN_V2_BASE = 'https://api.myquran.com/v2';
@@ -59,7 +59,8 @@ const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 const cacheKey = (name, params = '') => `cache:kalender:${name}${params ? ':' + params : ''}`;
 async function readCache(key, allowStale = false) {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    // Cache kalender hijriah -> bigStore (file), bukan AsyncStorage (SQLITE_FULL risk)
+    const raw = await bigGetItem(key);
     if (!raw) return null;
     const obj = JSON.parse(raw);
     if (!obj || typeof obj.ts !== 'number') return null;
@@ -77,7 +78,7 @@ async function readCache(key, allowStale = false) {
 async function writeCache(key, payload) {
   try {
     const obj = { ts: Date.now(), payload };
-    await AsyncStorage.setItem(key, JSON.stringify(obj));
+    await bigSetItem(key, JSON.stringify(obj));
   } catch {}
 }
 

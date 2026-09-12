@@ -9,20 +9,27 @@ export const theme = {
     primary: '#8b5cf6',
     primaryDark: '#6d28d9',
     primaryLight: '#a78bfa',
+    // Permukaan shell gelap (header & bottom bar)
+    shellDark: '#17102b',
+    shellDark2: '#1e1535',
+    shellBorder: 'rgba(167, 139, 250, 0.25)',
+    shellText: '#e9e4f5',
+    shellMuted: '#8d84ab',
     bg: '#f8fafc',
     text: '#1f2937',
     muted: '#6b7280',
     white: '#ffffff',
   },
-  radii: { md: 12, lg: 16 },
+  gradients: {
+    brand: ['#7c3aed', '#4c1d95'],
+    brandSoft: ['#ede9fe', '#e9d5ff'],
+    shell: ['#1a1130', '#221743'],
+  },
+  radii: { sm: 8, md: 12, lg: 16, xl: 20, pill: 999 },
   shadow: {
-    card: {
-      elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.08,
-      shadowRadius: 3,
-    },
+    // boxShadow (RN 0.76+): satu properti lintas platform, tanpa warning deprecated di web
+    card: { elevation: 2, boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)' },
+    float: { elevation: 6, boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.18)' },
   },
 };
 
@@ -46,29 +53,8 @@ export function BookIcon({ size = 72, style }) {
 
 export function GradientCard({ title, desc, onPress, style, showQuran }) {
   return (
-    <TouchableOpacity style={[styles.card, style]} onPress={onPress}>
-      <LinearGradient colors={['#ede9fe', '#e9d5ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardBg}>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
-        <Text style={{ display: 'none' }}></Text>
+    <TouchableOpacity style={[styles.card, style]} onPress={onPress} activeOpacity={0.85}>
+      <LinearGradient colors={theme.gradients.brandSoft} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardBg}>
         <View style={styles.cardRow}>
           <View style={styles.cardTextBox}>
             <Text style={styles.cardTitle}>{title}</Text>
@@ -83,7 +69,7 @@ export function GradientCard({ title, desc, onPress, style, showQuran }) {
 
 export function PurpleButton({ label, onPress, style }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.purpleBtn, style]}>
+    <TouchableOpacity onPress={onPress} style={[styles.purpleBtn, style]} activeOpacity={0.85}>
       <Text style={styles.purpleBtnText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -91,7 +77,7 @@ export function PurpleButton({ label, onPress, style }) {
 
 export function OutlineLightButton({ label, onPress, style }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.lightOutlineBtn, style]}>
+    <TouchableOpacity onPress={onPress} style={[styles.lightOutlineBtn, style]} activeOpacity={0.85}>
       <Text style={styles.lightOutlineBtnText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -105,12 +91,14 @@ export function SecondaryText({ children, style }) {
   return <Text style={[styles.secondaryText, style]}>{children}</Text>;
 }
 
-// New: Feature tile with icon for compact grid menus
-export function FeatureTile({ title, icon, onPress, style }) {
+// Ubin menu dengan ikon berwarna untuk grid fitur
+export function FeatureTile({ title, icon, iconColor, onPress, style }) {
   return (
-    <TouchableOpacity style={[styles.tile, style]} onPress={onPress}>
+    <TouchableOpacity style={[styles.tile, style]} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.tileInner}>
-        <Ionicons name={icon} size={28} color={theme.colors.primaryDark} />
+        <View style={[styles.tileIconWrap, { backgroundColor: (iconColor || theme.colors.primary) + '1f' }]}>
+          <Ionicons name={icon} size={22} color={iconColor || theme.colors.primary} />
+        </View>
         <Text style={styles.tileTitle}>{title}</Text>
       </View>
     </TouchableOpacity>
@@ -119,13 +107,14 @@ export function FeatureTile({ title, icon, onPress, style }) {
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16,
+    padding: 0,
     borderWidth: 1,
     borderColor: theme.colors.primaryLight,
     backgroundColor: theme.colors.white,
     borderRadius: theme.radii.lg,
     ...theme.shadow.card,
     marginBottom: 14,
+    overflow: 'hidden',
   },
   cardBg: { padding: 16, borderRadius: theme.radii.lg, borderWidth: 1, borderColor: theme.colors.primaryLight },
   cardTitle: { fontSize: 18, fontWeight: '700', color: theme.colors.text },
@@ -156,16 +145,17 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text },
   secondaryText: { color: theme.colors.muted },
 
-  // Feature grid styles
+  // Grid fitur
   tile: {
-    width: '47%',
-    margin: 4,
+    width: '31.5%',
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: theme.colors.primaryLight,
+    borderColor: '#ede9fe',
     backgroundColor: theme.colors.white,
     borderRadius: theme.radii.lg,
     ...theme.shadow.card,
   },
-  tileInner: { paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  tileTitle: { fontSize: 12, fontWeight: '600', color: theme.colors.text, marginTop: 6, textAlign: 'center' },
+  tileInner: { paddingVertical: 14, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  tileIconWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  tileTitle: { fontSize: 12, fontWeight: '600', color: theme.colors.text, textAlign: 'center' },
 });

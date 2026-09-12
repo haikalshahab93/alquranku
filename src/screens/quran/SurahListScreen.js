@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share, SafeAreaView } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import { getSuratList, getSuratDetail } from '../../api/quran';
+import { Ionicons } from '@expo/vector-icons';
+import { getSuratList, getSuratDetail, preloadAllSurahData, getOfflineReadyCount, isOnline } from '../../api/quran';
+import { listOfflineAudio, deleteAllOfflineAudio, downloadAllSurahAudio } from '../../api/offlineAudio';
+import { getPreferredKaraokeReciter } from '../../api/quranAudio';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, GradientCard } from '../../ui';
+import { surahsInJuz, juzStartLabel, juzsOfSurah, globalAyahStart, juzFromGlobalAyah, JUZ_STARTS } from '../../api/juz';
+import { getPagePairs, TOTAL_PAGES } from '../../api/mushafPages';
 // Using dynamic import('docx') inside handleDownloadSurah for web only; remove static import to avoid Metro resolution error on native/web bundling
 
 const QARI_LABELS = {
@@ -15,7 +19,13 @@ const QARI_LABELS = {
   dossari: 'Al-Dossari',
 };
 
-export default function SurahListScreen({ navigation }) {
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '0 MB';
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+}
+
+export default function SurahListScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [surahs, setSurahs] = useState([]);
   const [error, setError] = useState(null);
@@ -25,7 +35,9 @@ export default function SurahListScreen({ navigation }) {
   const [loadingDetail, setLoadingDetail] = useState({});
   const [page, setPage] = useState(0);
   const [lastRead, setLastRead] = useState(null);
-  const [activeTab, setActiveTab] = useState('surah');
+  const [activeTab, setActiveTab] = useState(
+    route?.params?.initialTab === 'para' || route?.params?.initialTab === 'page' ? route.params.initialTab : 'surah'
+  );
   const [expandedNames, setExpandedNames] = useState({});
   const [playingNomor, setPlayingNomor] = useState(null);
   const [playingAyahIndex, setPlayingAyahIndex] = useState(null);
@@ -36,6 +48,18 @@ export default function SurahListScreen({ navigation }) {
   const [qariDropdownOpen, setQariDropdownOpen] = useState({});
   const [preferredQari, setPreferredQari] = useState(null);
   const [fromCacheList, setFromCacheList] = useState(false);
+  // === Siapkan Offline: unduh semua surah+tafsir ke cache lokal ===
+  const [offlineReady, setOfflineReady] = useState(0);
+  const [offlineDownloading, setOfflineDownloading] = useState(false);
+  const [offlineProgress, setOfflineProgress] = useState(0); // 0..1
+  // === Ringkasan audio offline (MP3 per surah untuk karaoke) ===
+  const [audioStats, setAudioStats] = useState({ count: 0, totalBytes: 0 });
+  const [audioDeleting, setAudioDeleting] = useState(false);
+  const [audioBatch, setAudioBatch] = useState(null); // { done, total, failed } saat mengunduh
+  const [audioBatchResult, setAudioBatchResult] = useState(null); // { downloaded, skipped, failed, cancelled }
+  const audioCancelRef = useRef(false);
+  const [offlineDone, setOfflineDone] = useState(false);
+  const [offlineErr, setOfflineErr] = useState(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
   useEffect(() => {
@@ -89,7 +113,79 @@ export default function SurahListScreen({ navigation }) {
         }
       } catch {}
     })();
+  }, []);  // Muat jumlah surah yang siap offline (manifest) saat screen dibuka
+  useEffect(() => {
+    (async () => {
+      try {
+        const n = await getOfflineReadyCount();
+        setOfflineReady(n);
+      } catch {}
+    })();
   }, []);
+
+  // Muat ringkasan audio offline saat screen dibuka
+  useEffect(() => { refreshAudioStats(); }, []);
+
+  // === Siapkan Offline: unduh semua 114 surah + tafsir ke cache lokal ===
+  const refreshAudioStats = async () => {
+    try {
+      const list = await listOfflineAudio();
+      setAudioStats({ count: list.length, totalBytes: list.reduce((s, m) => s + (m.size || 0), 0) });
+    } catch {}
+  };
+
+  const handleDeleteAllAudio = async () => {
+    if (audioDeleting || audioStats.count === 0) return;
+    setAudioDeleting(true);
+    try { await deleteAllOfflineAudio(); setAudioStats({ count: 0, totalBytes: 0 }); } catch {}
+    setAudioDeleting(false);
+  };
+
+  const startAudioBatchDownload = async () => {
+    if (audioBatch) return;
+    setAudioBatchResult(null);
+    setAudioBatch({ done: 0, total: 114, failed: 0 });
+    audioCancelRef.current = false;
+    try {
+      const reciterId = await getPreferredKaraokeReciter();
+      const res = await downloadAllSurahAudio(
+        reciterId,
+        (p) => setAudioBatch({ done: p.done, total: p.total, failed: p.failed }),
+        () => audioCancelRef.current
+      );
+      setAudioBatchResult(res);
+    } catch {
+      setAudioBatchResult({ downloaded: 0, skipped: 0, failed: 114, cancelled: false });
+    } finally {
+      setAudioBatch(null);
+      refreshAudioStats();
+    }
+  };
+
+  const startOfflineDownload = async () => {
+    if (offlineDownloading) return;
+    setOfflineDownloading(true);
+    setOfflineDone(false);
+    setOfflineErr(null);
+    setOfflineProgress(0);
+    try {
+      const ok = await preloadAllSurahData((done, total) => {
+        setOfflineProgress(total > 0 ? done / total : 0);
+        setOfflineReady(done);
+      });
+      if (ok) {
+        setOfflineDone(true);
+        const n = await getOfflineReadyCount();
+        setOfflineReady(n);
+      } else {
+        setOfflineErr('Gagal menyiapkan data offline. Periksa koneksi lalu coba lagi.');
+      }
+    } catch (e) {
+      setOfflineErr('Gagal menyiapkan data offline. Periksa koneksi lalu coba lagi.');
+    } finally {
+      setOfflineDownloading(false);
+    }
+  };
   const filteredSurahs = surahs.filter((s) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
@@ -115,6 +211,109 @@ export default function SurahListScreen({ navigation }) {
 
   const goPrev = () => setPage((p) => Math.max(0, p - 1));
   const goNext = () => setPage((p) => Math.min(totalPages - 1, p + 1));
+
+  // Kartu Juz (Para) 1-30: kelompokan surah per juz untuk tab Para
+  const juzCards = useMemo(() => {
+    const metaOf = (nomor) => surahs.find((x) => Number(x.nomor) === Number(nomor));
+    const nameOf = (nomor) => {
+      const s = metaOf(nomor);
+      return s ? (s.namaLatin || s.nama_latin || `Surah ${nomor}`) : `Surah ${nomor}`;
+    };
+    const ayatOf = (nomor) => {
+      const s = metaOf(nomor);
+      return s ? Number(s.jumlahAyat || s.jumlah_ayat || 0) : 0;
+    };
+    return Array.from({ length: 30 }, (_, i) => {
+      const juz = i + 1;
+      const entries = surahsInJuz(juz).map((it) => ({
+        ...it,
+        name: ayatOf(it.surah) ? nameOf(it.surah) : `Surah ${it.surah}`,
+      }));
+      return { juz, startLabel: juzStartLabel(juz), entries };
+    });
+  }, [surahs]);
+
+  // Kartu halaman mushaf (tab Page): 604 halaman standar Madani
+  const pageCards = useMemo(() => {
+    return Array.from({ length: TOTAL_PAGES }, (_, i) => {
+      const page = i + 1;
+      const pairs = getPagePairs(page);
+      const first = pairs[0] || [1, 1];
+      // Juz dihitung dari ayat pertama HALAMAN (bukan ayat pertama surah),
+      // agar halaman tengah surah panjang (mis. p42 = Al-Baqarah 253 = Juz 3) akurat.
+      const juz = juzFromGlobalAyah(globalAyahStart(first[0]) + (first[1] - 1));
+      return { page, juz, verseCount: pairs.length };
+    });
+  }, []);
+
+  const renderPageItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.item}
+      onPress={() => navigation.navigate('PageDetail', { page: item.page })}
+      activeOpacity={0.85}
+    >
+      <View style={styles.itemHeader}>
+        <View style={styles.itemNumberBadge}>
+          <Text style={styles.itemNumber}>{item.page}</Text>
+        </View>
+        <View style={styles.itemTextBox}>
+          <Text style={styles.itemLatin} numberOfLines={1}>Halaman {item.page}</Text>
+          <Text style={styles.itemMeta} numberOfLines={1}>{item.verseCount} ayat • Juz {item.juz}</Text>
+        </View>
+        <Ionicons name="book-outline" size={18} color={theme.colors.primary} />
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderJuzItem = ({ item }) => {
+    // Header kartu = mulai juz dari batas klasik (JUZ_STARTS) — Juz 2 = Al-Baqarah 142.
+    // Di bawahnya, SETIAP surah jadi chip yang bisa diklik → buka surah tsb pada
+    // rentang ayatnya di juz (mis. chip "Al-Baqarah 142-252" → Al-Baqarah 142).
+    const start = JUZ_STARTS.find((x) => x.juz === item.juz);
+    const openJuzStart = () => {
+      const target = start
+        ? { surah: start.surah, name: start.name, ayat: start.ayat }
+        : item.entries[0]
+          ? { surah: item.entries[0].surah, name: item.entries[0].name, ayat: item.entries[0].fromAyat }
+          : null;
+      if (!target) return;
+      navigation.navigate('SurahDetail', { nomor: target.surah, namaLatin: target.name, nama_latin: target.name, targetAyah: target.ayat });
+    };
+    const openEntry = (e) => {
+      navigation.navigate('SurahDetail', { nomor: e.surah, namaLatin: e.name, nama_latin: e.name, targetAyah: e.fromAyat });
+    };
+    return (
+      <View style={styles.item}>
+        <TouchableOpacity onPress={openJuzStart} activeOpacity={0.85}>
+          <View style={styles.itemHeader}>
+            <View style={styles.itemNumberBadge}>
+              <Text style={styles.itemNumber}>{item.juz}</Text>
+            </View>
+            <View style={styles.itemTextBox}>
+              <Text style={styles.itemLatin}>Juz {item.juz}</Text>
+              <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">{item.startLabel}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
+          </View>
+        </TouchableOpacity>
+        {/* Chip per surah dalam juz ini — masing-masing bisa diklik */}
+        <View style={styles.juzChipRow}>
+          {item.entries.map((e) => (
+            <TouchableOpacity
+              key={`jz${item.juz}-s${e.surah}`}
+              style={styles.juzChip}
+              activeOpacity={0.7}
+              onPress={() => openEntry(e)}
+            >
+              <Text style={styles.juzChipText} numberOfLines={1}>
+                {e.fromAyat === e.toAyat ? `${e.name} ${e.fromAyat}` : `${e.name} ${e.fromAyat}-${e.toAyat}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  };
 
   const toggleExpand = async (nomor) => {
     setExpanded((prev) => ({ ...prev, [nomor]: !prev[nomor] }));
@@ -347,18 +546,25 @@ export default function SurahListScreen({ navigation }) {
     };
 
     return (
-      <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomor, nama_latin: item.namaLatin || item.nama_latin, namaLatin: item.namaLatin || item.nama_latin })}>
+      <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomor, nama_latin: item.namaLatin || item.nama_latin, namaLatin: item.namaLatin || item.nama_latin })} activeOpacity={0.85}>
         <View style={styles.itemHeader}>
-          <Text style={styles.itemNumber}>{item.nomor}</Text>
-          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" style={styles.itemIcon}>
-            <Path d="M4 4h12a2 2 0 012 2v12l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" stroke="#6b7280" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-          <Text style={styles.itemLatin} numberOfLines={1} ellipsizeMode="tail">{item.namaLatin || item.nama_latin}</Text>
-          <TouchableOpacity style={styles.infoToggle} onPress={() => toggleName(item.nomor)}>
-            <Text style={styles.infoToggleText}>{isNameExpanded ? 'Tutup nama' : 'Lihat nama'}</Text>
-          </TouchableOpacity>
+          <View style={styles.itemNumberBadge}>
+            <Text style={styles.itemNumber}>{item.nomor}</Text>
+          </View>
+          <View style={styles.itemTextBox}>
+            <Text style={styles.itemLatin} numberOfLines={1} ellipsizeMode="tail">{item.namaLatin || item.nama_latin}</Text>
+            <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">{item.arti} • {(item.jumlahAyat || item.jumlah_ayat)} ayat • {(item.tempatTurun || item.tempat_turun)} • Juz {juzsOfSurah(item.nomor).join(', ') || '-'}</Text>
+          </View>
+          <Text style={styles.itemArabic}>{item.nama}</Text>
+        </View>
+        <View style={styles.itemActions}>
           <TouchableOpacity style={styles.infoToggle} onPress={() => toggleExpand(item.nomor)}>
-            <Text style={styles.infoToggleText}>{isExpanded ? 'Tutup ringkas' : 'Lihat ringkas'}</Text>
+            <Ionicons name={isExpanded ? 'chevron-up' : 'sparkles-outline'} size={12} color={theme.colors.primaryDark} />
+            <Text style={styles.infoToggleText}>{isExpanded ? 'Tutup ringkas' : 'Ringkas'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.infoToggle} onPress={() => toggleName(item.nomor)}>
+            <Ionicons name="language-outline" size={12} color={theme.colors.primaryDark} />
+            <Text style={styles.infoToggleText}>{isNameExpanded ? 'Tutup nama' : 'Nama Arab'}</Text>
           </TouchableOpacity>
         </View>
         {fromCacheList ? (
@@ -372,7 +578,6 @@ export default function SurahListScreen({ navigation }) {
             <Text style={styles.nameLatin}>{item.namaLatin || item.nama_latin}</Text>
           </View>
         )}
-        <Text style={styles.itemMeta} numberOfLines={2} ellipsizeMode="tail">{item.arti} • {(item.jumlahAyat || item.jumlah_ayat)} ayat • {(item.tempatTurun || item.tempat_turun)}</Text>
         {isExpanded && (
           loadingDetail[item.nomor] ? (
             <View style={styles.expandLoading}><ActivityIndicator size="small" /></View>
@@ -436,11 +641,46 @@ export default function SurahListScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <FlatList
-        data={pagedSurahs}
-        keyExtractor={(item) => String(item.nomor)}
+        key={activeTab}
+        data={activeTab === 'para' ? juzCards : activeTab === 'page' ? pageCards : pagedSurahs}
+        numColumns={1}
+        keyExtractor={(item) => String(activeTab === 'para' ? `juz-${item.juz}` : activeTab === 'page' ? `page-${item.page}` : item.nomor)}
         contentContainerStyle={styles.list}
-        ListHeaderComponent={(
+        renderItem={activeTab === 'para' ? renderJuzItem : activeTab === 'page' ? renderPageItem : renderItem}
+        ListHeaderComponent={
           <View style={{ marginBottom: 12 }}>
+            {/* Baris tab tampil di SEMUA tab agar navigasi konsisten */}
+            <View style={styles.tabsRow}>
+              <TouchableOpacity style={[styles.tabBtn, activeTab === 'surah' && styles.tabBtnActive]} onPress={() => setActiveTab('surah')}>
+                <Text style={[styles.tabText, activeTab === 'surah' && styles.tabTextActive]}>Surah</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.tabBtn, activeTab === 'para' && styles.tabBtnActive]} onPress={() => setActiveTab('para')}>
+                <Text style={[styles.tabText, activeTab === 'para' && styles.tabTextActive]}>Para</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.tabBtn, activeTab === 'page' && styles.tabBtnActive]} onPress={() => setActiveTab('page')}>
+                <Text style={[styles.tabText, activeTab === 'page' && styles.tabTextActive]}>Page</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.tabBtn} onPress={() => navigation.navigate('QuranBookmarks')}>
+                <Text style={styles.tabText}>Bookmark</Text>
+              </TouchableOpacity>
+            </View>
+
+            {          activeTab === 'page' && (
+              <View style={[styles.pageTabHeader, { marginTop: 10 }]}>
+                <View style={styles.pageTabHeaderRow}>
+                  <View style={styles.pageTabIconWrap}>
+                    <Ionicons name="book-outline" size={16} color="#7c3aed" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pageTabTitle}>Halaman Mushaf</Text>
+                    <Text style={styles.pageTabDesc}>{TOTAL_PAGES} halaman standar Madani — sesuai nomor halaman di mushaf cetak</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {activeTab === 'surah' && (
+            <>
             {!!lastRead && (
               <GradientCard
                 title={lastRead?.namaLatin ? `Last Read\n${lastRead?.namaLatin}` : 'Last Read'}
@@ -456,37 +696,132 @@ export default function SurahListScreen({ navigation }) {
               />
             )}
 
-            <View style={styles.tabsRow}>
-              <TouchableOpacity style={[styles.tabBtn, activeTab === 'surah' && styles.tabBtnActive]} onPress={() => setActiveTab('surah')}>
-                <Text style={[styles.tabText, activeTab === 'surah' && styles.tabTextActive]}>Surah</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tabBtn} onPress={() => {}}>
-                <Text style={styles.tabText}>Para</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tabBtn} onPress={() => {}}>
-                <Text style={styles.tabText}>Page</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tabBtn} onPress={() => navigation.navigate('QuranBookmarks')}>
-                <Text style={styles.tabText}>Bookmark</Text>
-              </TouchableOpacity>
-            </View>
 
-            <TextInput
-              placeholder="Cari nomor/nama/arti/tempat turun"
-              placeholderTextColor="#333"
-              value={query}
-              onChangeText={setQuery}
-              style={styles.searchBox}
-            />
-            <View style={styles.refreshRow}>
-              <TouchableOpacity style={[styles.pagerBtn]} onPress={fetchList}>
-                <Text style={styles.pagerText}>Refresh</Text>
-              </TouchableOpacity>
-            </View>
+            {activeTab === 'surah' && (
+              <View style={styles.searchWrap}>
+                <View style={styles.searchIconWrap}>
+                  <Ionicons name="search" size={18} color="#ffffff" />
+                </View>
+                <TextInput
+                  placeholder="Cari surah — nomor, nama, arti..."
+                  placeholderTextColor="#94a3b8"
+                  value={query}
+                  onChangeText={setQuery}
+                  style={styles.searchBox}
+                  returnKeyType="search"
+                />
+                {!!query && (
+                  <TouchableOpacity onPress={() => setQuery('')} style={styles.searchClear} activeOpacity={0.7}>
+                    <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            {activeTab === 'surah' && (
+              <View style={styles.resultRow}>
+                <Text style={styles.resultText}>{filteredSurahs.length} surah ditemukan</Text>
+                <TouchableOpacity style={styles.refreshBtn} onPress={fetchList} activeOpacity={0.7}>
+                  <Ionicons name="refresh" size={13} color={theme.colors.primaryDark} />
+                  <Text style={styles.refreshText}>Refresh</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* === Panel Siapkan Offline === */}
+            {activeTab === 'surah' && (
+              <View style={styles.offlinePanel}>
+                <View style={styles.offlineRow}>
+                  <View style={styles.offlineInfo}>
+                    <Text style={styles.offlineTitle}>
+                      {offlineReady >= 114 ? 'Siap Offline ✓' : 'Siapkan untuk Offline'}
+                    </Text>
+                    <Text style={styles.offlineSubtitle}>
+                      {offlineReady >= 114
+                        ? 'Semua surah & tafsir tersimpan di perangkat'
+                        : `${offlineReady}/114 surah tersimpan • buka tanpa internet`}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.offlineBtn, offlineDownloading && styles.offlineBtnDisabled]}
+                    onPress={startOfflineDownload}
+                    disabled={offlineDownloading}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={offlineDownloading ? 'cloud-download-outline' : offlineReady >= 114 ? 'checkmark-circle' : 'cloud-download-outline'}
+                      size={14}
+                      color="#ffffff"
+                    />
+                    <Text style={styles.offlineBtnText}>
+                      {offlineDownloading ? 'Mengunduh…' : offlineReady >= 114 ? 'Perbarui' : 'Unduh Semua'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {offlineDownloading && (
+                  <View style={styles.offlineProgressWrap}>
+                    <View style={[styles.offlineProgressBar, { width: `${Math.round(offlineProgress * 100)}%` }]} />
+                  </View>
+                )}
+                {offlineDone && !offlineDownloading && (
+                  <Text style={styles.offlineOk}>Semua data tersimpan — Quran bisa dibuka tanpa internet ✓</Text>
+                )}
+                {!!offlineErr && (
+                  <Text style={styles.offlineErrText}>{offlineErr}</Text>
+                )}
+
+                {/* === Ringkasan audio offline (MP3 karaoke per surah) === */}
+                <View style={styles.audioStatsRow}>
+                  <Ionicons name="musical-notes" size={14} color={theme.colors.primaryDark} />
+                  <Text style={styles.audioStatsText}>
+                    {audioBatch
+                      ? `Mengunduh audio ${audioBatch.done}/${audioBatch.total}${audioBatch.failed ? ` • ${audioBatch.failed} gagal` : ''} — lainnya bisa dilewati`
+                      : audioStats.count > 0
+                        ? `${audioStats.count} audio surah tersimpan • ${formatBytes(audioStats.totalBytes)}`
+                        : 'Belum ada audio offline — unduh dari halaman surah'}
+                  </Text>
+                  {audioBatch ? (
+                    <TouchableOpacity onPress={() => { audioCancelRef.current = true; }} style={styles.audioDeleteBtn}>
+                      <Text style={styles.audioDeleteText}>Stop</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <>
+                      <TouchableOpacity onPress={startAudioBatchDownload} style={styles.audioBatchBtn}>
+                        <Text style={styles.audioBatchText}>{audioStats.count >= 114 ? 'Perbarui' : 'Unduh Semua'}</Text>
+                      </TouchableOpacity>
+                      {audioStats.count > 0 && (
+                        <TouchableOpacity onPress={handleDeleteAllAudio} disabled={audioDeleting} style={styles.audioDeleteBtn}>
+                          <Text style={styles.audioDeleteText}>{audioDeleting ? 'Menghapus…' : 'Hapus'}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+                </View>
+                {!!audioBatch && (
+                  <View style={styles.audioBatchProgressWrap}>
+                    <View style={[styles.offlineProgressBar, { width: `${Math.round((audioBatch.done / audioBatch.total) * 100)}%` }]} />
+                  </View>
+                )}
+                {!audioBatch && audioBatchResult && (
+                  <>
+                    <Text style={audioBatchResult.failed ? styles.offlineErrText : styles.offlineOk}>
+                      {audioBatchResult.cancelled
+                        ? `Dihentikan — ${audioBatchResult.downloaded} surah baru terunduh`
+                        : audioBatchResult.failed
+                          ? `Selesai dengan ${audioBatchResult.failed} gagal — ketuk Unduh Semua lagi untuk melanjutkan`
+                          : `Selesai! ${audioBatchResult.downloaded} surah baru terunduh${audioBatchResult.skipped ? `, ${audioBatchResult.skipped} sudah ada` : ''} ✓`}
+                    </Text>
+                    {!!audioBatchResult.reason && (
+                      <Text style={styles.offlineErrText}>{audioBatchResult.reason}</Text>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
+            </>
+            )}
           </View>
-        )}
-        renderItem={renderItem}
-        ListFooterComponent={(
+        }
+        ListFooterComponent={activeTab === 'para' || activeTab === 'page' ? null : (
           <View>
             <View style={styles.pagerRow}>
               <TouchableOpacity style={[styles.pagerBtn, page <= 0 && styles.pagerBtnDisabled]} onPress={goPrev} disabled={page <= 0}>
@@ -507,19 +842,70 @@ export default function SurahListScreen({ navigation }) {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16 },
-  searchBox: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#fff', color: '#333', fontWeight: '600', fontSize: 16 },
-  item: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12, elevation: 2, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  itemHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  itemNumber: { fontWeight: 'bold', color: theme.colors.primaryDark, width: 32, textAlign: 'center', backgroundColor: '#ede9fe', borderRadius: 16, borderWidth: 1, borderColor: theme.colors.primaryLight },
-  itemArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: theme.colors.primary, fontFamily: 'NotoNaskhArabic' },
-  itemMeta: { marginTop: 4, color: '#666' },
-  infoToggle: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f1f5f9', marginLeft: 8 },
-  infoToggleText: { color: '#0f172a', fontWeight: '600' },
+  // Pencarian menonjol dengan ikon ungu + badge jumlah hasil
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 2, borderColor: theme.colors.primary, paddingVertical: 4, paddingRight: 8, ...theme.shadow.card },
+  searchIconWrap: { width: 38, height: 38, borderRadius: 12, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
+  searchBox: { flex: 1, paddingVertical: 8, paddingHorizontal: 10, color: '#1f2937', fontWeight: '600', fontSize: 15 },
+  searchClear: { padding: 4 },
+  resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 4 },
+  resultText: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ede9fe', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.primaryLight },
+  refreshText: { color: theme.colors.primaryDark, fontWeight: '700', fontSize: 12 },
+  // Panel Siapkan Offline
+  offlinePanel: { marginTop: 10, backgroundColor: '#faf9ff', borderRadius: 14, borderWidth: 1, borderColor: theme.colors.primaryLight, padding: 12 },
+  offlineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  offlineInfo: { flex: 1, minWidth: 0, marginRight: 10 },
+  offlineTitle: { fontWeight: '800', color: theme.colors.text, fontSize: 14 },
+  offlineSubtitle: { color: theme.colors.muted, fontSize: 11, fontWeight: '600', marginTop: 2 },
+  offlineBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: theme.colors.primary, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 12 },
+  offlineBtnDisabled: { opacity: 0.6 },
+  offlineBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
+  offlineProgressWrap: { height: 6, borderRadius: 3, backgroundColor: '#ede9fe', marginTop: 10, overflow: 'hidden' },
+  offlineProgressBar: { height: 6, borderRadius: 3, backgroundColor: theme.colors.primary },
+  audioStatsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
+    paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(124,58,237,0.12)',
+  },
+  audioStatsText: { flex: 1, fontSize: 11.5, color: '#6b7280' },
+  audioBatchBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(124,58,237,0.12)' },
+  audioBatchText: { fontSize: 11.5, fontWeight: '700', color: theme.colors.primaryDark },
+  audioBatchProgressWrap: {
+    height: 6, borderRadius: 3, backgroundColor: 'rgba(124,58,237,0.15)', marginTop: 10, overflow: 'hidden',
+  },
+  audioDeleteBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(220,38,38,0.08)' },
+  audioDeleteText: { fontSize: 11.5, fontWeight: '700', color: '#dc2626' },
+  offlineOk: { color: '#047857', fontWeight: '700', fontSize: 12, marginTop: 8 },
+  offlineErrText: { color: '#b91c1c', fontWeight: '700', fontSize: 12, marginTop: 8 },
+  // Kartu item: badge nomor ungu + baris info rapi
+  item: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#ede9fe', ...theme.shadow.card },
+  itemHeader: { flexDirection: 'row', alignItems: 'center' },
+  itemNumberBadge: { width: 38, height: 38, borderRadius: 12, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 12, ...theme.shadow.card },
+  itemNumber: { fontWeight: '800', color: '#ffffff', fontSize: 15 },
+  itemTextBox: { flex: 1, minWidth: 0 },
+  itemLatin: { fontSize: 16, fontWeight: '800', color: theme.colors.text },
+  itemArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: theme.colors.primaryDark, fontFamily: 'NotoNaskhArabic', marginLeft: 8 },
+  itemMeta: { marginTop: 2, color: theme.colors.muted, fontSize: 12 },
+  // Chip per surah di kartu Juz (tab Para)
+  juzChipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
+  juzChip: {
+    backgroundColor: '#f3efff',
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginRight: 6,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#e2d9fb',
+  },
+  juzChipText: { color: theme.colors.primaryDark, fontSize: 12, fontWeight: '600' },
+  itemActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
+  infoToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: theme.colors.primaryLight, backgroundColor: '#f5f3ff', marginLeft: 8 },
+  infoToggleText: { color: theme.colors.primaryDark, fontWeight: '700', fontSize: 11 },
   expandLoading: { marginTop: 8 },
-  expandBox: { marginTop: 10, backgroundColor: '#f9fafb', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#e5e7eb' },
+  expandBox: { marginTop: 10, backgroundColor: '#faf9ff', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#ede9fe' },
   expandTitle: { fontWeight: '700', marginBottom: 6, color: '#111' },
   expandMeta: { color: '#374151', marginBottom: 2 },
-  expandDescBox: { marginTop: 6, backgroundColor: '#eef2ff', padding: 8, borderRadius: 8 },
+  expandDescBox: { marginTop: 6, backgroundColor: '#f5f3ff', padding: 8, borderRadius: 8 },
   expandDescTitle: { fontWeight: '700', color: '#1f2937', marginBottom: 4 },
   expandDesc: { color: '#1f2937' },
   divider: { height: 1, backgroundColor: '#e5e7eb', marginVertical: 10 },
@@ -528,24 +914,25 @@ const styles = StyleSheet.create({
   expandAyatTrans: { color: '#222', marginTop: 4 },
   expandEmpty: { color: '#666', fontStyle: 'italic' },
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
-  actionBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, marginRight: 8, marginBottom: 8, backgroundColor: '#374151' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, marginRight: 8, marginBottom: 8, backgroundColor: theme.colors.primaryDark },
   detailBtn: { backgroundColor: '#6366f1' },
-  tafsirBtn: { backgroundColor: '#10b981' },
+  tafsirBtn: { backgroundColor: theme.colors.primary },
   downloadBtn: { backgroundColor: theme.colors.primaryDark },
   actionText: { color: '#fff', fontWeight: '600' },
   previewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  pagerBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', marginHorizontal: 8 },
+  pagerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: theme.colors.primaryLight, marginHorizontal: 8 },
   pagerBtnDisabled: { opacity: 0.5 },
   pagerText: { color: theme.colors.primary, fontWeight: '700' },
   pageInfoRow: { marginTop: 8, alignItems: 'center' },
   pageInfo: { color: '#666', textAlign: 'center', fontWeight: '600' },
   footerRow: { marginTop: 12, alignItems: 'center' },
   footerText: { color: '#64748b', fontSize: 12 },
-  nameBox: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 8, marginTop: 8 },
-  nameLabel: { fontSize: 12, color: '#64748b', fontWeight: '700' },
+  nameBox: { backgroundColor: '#faf9ff', borderWidth: 1, borderColor: '#ede9fe', borderRadius: 10, padding: 10, marginTop: 8 },
+  nameLabel: { fontSize: 12, color: theme.colors.muted, fontWeight: '700' },
   nameArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: '#111', fontFamily: 'NotoNaskhArabic' },
-  cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 4 },
+  nameLatin: { fontSize: 14, fontWeight: '600', color: theme.colors.text, marginBottom: 4 },
+  cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 8 },
   cacheText: { color: '#92400e', fontWeight: '700' },
   refreshRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 16 },
   // Hapus style terkait dropdown Qari & kontrol audio karena tidak digunakan di ListScreen
@@ -563,9 +950,23 @@ const styles = StyleSheet.create({
   // qariChipActive: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
   // qariChipText: { color: '#333' },
   // qariChipTextActive: { color: '#fff', fontWeight: '600' },
-  tabsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 4 },
-  tabBtn: { paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 2, borderColor: 'transparent' },
-  tabBtnActive: { borderColor: theme.colors.primary },
-  tabText: { color: '#64748b', fontWeight: '700' },
+  tabsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 },
+  tabBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: 'transparent' },
+  tabBtnActive: { borderColor: theme.colors.primaryLight, backgroundColor: '#f5f3ff' },
+  tabText: { color: theme.colors.muted, fontWeight: '700', fontSize: 13 },
   tabTextActive: { color: theme.colors.primaryDark },
+  // Kartu Juz (Para): identik dengan kartu Surah (kartu putih + badge ungu)
+
+  // Kartu halaman mushaf memakai styles.item yang sama dengan kartu Surah
+  pageTabHeader: {
+    backgroundColor: '#faf9ff', borderRadius: 14, borderWidth: 1, borderColor: '#ede9fe',
+    padding: 12,
+  },
+  pageTabHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pageTabIconWrap: {
+    width: 34, height: 34, borderRadius: 10, backgroundColor: '#f5f3ff', borderWidth: 1,
+    borderColor: '#ddd6fe', alignItems: 'center', justifyContent: 'center',
+  },
+  pageTabTitle: { fontWeight: '800', color: theme.colors.text, fontSize: 14 },
+  pageTabDesc: { color: theme.colors.muted, fontSize: 11.5, fontWeight: '600', marginTop: 2 },
 });

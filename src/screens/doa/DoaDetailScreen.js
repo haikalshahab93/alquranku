@@ -1,19 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Share } from 'react-native';
 import { getDoaDetail } from '../../api/doa';
 import { theme } from '../../ui';
 import { Ionicons } from '@expo/vector-icons';
 import { isDoaFavorite, toggleDoaFavorite, setLastReadDoa } from '../../api/doa';
 
-export default function DoaDetailScreen({ route }) {
+export default function DoaDetailScreen({ navigation, route }) {
   const { id } = route.params || {};
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [fromCache, setFromCache] = useState(false);
+  const [error, setError] = useState(null);
   const [textScale, setTextScale] = useState(1.0);
   const increaseTextScale = () => setTextScale((s) => Math.min(2, +(s + 0.1).toFixed(1)));
   const decreaseTextScale = () => setTextScale((s) => Math.max(0.8, +(s - 0.1).toFixed(1)));
   const [fav, setFav] = useState(false);
+
+  // Ambil detail doa berdasarkan id (sebelumnya fungsi ini dipanggil tanpa didefinisikan → crash/blank)
+  const fetchDetail = useCallback(async () => {
+    if (id == null) {
+      setDetail(null);
+      setError('ID doa tidak valid.');
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await getDoaDetail(id);
+      const d = res?.data ?? null;
+      setDetail(d);
+      setFromCache(!!d?.__fromCache);
+      if (!d) setError(`Doa #${id} tidak ditemukan.`);
+    } catch (e) {
+      setDetail(null);
+      setError(e?.message || 'Gagal memuat doa. Periksa koneksi internet lalu coba lagi.');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
 
   useEffect(() => {
     let mounted = true;
@@ -29,10 +58,25 @@ export default function DoaDetailScreen({ route }) {
     setFav(!!v);
   };
 
-  fetchDetail();
   if (loading) {
     return (
       <View style={styles.center}><ActivityIndicator size="large" /></View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Ionicons name="cloud-offline-outline" size={40} color="#94a3b8" />
+        <Text style={styles.errorText}>{String(error)}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={fetchDetail} activeOpacity={0.8}>
+          <Ionicons name="refresh" size={14} color="#ffffff" />
+          <Text style={styles.retryText}>Coba Lagi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.backLinkBtn}>
+          <Text style={styles.backLinkText}>Kembali</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
@@ -122,6 +166,11 @@ const styles = StyleSheet.create({
   refBox: { marginTop: 12, padding: 8, borderRadius: 8, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb' },
   refLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
   refText: { color: '#334155' },
+  errorText: { color: '#334155', marginTop: 12, textAlign: 'center', paddingHorizontal: 24 },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, backgroundColor: theme.colors.primaryDark, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 },
+  retryText: { color: '#fff', fontWeight: '700' },
+  backLinkBtn: { marginTop: 10, paddingVertical: 6, paddingHorizontal: 12 },
+  backLinkText: { color: theme.colors.primary, fontWeight: '700' },
   cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 4 },
   cacheText: { color: '#92400e', fontWeight: '700' },
   refreshBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },

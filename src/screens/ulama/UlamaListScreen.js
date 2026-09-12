@@ -49,7 +49,7 @@ export default function UlamaListScreen({ navigation }) {
     const gregSpan = [item.birth_gregorian, item.death_gregorian].filter(Boolean).join(' — ');
     const hasRaw = !!item.raw && Object.keys(item.raw || {}).length > 0;
     return (
-      <TouchableOpacity style={[styles.item, isGrid && styles.itemGrid]} onPress={() => navigation.navigate('UlamaDetail', { scholar: item })}>
+      <TouchableOpacity style={[styles.item, isGrid && styles.itemGrid]} onPress={() => navigation.navigate('UlamaDetail', { scholar: item, scholarId: item.id })} activeOpacity={0.85}>
         <View style={styles.itemHeaderRow}>
           <Text style={styles.itemTitle} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           {hasRaw && (

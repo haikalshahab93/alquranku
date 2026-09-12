@@ -13,14 +13,10 @@ export default function HaditsBmEntryScreen({ navigation }) {
     }
   };
 
-  const openRandom = () => {
-    navigation.navigate('HaditsDetail', { collection: 'bm', random: true });
-  };
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Bulughul Maram</Text>
-      <Text style={styles.desc}>Masukkan nomor hadits (1-1597) atau lihat acak.</Text>
+      <Text style={styles.desc}>Masukkan nomor hadits (1-1597), lalu ketuk Lihat.</Text>
       <TextInput
         value={nomor}
         onChangeText={setNomor}
@@ -32,9 +28,6 @@ export default function HaditsBmEntryScreen({ navigation }) {
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={openByNumber}>
           <Text style={styles.btnText}>Lihat</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnAlt]} onPress={openRandom}>
-          <Text style={styles.btnTextAlt}>Acak</Text>
         </TouchableOpacity>
       </View>
     </View>

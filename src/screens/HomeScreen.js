@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientCard, PurpleButton, OutlineLightButton, FeatureTile, theme } from '../ui';
 import { getAladhanHarianCity, getAladhanHarianCoords } from '../api/aladhan';
+import { schedulePrayerReminders } from '../api/notifications';
+import { onSettingsChanged } from '../api/settingsEvents';
 import * as Location from 'expo-location';
 
 function Card({ title, desc, onPress }) {
@@ -11,6 +14,18 @@ function Card({ title, desc, onPress }) {
     <GradientCard title={title} desc={desc} onPress={onPress} />
   );
 }
+
+// Warna aksen untuk setiap tile menu agar grid lebih hidup
+const TILE_COLORS = {
+  Surat: '#7c3aed',
+  Doa: '#0ea5e9',
+  Hadits: '#f59e0b',
+  Sholat: '#10b981',
+  Kiblat: '#ef4444',
+  Hijriyah: '#6366f1',
+  Ulama: '#ec4899',
+  Bookmark: '#14b8a6',
+};
 
 export default function HomeScreen({ navigation }) {
   const [logoSource, setLogoSource] = useState(require('../../assets/icon.png'));
@@ -42,6 +57,11 @@ export default function HomeScreen({ navigation }) {
   const [statusInfo, setStatusInfo] = useState(null);
   const [localTime, setLocalTime] = useState('');
   const [localTz, setLocalTz] = useState('');
+  // Sapaan sesuai waktu (pagi/siang/sore/malam)
+  const [greeting, setGreeting] = useState('');
+  // Tandai selesai resolve lokasi (cache/geolocation) agar jadwal hanya di-fetch
+  // SEKALI dengan koordinat final — bukan dua kali (default dulu, lalu lokasi asli).
+  const [locationReady, setLocationReady] = useState(false);
 
   const parseTimeOnDate = (dateIso, hhmm) => {
     if (!dateIso || !hhmm) return null;
@@ -54,6 +74,20 @@ export default function HomeScreen({ navigation }) {
     d.setMilliseconds(0);
     return d;
   };
+  // Hitung sapaan sesuai jam lokal perangkat
+  useEffect(() => {
+    const update = () => {
+      const h = new Date().getHours();
+      if (h >= 4 && h < 11) setGreeting('Selamat pagi');
+      else if (h >= 11 && h < 15) setGreeting('Selamat siang');
+      else if (h >= 15 && h < 18) setGreeting('Selamat sore');
+      else setGreeting('Selamat malam');
+    };
+    update();
+    const id = setInterval(update, 60000);
+    return () => clearInterval(id);
+  }, []);
+
   const labelForKey = (k) => {
     switch (k) {
       case 'imsak': return 'Imsak';
@@ -69,10 +103,22 @@ export default function HomeScreen({ navigation }) {
   const computeStatusFromJadwal = (dateIso, jadwal) => {
     const ORDER = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'isya'];
     const now = new Date();
-    const times = ORDER
+    let times = ORDER
       .map((k) => ({ key: k, at: parseTimeOnDate(dateIso, jadwal?.[k]) }))
       .filter((x) => x.at instanceof Date && !Number.isNaN(x.at.getTime()));
     if (times.length === 0) return null;
+    // Pengaman: jika selisih waktu tidak wajar (> ±48 jam, biasanya tanggal
+    // dari API salah tahun), perlakukan jadwal sebagai hari ini supaya
+    // hitungan "menuju/sudah lewat" tetap masuk akal.
+    const implausible = times.some((t) => Math.abs(t.at.getTime() - now.getTime()) > 48 * 60 * 60 * 1000);
+    if (implausible) {
+      const nowD = new Date();
+      const todayIso = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+      const fixed = ORDER
+        .map((k) => ({ key: k, at: parseTimeOnDate(todayIso, jadwal?.[k]) }))
+        .filter((x) => x.at instanceof Date && !Number.isNaN(x.at.getTime()));
+      if (fixed.length) times = fixed;
+    }
     const upcoming = times.find((t) => t.at.getTime() > now.getTime());
     if (upcoming) {
       const diffMin = Math.round((upcoming.at.getTime() - now.getTime()) / 60000);
@@ -142,6 +188,32 @@ export default function HomeScreen({ navigation }) {
     }
     return (prayerData?.data?.lokasi || name);
   };
+  // Muat pengaturan kalkulasi sholat tersimpan. CATATAN: dulu fungsi ini dipanggil
+  // tapi tidak pernah didefinisikan, dan state pengaturan tidak pernah dibaca dari
+  // AsyncStorage — sehingga perubahan di Pengaturan tidak pernah berpengaruh ke Home.
+  const loadSettings = async () => {
+    try {
+      const [m, tz, tn, sc, mm, lam, cm, sf] = await Promise.all([
+        AsyncStorage.getItem('aladhan_method'),
+        AsyncStorage.getItem('aladhan_timezonestring'),
+        AsyncStorage.getItem('aladhan_tune'),
+        AsyncStorage.getItem('aladhan_school'),
+        AsyncStorage.getItem('aladhan_midnightMode'),
+        AsyncStorage.getItem('aladhan_latitudeAdjustmentMethod'),
+        AsyncStorage.getItem('aladhan_calendarMethod'),
+        AsyncStorage.getItem('aladhan_shafaq'),
+      ]);
+      if (m) setMethod(parseInt(m, 10) || 3);
+      setTzString(tz || '');
+      setTune(tn || '');
+      setSchool(sc || '');
+      setMidnightMode(mm || '');
+      setLatitudeAdjustmentMethod(lam || '');
+      setCalendarMethod(cm || '');
+      setShafaq(sf || '');
+    } catch (e) {}
+  };
+
   const fetchHarian = async (_city, _country) => {
     try {
       setLoadingPrayer(true);
@@ -171,6 +243,18 @@ export default function HomeScreen({ navigation }) {
       const jadwal = payload?.data?.jadwal || {};
       const iso = payload?.data?.date || dateString.trim();
       setStatusInfo(computeStatusFromJadwal(iso, jadwal));
+      // Sinkronkan notifikasi pengingat waktu sholat dengan jadwal terbaru
+      try {
+        const enabledRaw = await AsyncStorage.getItem('notif_prayer_enabled');
+        const offsetRaw = await AsyncStorage.getItem('notif_prayer_offset');
+        const soundRaw = await AsyncStorage.getItem('notif_prayer_sound');
+        await schedulePrayerReminders({
+          jadwal,
+          offsetMinutes: Number.isFinite(parseInt(offsetRaw, 10)) ? parseInt(offsetRaw, 10) : 0,
+          enabled: enabledRaw !== '0', // default aktif
+          soundChoice: soundRaw === 'adhan' ? 'adhan' : 'default',
+        });
+      } catch (e) {}
     } catch (e) {
       setErrorPrayer(e?.message || 'Gagal memuat jadwal sholat');
     } finally {
@@ -179,39 +263,69 @@ export default function HomeScreen({ navigation }) {
   };
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      // 1) Pulihkan lokasi terakhir dari cache — UI langsung benar, tanpa kedip
+      try {
+        const raw = await AsyncStorage.getItem('home:loc');
+        if (raw && !cancelled) {
+          const c = JSON.parse(raw);
+          if (Number.isFinite(c?.lat) && Number.isFinite(c?.lon)) {
+            setLat(c.lat);
+            setLon(c.lon);
+            if (c.city) setCity(c.city);
+            if (c.country) setCountry(c.country);
+          }
+        }
+      } catch {}
+      // 2) Muat pengaturan sholat tersimpan sebelum fetch pertama
+      try { await loadSettings(); } catch {}
+      // 3) Perbarui lokasi presisi via geolocation (silent jika ditolak)
       try {
         if (Platform.OS !== 'web') {
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status === 'granted') {
             const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            setLat(pos.coords.latitude);
-            setLon(pos.coords.longitude);
-            try {
-              const rg = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-              const addr = rg?.[0] || {};
-              setCity(addr.city || addr.region || addr.district || addr.name || city);
-              setCountry(addr.country || country);
-            } catch {}
+            if (!cancelled) {
+              setLat(pos.coords.latitude);
+              setLon(pos.coords.longitude);
+              try {
+                const rg = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+                const addr = rg?.[0] || {};
+                setCity(addr.city || addr.region || addr.district || addr.name || city);
+                setCountry(addr.country || country);
+              } catch {}
+            }
           }
         } else if ('geolocation' in navigator) {
           const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 }));
           const { latitude, longitude } = pos.coords;
-          setLat(latitude);
-          setLon(longitude);
-          try {
-            const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`;
-            const resp = await fetch(url);
-            const json = await resp.json();
-            const addr = json?.address || {};
-            setCity(addr.city || addr.town || addr.village || addr.state_district || addr.state || addr.county || city);
-            setCountry(addr.country || country);
-          } catch {}
+          if (!cancelled) {
+            setLat(latitude);
+            setLon(longitude);
+            try {
+              const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`;
+              const resp = await fetch(url);
+              const json = await resp.json();
+              const addr = json?.address || {};
+              setCity(addr.city || addr.town || addr.village || addr.state_district || addr.state || addr.county || city);
+              setCountry(addr.country || country);
+            } catch {}
+          }
         }
       } catch {}
-      try { await fetchHarian(city, country); } catch {}
+      // 4) Selesai resolve lokasi: efek dependensi yang mengambil jadwal aktif
+      if (!cancelled) setLocationReady(true);
     })();
+    return () => { cancelled = true; };
   }, []);
+
+  // Simpan lokasi terakhir agar kembali ke Home tidak kedip & hemat geolocation
+  useEffect(() => {
+    if (lat != null && lon != null) {
+      AsyncStorage.setItem('home:loc', JSON.stringify({ lat, lon, city, country })).catch(() => {});
+    }
+  }, [lat, lon, city, country]);
 
   useEffect(() => {
     (async () => {
@@ -286,28 +400,28 @@ export default function HomeScreen({ navigation }) {
       } catch {}
     })();
   }, [lat, lon]);
-  // Refresh jadwal jika lokasi berubah (koordinat atau nama kota/negara)
+  // Refresh jadwal saat lokasi/pengaturan berubah — berjalan SEKALI setelah lokasi
+  // siap (tanpa kedip lokasi default), lalu hanya saat dependensi benar-benar berubah.
   useEffect(() => {
+    if (!locationReady) return;
     (async () => {
       try {
         await fetchHarian(city, country);
       } catch {}
     })();
-  }, [lat, lon, city, country, dateString, method, tzString, tune, school, midnightMode, latitudeAdjustmentMethod, calendarMethod, shafaq]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationReady, lat, lon, dateString, method, tzString, tune, school, midnightMode, latitudeAdjustmentMethod, calendarMethod, shafaq]);
 
-  // Poll perubahan pengaturan agar jadwal auto-refresh setelah disimpan dari Settings
+  // Perubahan pengaturan: muat ulang state pengaturan via EVENT (bukan polling
+  // AsyncStorage tiap 2 detik yang boros baterai). Setelah state ter-load,
+  // refresh jadwal mengikuti otomatis lewat efek dependensi (method, tune, dll.).
   useEffect(() => {
-    let prev = null; let id;
-    (async () => {
-      id = setInterval(async () => {
-        try {
-          const v = await AsyncStorage.getItem('settings:sholat:lastUpdated');
-          if (v && v !== prev) { prev = v; await loadSettings(); await fetchHarian(city, country); }
-        } catch {}
-      }, 2000);
-    })();
-    return () => { try { if (id) clearInterval(id); } catch {} };
-  }, [city, country]);
+    return onSettingsChanged(() => {
+      (async () => {
+        try { await loadSettings(); } catch {}
+      })();
+    });
+  }, []);
 
   // Jam lokal sesuai lokasi (timezone dari settings/meta)
   useEffect(() => {
@@ -330,40 +444,49 @@ export default function HomeScreen({ navigation }) {
     return () => { try { if (id) clearInterval(id); } catch {} };
   }, [tzString, prayerData]);
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.brandRow}>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.greetingRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.greeting}>{greeting ? `${greeting} 👋` : 'Assalamualaikum 👋'}</Text>
+          <Text style={styles.greetingSub}>Semoga harimu penuh berkah</Text>
+        </View>
         <Image
           source={logoSource}
           style={styles.logo}
           resizeMode="contain"
           onError={() => setLogoSource(require('../../assets/adaptive-icon.png'))}
         />
-        <View style={{ marginLeft: 12 }}>
-          <Text style={styles.title}>ALQURANKU</Text>
-          <Text style={styles.subtitle}>Akses cepat: Quran, Doa, dan Hadits</Text>
-        </View>
       </View>
 
       <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.prayerCard}>
         <View style={styles.prayerHeaderRow}>
-          <Text style={styles.prayerTitle}>Jadwal Sholat Hari Ini</Text>
-          <OutlineLightButton label="Lihat Jadwal" onPress={() => navigation.navigate('SholatJadwal')} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.prayerTitle}>Jadwal Sholat Hari Ini</Text>
+            <Text style={styles.prayerLoc} numberOfLines={1}>{formatLocationLabel()}</Text>
+            <Text style={styles.prayerDate}>{formatMasehiDisplay(prayerData?.data?.date || dateString)}{!!prayerData?.data?.hijri && ` • ${formatHijriDisplay(prayerData?.data?.hijri)}`}</Text>
+          </View>
+          {!!localTime && (
+            <View style={styles.clockChip}>
+              <Ionicons name="time-outline" size={13} color="#ffffff" />
+              <Text style={styles.clockChipText}>{localTime}</Text>
+            </View>
+          )}
         </View>
-        <Text style={styles.prayerLoc}>{formatLocationLabel()}</Text>
-        <Text style={styles.prayerDate}>{formatMasehiDisplay(prayerData?.data?.date || dateString)}{!!prayerData?.data?.hijri && ` • ${formatHijriDisplay(prayerData?.data?.hijri)}`}</Text>
-        {!!localTime && (
-          <Text style={styles.prayerLocalTime}>Waktu setempat: {localTime}{localTz ? ` (${localTz})` : ''}</Text>
-        )}
-        {!!prayerData?.data?.meta?.method && (
-          <Text style={styles.prayerMethod}>Metode: {prayerData.data.meta.method}</Text>
-        )}
+        <View style={styles.nextPrayerRow}>
+          {(() => {
+            const d = computeStatusDisplay(statusInfo);
+            return (
+              <>
+                <Text style={styles.prayerStatusMain} numberOfLines={1}>{d.main || 'JADWAL SHOLAT'}</Text>
+                {!!d.sub && <Text style={styles.prayerStatusSub}>{d.sub}</Text>}
+              </>
+            );
+          })()}
+        </View>
         {loadingPrayer && (<Text style={styles.prayerLoading}>Memuat jadwal...</Text>)}
         {errorPrayer && (<Text style={styles.prayerError}>{String(errorPrayer)}</Text>)}
         {!loadingPrayer && !errorPrayer && (
           <>
-            <View style={styles.prayerStatusRow}>
-              {(() => { const d = computeStatusDisplay(statusInfo); return (<><Text style={styles.prayerStatusMain}>{d.main}</Text><Text style={styles.prayerStatusSub}>{d.sub}</Text></>); })()}
-            </View>
             {(() => {
               const jadwal = prayerData?.data?.jadwal || {};
               const iso = prayerData?.data?.date || dateString;
@@ -432,13 +555,13 @@ export default function HomeScreen({ navigation }) {
       )}
 
       <View style={styles.list}>
-        <FeatureTile title="Surat" icon="book-outline" onPress={() => navigation.navigate('SurahList')} />
-        <FeatureTile title="Doa" icon="prayer-outline" onPress={() => navigation.navigate('DoaList')} />
-        <FeatureTile title="Hadits" icon="list-circle-outline" onPress={() => navigation.navigate('HaditsMenu')} />
-        <FeatureTile title="Hijriyah" icon="calendar-outline" onPress={() => navigation.navigate('HijriCalendar')} />
-        <FeatureTile title="Kiblat" icon="compass-outline" onPress={() => navigation.navigate('Qibla')} />
-        <FeatureTile title="Sholat" icon="time-outline" onPress={() => navigation.navigate('SholatJadwal')} />
-        <FeatureTile title="Ulama" icon="people-outline" onPress={() => navigation.navigate('UlamaList')} />
+        <FeatureTile title="Surat" icon="book-outline" iconColor={TILE_COLORS.Surat} onPress={() => navigation.navigate('SurahList')} />
+        <FeatureTile title="Doa" icon="hand-left-outline" iconColor={TILE_COLORS.Doa} onPress={() => navigation.navigate('DoaList')} />
+        <FeatureTile title="Hadits" icon="list-circle-outline" iconColor={TILE_COLORS.Hadits} onPress={() => navigation.navigate('HaditsMenu')} />
+        <FeatureTile title="Sholat" icon="time-outline" iconColor={TILE_COLORS.Sholat} onPress={() => navigation.navigate('SholatJadwal')} />
+        <FeatureTile title="Kiblat" icon="compass-outline" iconColor={TILE_COLORS.Kiblat} onPress={() => navigation.navigate('Qibla')} />
+        <FeatureTile title="Hijriyah" icon="calendar-outline" iconColor={TILE_COLORS.Hijriyah} onPress={() => navigation.navigate('HijriCalendar')} />
+        <FeatureTile title="Ulama" icon="people-outline" iconColor={TILE_COLORS.Ulama} onPress={() => navigation.navigate('UlamaList')} />
       </View>
 
       <View style={styles.footer}>
@@ -450,12 +573,13 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: theme.colors.bg },
-  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  logo: { width: 48, height: 48, marginRight: 8 },
-  title: { fontSize: 24, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
-  subtitle: { color: theme.colors.muted, marginTop: 4, marginBottom: 16, textAlign: 'center' },
+  // Header sapaan
+  greetingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  greeting: { fontSize: 22, fontWeight: '800', color: theme.colors.text },
+  greetingSub: { color: theme.colors.muted, marginTop: 2 },
+  logo: { width: 44, height: 44, borderRadius: 12 },
   list: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: { padding: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, marginBottom: 14 },
+  card: { padding: 16, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#fff', borderRadius: 14, elevation: 2, boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)', marginBottom: 14 },
   cardBg: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e9d5ff' },
   cardTitle: { fontSize: 18, fontWeight: '700', color: '#1f2937' },
   cardDesc: { color: '#6b7280', marginTop: 6 },
@@ -480,8 +604,13 @@ const styles = StyleSheet.create({
   prayerLoading: { color: '#fff', marginTop: 6 },
   prayerError: { color: '#fee2e2', marginTop: 6 },
   prayerStatusRow: { marginTop: 6 },
-  prayerStatusMain: { color: '#fff', fontWeight: '800' },
+  // Baris "waktu sholat berikutnya" yang menonjol
+  nextPrayerRow: { marginTop: 10, marginBottom: 2 },
+  prayerStatusMain: { color: '#fff', fontWeight: '800', fontSize: 17, letterSpacing: 0.3 },
   prayerStatusSub: { color: 'rgba(255,255,255,0.9)', marginTop: 2 },
+  // Chip jam lokal
+  clockChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },
+  clockChipText: { color: '#fff', fontWeight: '800', fontSize: 12, fontVariant: ['tabular-nums'] },
   prayerProgressBar: { height: 6, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
   prayerProgressFill: { height: 6, backgroundColor: '#d1b892' },
   prayerProgressCaption: { color: 'rgba(255,255,255,0.9)', marginTop: 4, fontSize: 12 },

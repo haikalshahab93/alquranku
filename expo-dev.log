@@ -1,0 +1,68 @@
+Starting project at S:\sementara haikal\alquranku
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  expo-audio@1.0.13 - expected version: ~1.1.1
+  expo-auth-session@7.0.9 - expected version: ~7.0.11
+  expo-build-properties@1.0.9 - expected version: ~1.0.10
+  expo-file-system@19.0.17 - expected version: ~19.0.24
+  expo-font@14.0.9 - expected version: ~14.0.12
+  expo-linear-gradient@15.0.7 - expected version: ~15.0.8
+  expo-location@19.0.7 - expected version: ~19.0.8
+  expo-router@6.0.13 - expected version: ~6.0.24
+  expo-sharing@14.0.7 - expected version: ~14.0.8
+  expo-status-bar@3.0.8 - expected version: ~3.0.9
+  expo-web-browser@15.0.9 - expected version: ~15.0.11
+  react-native-svg@15.15.0 - expected version: 15.12.1
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8090
+Logs for your project will appear below.
+Web .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 92.6% (641/666)
+Web Bundled 3155ms index.js (740 modules)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 428ms index.js (1 module)
+Web Bundled 379ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 520ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 647ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 745ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 989ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Android .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android .\index.js ░░░░░░░░░░░░░░░░  1.0% (1/1)
+Android .\index.js ░░░░░░░░░░░░░░░░  4.0% ( 7/45)
+Android .\index.js ▓░░░░░░░░░░░░░░░  6.5% (13/54)
+Android .\index.js ▓░░░░░░░░░░░░░░░  6.9% (24/96)
+Android .\index.js ▓░░░░░░░░░░░░░░░ 10.7% ( 83/260)
+Android .\index.js ▓▓░░░░░░░░░░░░░░ 15.7% (133/336)
+Android .\index.js ▓▓▓░░░░░░░░░░░░░ 19.7% (183/412)
+Android .\index.js ▓▓▓▓▓▓▓░░░░░░░░░ 45.5% (334/569)
+Android .\index.js ▓▓▓▓▓▓▓░░░░░░░░░ 45.5% (499/776)
+Android .\index.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 61.3% (643/821)
+Android .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 88.9% (866/919)
+Android .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 93.2% (947/981)
+Android .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 96.7% (1052/1080)
+Android .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.8% (1155/1156)
+Android .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (1156/1156)
+Android Bundled 57650ms index.js (1165 modules)
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 751ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 514ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 72943ms index.js (1 module)
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 639ms index.js (1 module)
+Web Bundled 633ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+ LOG  [web] Logs will appear in the browser console
