@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Build artifacts (jangan commit ke repo)
+*.aab
+*.apk
+
+# Preview/debug logs
+.freebuff/preview*.log*
+expo-dev.log
