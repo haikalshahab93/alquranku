@@ -5,7 +5,8 @@ import {
   getHaditsBmNomor,
   getHaditsPerawiNomor,
 } from '../../api/hadits';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
 import { Ionicons } from '@expo/vector-icons'
 
 function pickFields(payload) {
@@ -31,10 +32,11 @@ export default function HaditsDetailScreen({ route, navigation }) {
   const [currentNomor, setCurrentNomor] = useState(nomor || null);
   const [totalMax, setTotalMax] = useState(null);
   const [perawiSlug, setPerawiSlug] = useState(slug || null);
-  // Kontrol ukuran font (serasi dengan SurahDetail)
-  const [textScale, setTextScale] = useState(1.0);
-  const increaseTextScale = () => setTextScale((s) => Math.min(2, +(s + 0.1).toFixed(1)));
-  const decreaseTextScale = () => setTextScale((s) => Math.max(0.8, +(s - 0.1).toFixed(1)));
+  // Kontrol ukuran font (terpusat di pengaturan tampilan — sinkron dengan semua layar bacaan)
+  const { darkMode, textScale } = useAppearance();
+  const pal = getPalette(darkMode);
+  const increaseTextScale = () => saveTextScale(textScale + 0.1);
+  const decreaseTextScale = () => saveTextScale(textScale - 0.1);
 
   useEffect(() => {
     // Set judul halaman sesuai koleksi
@@ -143,94 +145,148 @@ export default function HaditsDetailScreen({ route, navigation }) {
       const judul = data?.judul || `Hadits ${data?.nomor ?? ''}`;
       const msg = `${judul}${data?.perawi ? `\nPerawi: ${data.perawi}` : ''}\n\n${data?.arab ?? ''}\n\n${data?.latin ?? ''}\n\n${data?.indo ?? ''}`;
       await Share.share({ message: msg });
-    } catch {}
+    } catch (e) {
+      // Share dibatalkan pengguna: tidak perlu ditampilkan sebagai error.
+    }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
-  if (error) return <View style={styles.center}><Text>{error}</Text></View>;
-  if (!data) return null;
+  if (loading) {
+    return (
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}>
+        <ActivityIndicator size="large" color={pal.colors.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}>
+        <Text style={[styles.errorText, { color: pal.colors.muted }]}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.navRow}>
-        <TouchableOpacity style={[styles.ctrlBtn, prevDisabled && styles.ctrlBtnDisabled]} onPress={goPrev} disabled={prevDisabled}>
-          <Text style={[styles.ctrlText, prevDisabled && styles.ctrlTextDisabled]}>Sebelumnya</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.ctrlBtn, nextDisabled && styles.ctrlBtnDisabled]} onPress={goNext} disabled={nextDisabled}>
-          <Text style={[styles.ctrlText, nextDisabled && styles.ctrlTextDisabled]}>Berikutnya</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Kontrol ukuran font (serasi dengan SurahDetail) */}
-      <View style={styles.fontRow}>
-        <TouchableOpacity style={styles.fontBtn} onPress={decreaseTextScale}>
-          <Text style={styles.fontBtnText}>A-</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.fontBtn} onPress={increaseTextScale}>
-          <Text style={styles.fontBtnText}>A+</Text>
-        </TouchableOpacity>
-        <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
-      </View>
-
-      {/* Baris atas: nomor & aksi */}
-      <View style={styles.ayatTopRow}>
-        <View style={styles.numberPill}>
-          <Text style={styles.numberPillText}>{data?.nomor ?? '-'}</Text>
+    <View style={[styles.screen, { backgroundColor: pal.colors.bg }]}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.headerRow}>
+          <View style={[styles.numberPill, { backgroundColor: pal.colors.primaryLight + '33', borderColor: pal.colors.primaryLight }]}>
+            <Text style={[styles.numberPillText, { color: pal.colors.primary }]}>
+              Hadits {currentNomor ?? data?.nomor ?? '-'}
+            </Text>
+          </View>
+          {!!(data?.perawi || perawiSlug) && (
+            <Text style={[styles.perawiText, { color: pal.colors.muted }]} numberOfLines={2}>
+              {data?.perawi || perawiSlug}
+            </Text>
+          )}
         </View>
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.iconBtn} onPress={shareHadits}>
-            <Ionicons name="share-social-outline" size={20} color="#6B21A8" />
-          </TouchableOpacity>
-        </View>
-      </View>
 
-      <Text style={styles.title}>{data.judul || `Hadits ${data.nomor ?? ''}`}</Text>
-      {!!data.perawi && <Text style={styles.perawi}>Perawi: {data.perawi}</Text>}
-      {!!data.arab && <Text style={[styles.arab, { fontSize: 20 * textScale, lineHeight: 30 * textScale }]}>{data.arab}</Text>}
-      {!!data.latin && <Text style={[styles.latin, { fontSize: 14 * textScale, lineHeight: 22 * textScale }]}>{data.latin}</Text>}
-      {!!data.indo && <Text style={[styles.indo, { fontSize: 14 * textScale, lineHeight: 22 * textScale }]}>{data.indo}</Text>}
+        {!!data?.judul && (
+          <Text style={[styles.judul, { color: pal.colors.text, fontSize: 18 * textScale }]}>
+            {data.judul}
+          </Text>
+        )}
 
-      {/* Navigasi bawah (duplikasi kontrol) */}
-      <View style={styles.navRow}>
-        <TouchableOpacity style={[styles.ctrlBtn, prevDisabled && styles.ctrlBtnDisabled]} onPress={goPrev} disabled={prevDisabled}>
-          <Text style={[styles.ctrlText, prevDisabled && styles.ctrlTextDisabled]}>Sebelumnya</Text>
+        {!!data?.arab && (
+          <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+            <Text style={[styles.arab, { color: pal.colors.text, fontSize: 24 * textScale }]}>
+              {data.arab}
+            </Text>
+          </View>
+        )}
+
+        {!!data?.latin && (
+          <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+            <Text style={[styles.sectionLabel, { color: pal.colors.muted }]}>Latin</Text>
+            <Text style={[styles.body, { color: pal.colors.text, fontSize: 15 * textScale }]}>
+              {data.latin}
+            </Text>
+          </View>
+        )}
+
+        {!!data?.indo && (
+          <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+            <Text style={[styles.sectionLabel, { color: pal.colors.muted }]}>Terjemahan</Text>
+            <Text style={[styles.body, { color: pal.colors.text, fontSize: 15 * textScale }]}>
+              {data.indo}
+            </Text>
+          </View>
+        )}
+
+        {!data?.arab && !data?.latin && !data?.indo && (
+          <Text style={[styles.body, { color: pal.colors.muted }]}>Isi hadits tidak tersedia.</Text>
+        )}
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+
+      <View style={[styles.actionRow, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+        <TouchableOpacity style={styles.iconBtn} onPress={decreaseTextScale} accessibilityLabel="Perkecil teks">
+          <Text style={[styles.fontBtnText, { color: pal.colors.text }]}>A-</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.ctrlBtn, nextDisabled && styles.ctrlBtnDisabled]} onPress={goNext} disabled={nextDisabled}>
-          <Text style={[styles.ctrlText, nextDisabled && styles.ctrlTextDisabled]}>Berikutnya</Text>
+        <TouchableOpacity style={styles.iconBtn} onPress={increaseTextScale} accessibilityLabel="Perbesar teks">
+          <Text style={[styles.fontBtnText, { color: pal.colors.text }]}>A+</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} onPress={shareHadits} accessibilityLabel="Bagikan hadits">
+          <Ionicons name="share-social-outline" size={20} color={pal.colors.text} />
+        </TouchableOpacity>
+
+        <View style={styles.flexSpacer} />
+
+        <TouchableOpacity
+          style={[styles.navBtn, prevDisabled && styles.navBtnDisabled]}
+          onPress={goPrev}
+          disabled={prevDisabled}
+          accessibilityLabel="Hadits sebelumnya"
+        >
+          <Ionicons name="chevron-back" size={16} color={prevDisabled ? pal.colors.muted : pal.colors.primary} />
+          <Text style={[styles.navBtnText, { color: prevDisabled ? pal.colors.muted : pal.colors.primary }]}>
+            Sebelumnya
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.navBtn, nextDisabled && styles.navBtnDisabled]}
+          onPress={goNext}
+          disabled={nextDisabled}
+          accessibilityLabel="Hadits berikutnya"
+        >
+          <Text style={[styles.navBtnText, { color: nextDisabled ? pal.colors.muted : pal.colors.primary }]}>
+            Berikutnya
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={nextDisabled ? pal.colors.muted : pal.colors.primary} />
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  container: { padding: 16, backgroundColor: '#fff' },
-  navRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, marginBottom: 12 },
-  ctrlBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.primaryDark, marginRight: 8, marginBottom: 8, alignSelf: 'flex-start' },
-  ctrlBtnDisabled: { backgroundColor: '#e2e8f0' },
-  ctrlText: { color: '#fff', fontWeight: '600' },
-  ctrlTextDisabled: { color: '#64748b' },
-  // Kontrol ukuran font (serasi dengan SurahDetail)
-  fontRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  fontBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#f1f5f9', marginRight: 8 },
-  fontBtnText: { fontWeight: '700', color: theme.colors.primary },
-  fontInfo: { color: '#64748b' },
-  title: { fontSize: 20, fontWeight: '700', color: '#111' },
-  perawi: { color: '#666', marginTop: 4 },
-  arab: { marginTop: 12, color: '#111', textAlign: 'right', fontFamily: 'NotoNaskhArabic' },
-  latin: { marginTop: 10, color: '#111' },
-  indo: { marginTop: 10, color: '#111' },
-  ayatTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  numberPill: { backgroundColor: '#ede9fe', borderColor: theme.colors.primaryLight, borderWidth: 1, borderRadius: 16, paddingVertical: 4, paddingHorizontal: 10, alignSelf: 'flex-start' },
-  numberPillText: { color: theme.colors.primaryDark, fontWeight: '800', textAlign: 'center' },
-  actionRow: { flexDirection: 'row', alignItems: 'center' },
-  iconBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f1f5f9' },
-  fontBtnText: { fontWeight: '700', color: theme.colors.primary },
-  fontInfo: { color: '#64748b' },
-  title: { fontSize: 20, fontWeight: '700', color: '#111' },
-  perawi: { color: '#666', marginTop: 4 },
-  arab: { marginTop: 12, color: '#111', textAlign: 'right', fontFamily: 'NotoNaskhArabic' },
-  latin: { marginTop: 10, color: '#111' },
-  indo: { marginTop: 10, color: '#111' },
+  screen: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  errorText: { textAlign: 'center' },
+  scrollContent: { padding: 16 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  numberPill: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, marginRight: 10 },
+  numberPillText: { fontWeight: '700', fontSize: 13 },
+  perawiText: { flex: 1, fontSize: 13 },
+  judul: { fontWeight: '700', marginBottom: 12 },
+  card: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12 },
+  sectionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 },
+  arab: { textAlign: 'right', lineHeight: 44 },
+  body: { lineHeight: 24 },
+  bottomSpacer: { height: 16 },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+  },
+  iconBtn: { paddingHorizontal: 9, paddingVertical: 6 },
+  fontBtnText: { fontSize: 14, fontWeight: '700' },
+  flexSpacer: { flex: 1 },
+  navBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8 },
+  navBtnDisabled: { opacity: 0.5 },
+  navBtnText: { fontSize: 13, fontWeight: '700' },
 });

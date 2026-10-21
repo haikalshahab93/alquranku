@@ -1,12 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SafeAreaView, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 
 const ULAMA = require('../../data/ulama.json');
 const PAGE_SIZE = 30; // set dari 100 ke 30 sesuai permintaan
 
 export default function UlamaListScreen({ navigation }) {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   const [query, setQuery] = useState('');
   const [pageIndex, setPageIndex] = useState(0);
   const { width } = useWindowDimensions();
@@ -49,17 +52,17 @@ export default function UlamaListScreen({ navigation }) {
     const gregSpan = [item.birth_gregorian, item.death_gregorian].filter(Boolean).join(' — ');
     const hasRaw = !!item.raw && Object.keys(item.raw || {}).length > 0;
     return (
-      <TouchableOpacity style={[styles.item, isGrid && styles.itemGrid]} onPress={() => navigation.navigate('UlamaDetail', { scholar: item, scholarId: item.id })} activeOpacity={0.85}>
+      <TouchableOpacity style={[styles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, isGrid && styles.itemGrid]} onPress={() => navigation.navigate('UlamaDetail', { scholar: item, scholarId: item.id })} activeOpacity={0.85}>
         <View style={styles.itemHeaderRow}>
-          <Text style={styles.itemTitle} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
+          <Text style={[styles.itemTitle, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           {hasRaw && (
             <View style={styles.badge}><Text style={styles.badgeText}>Lengkap</Text></View>
           )}
         </View>
-        {!!item.name_ar && <Text style={styles.itemTitleAr} numberOfLines={1} ellipsizeMode="tail">{item.name_ar}</Text>}
-        <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">{item.origin || '-'}</Text>
-        {!!hijriSpan && <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
-        {!!gregSpan && <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
+        {!!item.name_ar && <Text style={[styles.itemTitleAr, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.name_ar}</Text>}
+        <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.origin || '-'}</Text>
+        {!!hijriSpan && <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
+        {!!gregSpan && <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
       </TouchableOpacity>
     );
   };
@@ -87,26 +90,26 @@ export default function UlamaListScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <LinearGradient colors={[theme.colors.primaryLight, theme.colors.white]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
-        <Text style={styles.title}>Ulama Islam</Text>
-        <Text style={styles.subtitle}>Kumpulan data ulama dan karya-karyanya</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
+      <LinearGradient colors={pal.gradients.brandSoft} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
+        <Text style={[styles.title, { color: pal.colors.text }]}>Ulama Islam</Text>
+        <Text style={[styles.subtitle, { color: pal.colors.muted }]}>Kumpulan data ulama dan karya-karyanya</Text>
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Cari ulama (nama/asal/karya)"
-          placeholderTextColor={theme.colors.muted}
-          style={[styles.search, isGrid && styles.searchWide]}
+          placeholderTextColor={pal.colors.muted}
+          style={[styles.search, { backgroundColor: pal.colors.surface, borderColor: pal.colors.primary, color: pal.colors.text }, isGrid && styles.searchWide]}
         />
-        <Text style={styles.resultInfo}>{`Hasil: ${filtered.length} dari ${ULAMA.length}`}</Text>
+        <Text style={[styles.resultInfo, { color: pal.colors.muted }]}>{`Hasil: ${filtered.length} dari ${ULAMA.length}`}</Text>
       </LinearGradient>
       <FlatList
         key={numCols}
         data={data}
         keyExtractor={(item, idx) => String(item.id ?? idx)}
-        contentContainerStyle={[styles.list, isGrid && styles.listGrid]}
+        contentContainerStyle={[styles.list, { backgroundColor: pal.colors.bg }, isGrid && styles.listGrid]}
         renderItem={renderItem}
-        ListEmptyComponent={<View style={styles.center}><Text>Tidak ada hasil.</Text></View>}
+        ListEmptyComponent={<View style={styles.center}><Text style={{ color: pal.colors.muted }}>Tidak ada hasil.</Text></View>}
         initialNumToRender={20}
         windowSize={10}
         removeClippedSubviews={true}
@@ -140,7 +143,7 @@ const styles = StyleSheet.create({
   footerBox: { alignItems: 'center', paddingVertical: 12 },
   paginationRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   pageBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(139,92,246,0.08)', borderWidth: 1, borderColor: theme.colors.primaryLight },
-  pageBtnDisabled: { backgroundColor: '#f1f5f9', borderColor: '#e5e7eb' },
+  pageBtnDisabled: { backgroundColor: 'rgba(148,163,184,0.08)', borderColor: 'rgba(148,163,184,0.3)' },
   pageBtnText: { color: theme.colors.primaryDark, fontWeight: '600' },
   pageBtnTextDisabled: { color: '#94a3b8' },
   pageInfo: { color: theme.colors.muted },

@@ -3,11 +3,14 @@ import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 
 const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen({ navigation }) {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   const scrollRef = useRef(null);
   const [index, setIndex] = useState(0);
 
@@ -47,7 +50,7 @@ export default function OnboardingScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -73,21 +76,21 @@ export default function OnboardingScreen({ navigation }) {
               {i === 1 && <FontAwesome5 name="hands" size={44} color="#ffffff" />}
               {i === 2 && <FontAwesome5 name="calendar" size={44} color="#ffffff" />}
             </LinearGradient>
-            <Text style={styles.title}>{s.title}</Text>
-            <Text style={styles.desc}>{s.desc}</Text>
+            <Text style={[styles.title, { color: pal.colors.text }]}>{s.title}</Text>
+            <Text style={[styles.desc, { color: pal.colors.muted }]}>{s.desc}</Text>
           </View>
         ))}
       </ScrollView>
-      <View style={styles.controls}>
+      <View style={[styles.controls, { borderColor: pal.colors.surfaceBorder }]}>
         <TouchableOpacity style={styles.skipBtn} onPress={skip}>
-          <Text style={styles.skipText}>Lewati</Text>
+          <Text style={[styles.skipText, { color: pal.colors.muted }]}>Lewati</Text>
         </TouchableOpacity>
         <View style={styles.dots}>
           {slides.map((_, i) => (
-            <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+            <View key={i} style={[styles.dot, { backgroundColor: pal.colors.surfaceBorder }, i === index && styles.dotActive]} />
           ))}
         </View>
-        <TouchableOpacity style={styles.nextBtn} onPress={goNext}>
+        <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.colors.primaryDark }]} onPress={goNext}>
           <Text style={styles.nextText}>{index < slides.length - 1 ? 'Lanjut' : 'Mulai'}</Text>
         </TouchableOpacity>
       </View>
@@ -96,7 +99,7 @@ export default function OnboardingScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1 },
   slide: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   slideIconWrap: {
     width: 120,
@@ -107,14 +110,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     ...theme.shadow.float,
   },
-  title: { fontSize: 22, fontWeight: '800', color: '#111', textAlign: 'center' },
-  desc: { marginTop: 8, color: '#475569', textAlign: 'center' },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderTopWidth: 1, borderColor: '#eee' },
+  title: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  desc: { marginTop: 8, textAlign: 'center' },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderTopWidth: 1 },
   skipBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  skipText: { color: '#64748b', fontWeight: '700' },
+  skipText: { fontWeight: '700' },
   dots: { flexDirection: 'row', alignItems: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 8, backgroundColor: '#e2e8f0', marginHorizontal: 4 },
+  dot: { width: 8, height: 8, borderRadius: 8, marginHorizontal: 4 },
   dotActive: { backgroundColor: theme.colors.primary },
-  nextBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 999, backgroundColor: theme.colors.primaryDark, ...theme.shadow.card },
+  nextBtn: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 999, ...theme.shadow.card },
   nextText: { color: '#fff', fontWeight: '700' },
 });

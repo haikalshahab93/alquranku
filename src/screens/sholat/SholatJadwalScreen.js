@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAladhanHarianCity, getAladhanHarianCoords } from '../../api/aladhan';
@@ -47,7 +48,26 @@ const SHOLAT_SETTINGS = {
   tune: 'settings:sholat:tune',
 };
 
+// Kunci penyimpanan lokasi terakhir + masa berlaku (6 jam)
+const LAST_LOCATION_KEY = 'last_known_location';
+const LAST_LOCATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+// Lokasi cadangan terakhir jika GPS ditolak DAN fallback IP gagal. Ubah sesuai kebutuhan.
+const DEFAULT_LOCATION = { city: 'Jakarta', country: 'Indonesia' };
+
+// Geolocation web yang tidak melempar error saat ditolak/timeout (hasilnya null)
+const getWebPosition = () => new Promise((resolve) => {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return resolve(null);
+  navigator.geolocation.getCurrentPosition(
+    resolve,
+    () => resolve(null), // ditolak / timeout / tidak tersedia
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+});
+
 export default function SholatJadwalScreen() {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
   const [data, setData] = useState(null);
@@ -96,16 +116,26 @@ export default function SholatJadwalScreen() {
 
   useEffect(() => { loadSettings(); }, []);
 
-  // Fallback lokasi berbasis IP jika geolocation tidak tersedia/ditolak
+  // Fallback lokasi berbasis IP jika geolocation tidak tersedia/ditolak.
+  // Jika IP juga gagal, pakai DEFAULT_LOCATION supaya jadwal tetap tampil.
   const fetchIpLocation = async () => {
     try {
       const resp = await fetch('https://ipapi.co/json');
+      if (!resp.ok) throw new Error('IP lookup failed: ' + resp.status);
       const json = await resp.json();
       const ipLat = json?.latitude; const ipLon = json?.longitude;
-      if (ipLat && ipLon) { setLat(ipLat); setLon(ipLon); }
-      setCity(json?.city || json?.region || json?.region_code || '');
-      setCountry(json?.country_name || json?.country || '');
-    } catch {}
+      const ipCity = json?.city || json?.region || json?.region_code || '';
+      const ipCountry = json?.country_name || json?.country || '';
+      if (typeof ipLat === 'number' && typeof ipLon === 'number') { setLat(ipLat); setLon(ipLon); }
+      if (ipCity) setCity(ipCity);
+      if (ipCountry) setCountry(ipCountry);
+      if (!(typeof ipLat === 'number' && typeof ipLon === 'number') && !(ipCity && ipCountry)) {
+        throw new Error('IP lookup returned no usable location');
+      }
+    } catch (e) {
+      setCity(DEFAULT_LOCATION.city);
+      setCountry(DEFAULT_LOCATION.country);
+    }
   };
 
   // Tick time every second for countdown
@@ -113,12 +143,13 @@ export default function SholatJadwalScreen() {
 
   // Detect location (GPS or browser) and fill city/country
   useEffect(() => { (async () => { try {
-    // 1) Coba baca lokasi yang tersimpan (banyak aplikasi menyimpan 'last_known_location')
-    const saved = await AsyncStorage.getItem('last_known_location');
+    // 1) Pakai lokasi tersimpan jika masih baru (< 6 jam)
+    const saved = await AsyncStorage.getItem(LAST_LOCATION_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed.lat === 'number' && typeof parsed.lon === 'number') {
+        const fresh = typeof parsed?.ts === 'number' && (Date.now() - parsed.ts) < LAST_LOCATION_MAX_AGE_MS;
+        if (fresh && typeof parsed.lat === 'number' && typeof parsed.lon === 'number') {
           setLat(parsed.lat); setLon(parsed.lon);
           if (parsed.city) setCity(parsed.city);
           if (parsed.country) setCountry(parsed.country);
@@ -126,7 +157,7 @@ export default function SholatJadwalScreen() {
         }
       } catch {}
     }
-    // 2) Jika tidak ada lokasi yang tersimpan, lakukan request seperti sebelumnya
+    // 2) Jika tidak ada lokasi tersimpan yang masih baru, minta lokasi
     if (Platform.OS !== 'web') {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') { await fetchIpLocation(); return; }
@@ -137,32 +168,40 @@ export default function SholatJadwalScreen() {
         const addr = rg?.[0] || {};
         setCity(addr.city || addr.region || addr.district || addr.name || '');
         setCountry(addr.country || '');
-      } catch { await fetchIpLocation(); }
+      } catch { /* koordinat sudah ada, nama kota tidak wajib */ }
     } else {
-      if ('geolocation' in navigator) {
-        const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 }));
-        const { latitude, longitude } = pos.coords; setLat(latitude); setLon(longitude);
-        try {
-          const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`;
-          const resp = await fetch(url); const json = await resp.json(); const addr = json?.address || {};
-          setCity(addr.city || addr.town || addr.village || addr.state_district || addr.state || addr.county || '');
-          setCountry(addr.country || '');
-        } catch { await fetchIpLocation(); }
-      } else {
-        await fetchIpLocation();
-      }
+      const pos = await getWebPosition(); // null jika ditolak / tidak tersedia
+      if (!pos) { await fetchIpLocation(); return; }
+      const { latitude, longitude } = pos.coords;
+      setLat(latitude); setLon(longitude);
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`;
+        const resp = await fetch(url); const json = await resp.json(); const addr = json?.address || {};
+        setCity(addr.city || addr.town || addr.village || addr.state_district || addr.state || addr.county || '');
+        setCountry(addr.country || '');
+      } catch { /* koordinat sudah ada, nama kota tidak wajib */ }
     }
   } catch (e) { console.warn(e); await fetchIpLocation(); } })(); }, []);
 
-  // Mulai "watch" posisi agar lat/lon otomatis ikut bergerak saat pengguna pindah lokasi (web & native)
+  // Simpan lokasi terakhir supaya kunjungan berikutnya tidak perlu minta izin lagi
+  useEffect(() => {
+    if (lat == null || lon == null) return;
+    AsyncStorage.setItem(
+      LAST_LOCATION_KEY,
+      JSON.stringify({ lat, lon, city, country, ts: Date.now() })
+    ).catch(() => {});
+  }, [lat, lon, city, country]);
+
+  // Mulai "watch" posisi hanya jika izin SUDAH diberikan (tidak memicu popup izin lagi)
   useEffect(() => {
     let sub; // expo-location subscription (native)
     let watchId; // geolocation watch id (web)
+    let cancelled = false;
     (async () => {
       try {
         if (Platform.OS !== 'web') {
           const { status } = await Location.getForegroundPermissionsAsync();
-          if (status === 'granted') {
+          if (status === 'granted' && !cancelled) {
             sub = await Location.watchPositionAsync(
               { accuracy: Location.Accuracy.Balanced, distanceInterval: 200 },
               (pos) => {
@@ -171,23 +210,34 @@ export default function SholatJadwalScreen() {
               }
             );
           }
-        } else if ('geolocation' in navigator) {
-          watchId = navigator.geolocation.watchPosition(
-            (pos) => {
-              setLat(pos.coords.latitude);
-              setLon(pos.coords.longitude);
-            },
-            (err) => { /* silent */ },
-            { enableHighAccuracy: true, maximumAge: 10000 }
-          );
+        } else if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+          // Cek status izin dulu; jika tidak bisa dicek / belum granted, jangan watch
+          let granted = false;
+          try {
+            if (navigator.permissions?.query) {
+              const st = await navigator.permissions.query({ name: 'geolocation' });
+              granted = st.state === 'granted';
+            }
+          } catch {}
+          if (granted && !cancelled) {
+            watchId = navigator.geolocation.watchPosition(
+              (pos) => {
+                setLat(pos.coords.latitude);
+                setLon(pos.coords.longitude);
+              },
+              () => { /* silent */ },
+              { enableHighAccuracy: true, maximumAge: 10000 }
+            );
+          }
         }
       } catch (e) {
         // ignore
       }
     })();
     return () => {
+      cancelled = true;
       try { if (sub && typeof sub.remove === 'function') sub.remove(); } catch {}
-      try { if (watchId != null && 'geolocation' in navigator) navigator.geolocation.clearWatch(watchId); } catch {}
+      try { if (watchId != null && typeof navigator !== 'undefined' && 'geolocation' in navigator) navigator.geolocation.clearWatch(watchId); } catch {}
     };
   }, []);
 
@@ -312,7 +362,7 @@ export default function SholatJadwalScreen() {
   }, [data, city, lat, lon]);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#f4f4f4' }}>
+    <ScrollView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, paddingBottom: 28, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>{locationHeader} <Ionicons name="chevron-down" size={18} color="#fff" /></Text>
@@ -328,24 +378,24 @@ export default function SholatJadwalScreen() {
         </View>
       </LinearGradient>
 
-      <View style={{ backgroundColor: '#fff', marginTop: -18, marginHorizontal: 12, borderRadius: 16, boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.08)', elevation: 3 }}>
-        <View style={{ padding: 16, borderBottomWidth: 1, borderColor: '#eee' }}>
-          <Text style={{ textAlign: 'center', fontWeight: '600' }}>{readableDate}</Text>
-          <Text style={{ textAlign: 'center', color: '#666', marginTop: 4 }}>{hijri}</Text>
-          {tzNow ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 4, fontSize: 12 }}>Zona waktu (sekarang): {tzNow}</Text> : null}
-          {tzApi ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 2, fontSize: 12 }}>Zona waktu (API): {tzApi}</Text> : null}
-          {coordText ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 2, fontSize: 12 }}>Coords: {coordText}</Text> : null}
-          {methodName ? <Text style={{ textAlign: 'center', color: '#999', marginTop: 2, fontSize: 12 }}>Method: {methodName}</Text> : null}
+      <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, marginTop: -18, marginHorizontal: 12, borderRadius: 16, boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.08)', elevation: 3 }}>
+        <View style={{ padding: 16, borderBottomWidth: 1, borderColor: pal.colors.surfaceBorder }}>
+          <Text style={{ textAlign: 'center', fontWeight: '600', color: pal.colors.text }}>{readableDate}</Text>
+          <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4 }}>{hijri}</Text>
+          {tzNow ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 12 }}>Zona waktu (sekarang): {tzNow}</Text> : null}
+          {tzApi ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Zona waktu (API): {tzApi}</Text> : null}
+          {coordText ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Coords: {coordText}</Text> : null}
+          {methodName ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Method: {methodName}</Text> : null}
         </View>
         {timesFull.map(t => {
           const active = curNext.cur?.key === t.key; return (
-            <View key={t.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: '#f0f0f0' }}>
-              <Text style={{ fontSize: 16, color: '#222' }}>{t.label}</Text>
+            <View key={t.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: pal.colors.surfaceBorder }}>
+              <Text style={{ fontSize: 16, color: pal.colors.text }}>{t.label}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, borderWidth: active ? 2 : 1, borderColor: active ? theme.colors.primary : '#ddd' }}>
-                  <Text style={{ fontWeight: '600', color: active ? theme.colors.primary : '#333' }}>{t.display || displayFromApi(t.raw)}</Text>
+                <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, borderWidth: active ? 2 : 1, borderColor: active ? pal.colors.primary : pal.colors.surfaceBorder }}>
+                  <Text style={{ fontWeight: '600', color: active ? pal.colors.primary : pal.colors.text }}>{t.display || displayFromApi(t.raw)}</Text>
                 </View>
-                <Ionicons name={active ? 'volume-high' : 'volume-mute'} size={18} color={active ? theme.colors.primary : '#bbb'} style={{ marginLeft: 8 }} />
+                <Ionicons name={active ? 'volume-high' : 'volume-mute'} size={18} color={active ? pal.colors.primary : pal.colors.muted} style={{ marginLeft: 8 }} />
               </View>
             </View>
           );
@@ -354,8 +404,8 @@ export default function SholatJadwalScreen() {
           <TouchableOpacity style={{ backgroundColor: theme.colors.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>{curNext.cur?.label ? 'Prayers' : 'Loading'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={{ borderColor: '#ddd', borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}>
-            <Text style={{ color: '#333' }}>{hijri ? 'Hijri' : '—'}</Text>
+          <TouchableOpacity style={{ borderColor: pal.colors.surfaceBorder, borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}>
+            <Text style={{ color: pal.colors.text }}>{hijri ? 'Hijri' : '—'}</Text>
           </TouchableOpacity>
         </View>
       </View>

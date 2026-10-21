@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, useWindowDimensions, Platform, SafeAreaView, ScrollView } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { getHaditsArbainSemua } from '../../api/hadits';
-import { theme } from '../../ui';
+import { getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 
 function normalizeArray(payload) {
   // Terima berbagai bentuk respons dari API myQuran v2
@@ -53,6 +54,9 @@ function normalizeArray(payload) {
 }
 
 export default function HaditsListScreen({ navigation }) {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
+
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState('');
@@ -185,14 +189,17 @@ export default function HaditsListScreen({ navigation }) {
     const perawi = item?.perawi ?? item?.rawi ?? item?.narrator ?? '';
     const globalIndex = showAll ? index : start + index;
     return (
-      <TouchableOpacity style={styles.item} onPress={() => { setCurrentIndex(globalIndex); navigation.navigate('HaditsDetail', { nomor }); }}>
+      <TouchableOpacity
+        style={[styles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}
+        onPress={() => { setCurrentIndex(globalIndex); navigation.navigate('HaditsDetail', { nomor }); }}
+      >
         <View style={styles.itemRow}>
           <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" style={styles.itemIcon}>
-            <Path d="M4 4h12a2 2 0 012 2v12l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" stroke="#6b7280" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            <Path d="M4 4h12a2 2 0 012 2v12l-4-2-4 2-4-2-4 2V6a2 2 0 012-2z" stroke={pal.colors.muted} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
           <View style={{ flex: 1 }}>
-            <Text style={styles.itemTitle} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
-            {!!perawi && <Text style={styles.itemSubtitle} numberOfLines={1} ellipsizeMode="tail">Perawi: {perawi}</Text>}
+            <Text style={[styles.itemTitle, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
+            {!!perawi && <Text style={[styles.itemSubtitle, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Perawi: {perawi}</Text>}
           </View>
         </View>
       </TouchableOpacity>
@@ -200,12 +207,15 @@ export default function HaditsListScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: pal.colors.bg }]}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Arba’in Nawawi</Text>
+        <Text style={[styles.title, { color: pal.colors.text }]}>Arba’in Nawawi</Text>
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={[styles.randomBtn, showAll && styles.activeBtn]} onPress={() => setShowAll((s) => !s)}>
-            <Text style={[styles.randomText, showAll && styles.activeText]}>{showAll ? 'Tampilkan Halaman' : 'Tampilkan Semua'}</Text>
+          <TouchableOpacity
+            style={[styles.randomBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, showAll && styles.activeBtn]}
+            onPress={() => setShowAll((s) => !s)}
+          >
+            <Text style={[styles.randomText, { color: pal.colors.primary }, showAll && styles.activeText]}>{showAll ? 'Tampilkan Halaman' : 'Tampilkan Semua'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -213,14 +223,16 @@ export default function HaditsListScreen({ navigation }) {
         value={query}
         onChangeText={setQuery}
         placeholder="Cari hadits (judul/arab/indo/perawi)"
-        placeholderTextColor="#64748b"
-        style={styles.search}
+        placeholderTextColor={pal.colors.muted}
+        style={[styles.search, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder, color: pal.colors.text }]}
       />
-      <Text style={{ paddingHorizontal: 16, color: theme.colors.muted }}>Total Hadits: {filtered.length}</Text>
+      <Text style={[styles.totalText, { color: pal.colors.muted }]}>Total Hadits: {filtered.length}</Text>
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={pal.colors.primary} /></View>
       ) : error ? (
-        <View style={styles.center}><Text>{error}</Text></View>
+        <View style={styles.center}>
+          <Text style={{ color: pal.colors.muted, textAlign: 'center', paddingHorizontal: 16 }}>{error}</Text>
+        </View>
       ) : (
         <View style={{ flex: 1 }}>
           {showAll ? (
@@ -247,23 +259,23 @@ export default function HaditsListScreen({ navigation }) {
             />
            )}
           {(!showAll && totalPages > 1) ? (
-            <View style={styles.pager}>
-              <TouchableOpacity onPress={goPrev} disabled={safePage <= 0} style={[styles.pagerBtn, safePage <= 0 && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={[styles.pagerBtnText, safePage <= 0 && styles.pagerBtnTextDisabled]}>Sebelumnya</Text>
+            <View style={[styles.pager, { backgroundColor: pal.colors.bg, borderColor: pal.colors.surfaceBorder }]}>
+              <TouchableOpacity onPress={goPrev} disabled={safePage <= 0} style={[styles.pagerBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, safePage <= 0 && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.pagerBtnText, { color: safePage <= 0 ? pal.colors.muted : pal.colors.primary }]}>Sebelumnya</Text>
               </TouchableOpacity>
-              <Text style={styles.pagerText}>Halaman {safePage + 1} / {totalPages}</Text>
-              <TouchableOpacity onPress={goNext} disabled={safePage >= totalPages - 1} style={[styles.pagerBtn, safePage >= totalPages - 1 && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={[styles.pagerBtnText, safePage >= totalPages - 1 && styles.pagerBtnTextDisabled]}>Sesudahnya</Text>
+              <Text style={[styles.pagerText, { color: pal.colors.text }]}>Halaman {safePage + 1} / {totalPages}</Text>
+              <TouchableOpacity onPress={goNext} disabled={safePage >= totalPages - 1} style={[styles.pagerBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, safePage >= totalPages - 1 && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.pagerBtnText, { color: safePage >= totalPages - 1 ? pal.colors.muted : pal.colors.primary }]}>Sesudahnya</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.pager}>
-              <TouchableOpacity onPress={haditsPrev} disabled={currentIndex <= 0 || filtered.length === 0} style={[styles.pagerBtn, (currentIndex <= 0 || filtered.length === 0) && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={[styles.pagerBtnText, (currentIndex <= 0 || filtered.length === 0) && styles.pagerBtnTextDisabled]}>Sebelumnya</Text>
+            <View style={[styles.pager, { backgroundColor: pal.colors.bg, borderColor: pal.colors.surfaceBorder }]}>
+              <TouchableOpacity onPress={haditsPrev} disabled={currentIndex <= 0 || filtered.length === 0} style={[styles.pagerBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, (currentIndex <= 0 || filtered.length === 0) && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.pagerBtnText, { color: (currentIndex <= 0 || filtered.length === 0) ? pal.colors.muted : pal.colors.primary }]}>Sebelumnya</Text>
               </TouchableOpacity>
-              <Text style={styles.pagerText}>Hadits {filtered.length ? (getNomor(filtered[currentIndex], currentIndex)) : '-'} / {filtered.length || 0}</Text>
-              <TouchableOpacity onPress={haditsNext} disabled={currentIndex >= filtered.length - 1 || filtered.length === 0} style={[styles.pagerBtn, (currentIndex >= filtered.length - 1 || filtered.length === 0) && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={[styles.pagerBtnText, (currentIndex >= filtered.length - 1 || filtered.length === 0) && styles.pagerBtnTextDisabled]}>Sesudahnya</Text>
+              <Text style={[styles.pagerText, { color: pal.colors.text }]}>Hadits {filtered.length ? (getNomor(filtered[currentIndex], currentIndex)) : '-'} / {filtered.length || 0}</Text>
+              <TouchableOpacity onPress={haditsNext} disabled={currentIndex >= filtered.length - 1 || filtered.length === 0} style={[styles.pagerBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, (currentIndex >= filtered.length - 1 || filtered.length === 0) && styles.pagerBtnDisabled]} accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.pagerBtnText, { color: (currentIndex >= filtered.length - 1 || filtered.length === 0) ? pal.colors.muted : pal.colors.primary }]}>Sesudahnya</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -274,27 +286,27 @@ export default function HaditsListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.bg },
+  container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12 },
-  title: { fontSize: 20, fontWeight: '800', color: theme.colors.text },
+  title: { fontSize: 20, fontWeight: '800' },
   actionsRow: { flexDirection: 'row', alignItems: 'center' },
-  randomBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
-  randomText: { color: theme.colors.primary, fontWeight: '700' },
-  activeBtn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  randomBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1 },
+  randomText: { fontWeight: '700' },
+  activeBtn: { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' },
   activeText: { color: '#fff' },
-  search: { margin: 16, borderWidth: 1, borderColor: theme.colors.primaryLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: theme.colors.text, backgroundColor: '#fff' },
+  search: { margin: 16, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  totalText: { paddingHorizontal: 16 },
   list: { padding: 16 },
-  item: { padding: 14, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, backgroundColor: '#fff', marginBottom: 12, elevation: 2, boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)' },
+  item: { padding: 14, borderWidth: 1, borderRadius: 12, marginBottom: 12, elevation: 2, boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.08)' },
   itemRow: { flexDirection: 'row', alignItems: 'center' },
   itemIcon: { marginRight: 10 },
-  itemTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
-  itemSubtitle: { color: '#64748b', marginTop: 4 },
+  itemTitle: { fontSize: 16, fontWeight: '700' },
+  itemSubtitle: { marginTop: 4 },
   // Pager styles
-  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: theme.colors.primaryLight, backgroundColor: theme.colors.bg },
-  pagerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0', cursor: 'pointer' },
+  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
+  pagerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, cursor: 'pointer' },
   pagerBtnDisabled: { opacity: 0.6 },
-  pagerBtnText: { color: theme.colors.primary, fontWeight: '700' },
-  pagerBtnTextDisabled: { color: '#94a3b8' },
-  pagerText: { color: '#0f172a', fontWeight: '700' },
+  pagerBtnText: { fontWeight: '700' },
+  pagerText: { fontWeight: '700' },
 });

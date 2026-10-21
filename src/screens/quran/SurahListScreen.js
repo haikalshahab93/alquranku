@@ -2,11 +2,12 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getSuratList, getSuratDetail, preloadAllSurahData, getOfflineReadyCount, isOnline } from '../../api/quran';
-import { listOfflineAudio, deleteAllOfflineAudio, downloadAllSurahAudio } from '../../api/offlineAudio';
+import { listOfflineAudio } from '../../api/offlineAudio';
 import { getPreferredKaraokeReciter } from '../../api/quranAudio';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme, GradientCard } from '../../ui';
+import { theme, GradientCard, getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 import { surahsInJuz, juzStartLabel, juzsOfSurah, globalAyahStart, juzFromGlobalAyah, JUZ_STARTS } from '../../api/juz';
 import { getPagePairs, TOTAL_PAGES } from '../../api/mushafPages';
 // Using dynamic import('docx') inside handleDownloadSurah for web only; remove static import to avoid Metro resolution error on native/web bundling
@@ -26,6 +27,10 @@ function formatBytes(bytes) {
 }
 
 export default function SurahListScreen({ navigation, route }) {
+  // Palet aktif (dark mode) — dari pengaturan tampilan terpusat
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
+  const styles = makeStyles(pal);
   const [loading, setLoading] = useState(true);
   const [surahs, setSurahs] = useState([]);
   const [error, setError] = useState(null);
@@ -54,10 +59,6 @@ export default function SurahListScreen({ navigation, route }) {
   const [offlineProgress, setOfflineProgress] = useState(0); // 0..1
   // === Ringkasan audio offline (MP3 per surah untuk karaoke) ===
   const [audioStats, setAudioStats] = useState({ count: 0, totalBytes: 0 });
-  const [audioDeleting, setAudioDeleting] = useState(false);
-  const [audioBatch, setAudioBatch] = useState(null); // { done, total, failed } saat mengunduh
-  const [audioBatchResult, setAudioBatchResult] = useState(null); // { downloaded, skipped, failed, cancelled }
-  const audioCancelRef = useRef(false);
   const [offlineDone, setOfflineDone] = useState(false);
   const [offlineErr, setOfflineErr] = useState(null);
   const player = useAudioPlayer();
@@ -132,34 +133,6 @@ export default function SurahListScreen({ navigation, route }) {
       const list = await listOfflineAudio();
       setAudioStats({ count: list.length, totalBytes: list.reduce((s, m) => s + (m.size || 0), 0) });
     } catch {}
-  };
-
-  const handleDeleteAllAudio = async () => {
-    if (audioDeleting || audioStats.count === 0) return;
-    setAudioDeleting(true);
-    try { await deleteAllOfflineAudio(); setAudioStats({ count: 0, totalBytes: 0 }); } catch {}
-    setAudioDeleting(false);
-  };
-
-  const startAudioBatchDownload = async () => {
-    if (audioBatch) return;
-    setAudioBatchResult(null);
-    setAudioBatch({ done: 0, total: 114, failed: 0 });
-    audioCancelRef.current = false;
-    try {
-      const reciterId = await getPreferredKaraokeReciter();
-      const res = await downloadAllSurahAudio(
-        reciterId,
-        (p) => setAudioBatch({ done: p.done, total: p.total, failed: p.failed }),
-        () => audioCancelRef.current
-      );
-      setAudioBatchResult(res);
-    } catch {
-      setAudioBatchResult({ downloaded: 0, skipped: 0, failed: 114, cancelled: false });
-    } finally {
-      setAudioBatch(null);
-      refreshAudioStats();
-    }
   };
 
   const startOfflineDownload = async () => {
@@ -248,7 +221,7 @@ export default function SurahListScreen({ navigation, route }) {
 
   const renderPageItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.item}
+      style={[styles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}
       onPress={() => navigation.navigate('PageDetail', { page: item.page })}
       activeOpacity={0.85}
     >
@@ -257,10 +230,10 @@ export default function SurahListScreen({ navigation, route }) {
           <Text style={styles.itemNumber}>{item.page}</Text>
         </View>
         <View style={styles.itemTextBox}>
-          <Text style={styles.itemLatin} numberOfLines={1}>Halaman {item.page}</Text>
-          <Text style={styles.itemMeta} numberOfLines={1}>{item.verseCount} ayat • Juz {item.juz}</Text>
+          <Text style={[styles.itemLatin, { color: pal.colors.text }]} numberOfLines={1}>Halaman {item.page}</Text>
+          <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1}>{item.verseCount} ayat • Juz {item.juz}</Text>
         </View>
-        <Ionicons name="book-outline" size={18} color={theme.colors.primary} />
+        <Ionicons name="book-outline" size={18} color={pal.colors.primary} />
       </View>
     </TouchableOpacity>
   );
@@ -283,17 +256,17 @@ export default function SurahListScreen({ navigation, route }) {
       navigation.navigate('SurahDetail', { nomor: e.surah, namaLatin: e.name, nama_latin: e.name, targetAyah: e.fromAyat });
     };
     return (
-      <View style={styles.item}>
+      <View style={[styles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
         <TouchableOpacity onPress={openJuzStart} activeOpacity={0.85}>
           <View style={styles.itemHeader}>
             <View style={styles.itemNumberBadge}>
               <Text style={styles.itemNumber}>{item.juz}</Text>
             </View>
             <View style={styles.itemTextBox}>
-              <Text style={styles.itemLatin}>Juz {item.juz}</Text>
-              <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">{item.startLabel}</Text>
+              <Text style={[styles.itemLatin, { color: pal.colors.text }]}>Juz {item.juz}</Text>
+              <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.startLabel}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
+            <Ionicons name="chevron-forward" size={16} color={pal.colors.primary} />
           </View>
         </TouchableOpacity>
         {/* Chip per surah dalam juz ini — masing-masing bisa diklik */}
@@ -546,24 +519,24 @@ export default function SurahListScreen({ navigation, route }) {
     };
 
     return (
-      <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomor, nama_latin: item.namaLatin || item.nama_latin, namaLatin: item.namaLatin || item.nama_latin })} activeOpacity={0.85}>
+      <TouchableOpacity style={[styles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomor, nama_latin: item.namaLatin || item.nama_latin, namaLatin: item.namaLatin || item.nama_latin })} activeOpacity={0.85}>
         <View style={styles.itemHeader}>
           <View style={styles.itemNumberBadge}>
             <Text style={styles.itemNumber}>{item.nomor}</Text>
           </View>
           <View style={styles.itemTextBox}>
-            <Text style={styles.itemLatin} numberOfLines={1} ellipsizeMode="tail">{item.namaLatin || item.nama_latin}</Text>
-            <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="tail">{item.arti} • {(item.jumlahAyat || item.jumlah_ayat)} ayat • {(item.tempatTurun || item.tempat_turun)} • Juz {juzsOfSurah(item.nomor).join(', ') || '-'}</Text>
+            <Text style={[styles.itemLatin, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{item.namaLatin || item.nama_latin}</Text>
+            <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.arti} • {(item.jumlahAyat || item.jumlah_ayat)} ayat • {(item.tempatTurun || item.tempat_turun)} • Juz {juzsOfSurah(item.nomor).join(', ') || '-'}</Text>
           </View>
-          <Text style={styles.itemArabic}>{item.nama}</Text>
+          <Text style={[styles.itemArabic, { color: pal.colors.primaryLight }]}>{item.nama}</Text>
         </View>
         <View style={styles.itemActions}>
           <TouchableOpacity style={styles.infoToggle} onPress={() => toggleExpand(item.nomor)}>
-            <Ionicons name={isExpanded ? 'chevron-up' : 'sparkles-outline'} size={12} color={theme.colors.primaryDark} />
+            <Ionicons name={isExpanded ? 'chevron-up' : 'sparkles-outline'} size={12} color={pal.colors.primaryLight} />
             <Text style={styles.infoToggleText}>{isExpanded ? 'Tutup ringkas' : 'Ringkas'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.infoToggle} onPress={() => toggleName(item.nomor)}>
-            <Ionicons name="language-outline" size={12} color={theme.colors.primaryDark} />
+            <Ionicons name="language-outline" size={12} color={pal.colors.primaryLight} />
             <Text style={styles.infoToggleText}>{isNameExpanded ? 'Tutup nama' : 'Nama Arab'}</Text>
           </TouchableOpacity>
         </View>
@@ -625,28 +598,27 @@ export default function SurahListScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}>
+        <ActivityIndicator size="large" color={pal.colors.primary} />
       </View>
     );
   }
   if (error) {
     return (
-      <View style={styles.center}>
-        <Text>{error}</Text>
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}>
+        <Text style={{ color: pal.colors.text }}>{error}</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <FlatList
         key={activeTab}
         data={activeTab === 'para' ? juzCards : activeTab === 'page' ? pageCards : pagedSurahs}
         numColumns={1}
         keyExtractor={(item) => String(activeTab === 'para' ? `juz-${item.juz}` : activeTab === 'page' ? `page-${item.page}` : item.nomor)}
-        contentContainerStyle={styles.list}
-        renderItem={activeTab === 'para' ? renderJuzItem : activeTab === 'page' ? renderPageItem : renderItem}
+        contentContainerStyle={[styles.list, { backgroundColor: pal.colors.bg }]}        renderItem={activeTab === 'para' ? renderJuzItem : activeTab === 'page' ? renderPageItem : renderItem}
         ListHeaderComponent={
           <View style={{ marginBottom: 12 }}>
             {/* Baris tab tampil di SEMUA tab agar navigasi konsisten */}
@@ -698,7 +670,7 @@ export default function SurahListScreen({ navigation, route }) {
 
 
             {activeTab === 'surah' && (
-              <View style={styles.searchWrap}>
+              <View style={[styles.searchWrap, { backgroundColor: pal.colors.surface, borderColor: pal.colors.primary }]}>
                 <View style={styles.searchIconWrap}>
                   <Ionicons name="search" size={18} color="#ffffff" />
                 </View>
@@ -707,7 +679,7 @@ export default function SurahListScreen({ navigation, route }) {
                   placeholderTextColor="#94a3b8"
                   value={query}
                   onChangeText={setQuery}
-                  style={styles.searchBox}
+                  style={[styles.searchBox, { color: pal.colors.text }]}
                   returnKeyType="search"
                 />
                 {!!query && (
@@ -769,52 +741,15 @@ export default function SurahListScreen({ navigation, route }) {
                   <Text style={styles.offlineErrText}>{offlineErr}</Text>
                 )}
 
-                {/* === Ringkasan audio offline (MP3 karaoke per surah) === */}
+                {/* Audio offline dikelola di Pengaturan (per qari) */}
                 <View style={styles.audioStatsRow}>
-                  <Ionicons name="musical-notes" size={14} color={theme.colors.primaryDark} />
+                  <Ionicons name="musical-notes" size={14} color={pal.colors.primary} />
                   <Text style={styles.audioStatsText}>
-                    {audioBatch
-                      ? `Mengunduh audio ${audioBatch.done}/${audioBatch.total}${audioBatch.failed ? ` • ${audioBatch.failed} gagal` : ''} — lainnya bisa dilewati`
-                      : audioStats.count > 0
-                        ? `${audioStats.count} audio surah tersimpan • ${formatBytes(audioStats.totalBytes)}`
-                        : 'Belum ada audio offline — unduh dari halaman surah'}
+                    {audioStats.count > 0
+                      ? `${audioStats.count} audio surah tersimpan • ${formatBytes(audioStats.totalBytes)}`
+                      : `Belum ada audio offline — unduh per qari di Pengaturan`}
                   </Text>
-                  {audioBatch ? (
-                    <TouchableOpacity onPress={() => { audioCancelRef.current = true; }} style={styles.audioDeleteBtn}>
-                      <Text style={styles.audioDeleteText}>Stop</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <>
-                      <TouchableOpacity onPress={startAudioBatchDownload} style={styles.audioBatchBtn}>
-                        <Text style={styles.audioBatchText}>{audioStats.count >= 114 ? 'Perbarui' : 'Unduh Semua'}</Text>
-                      </TouchableOpacity>
-                      {audioStats.count > 0 && (
-                        <TouchableOpacity onPress={handleDeleteAllAudio} disabled={audioDeleting} style={styles.audioDeleteBtn}>
-                          <Text style={styles.audioDeleteText}>{audioDeleting ? 'Menghapus…' : 'Hapus'}</Text>
-                        </TouchableOpacity>
-                      )}
-                    </>
-                  )}
                 </View>
-                {!!audioBatch && (
-                  <View style={styles.audioBatchProgressWrap}>
-                    <View style={[styles.offlineProgressBar, { width: `${Math.round((audioBatch.done / audioBatch.total) * 100)}%` }]} />
-                  </View>
-                )}
-                {!audioBatch && audioBatchResult && (
-                  <>
-                    <Text style={audioBatchResult.failed ? styles.offlineErrText : styles.offlineOk}>
-                      {audioBatchResult.cancelled
-                        ? `Dihentikan — ${audioBatchResult.downloaded} surah baru terunduh`
-                        : audioBatchResult.failed
-                          ? `Selesai dengan ${audioBatchResult.failed} gagal — ketuk Unduh Semua lagi untuk melanjutkan`
-                          : `Selesai! ${audioBatchResult.downloaded} surah baru terunduh${audioBatchResult.skipped ? `, ${audioBatchResult.skipped} sudah ada` : ''} ✓`}
-                    </Text>
-                    {!!audioBatchResult.reason && (
-                      <Text style={styles.offlineErrText}>{audioBatchResult.reason}</Text>
-                    )}
-                  </>
-                )}
               </View>
             )}
             </>
@@ -839,36 +774,36 @@ export default function SurahListScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (pal) => StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16 },
   // Pencarian menonjol dengan ikon ungu + badge jumlah hasil
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 2, borderColor: theme.colors.primary, paddingVertical: 4, paddingRight: 8, ...theme.shadow.card },
-  searchIconWrap: { width: 38, height: 38, borderRadius: 12, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
-  searchBox: { flex: 1, paddingVertical: 8, paddingHorizontal: 10, color: '#1f2937', fontWeight: '600', fontSize: 15 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: pal.colors.surface, borderRadius: 16, borderWidth: 2, borderColor: pal.colors.primary, paddingVertical: 4, paddingRight: 8, ...theme.shadow.card },
+  searchIconWrap: { width: 38, height: 38, borderRadius: 12, backgroundColor: pal.colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
+  searchBox: { flex: 1, paddingVertical: 8, paddingHorizontal: 10, color: pal.colors.text, fontWeight: '600', fontSize: 15 },
   searchClear: { padding: 4 },
   resultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 4 },
-  resultText: { color: theme.colors.muted, fontSize: 12, fontWeight: '600' },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ede9fe', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.primaryLight },
-  refreshText: { color: theme.colors.primaryDark, fontWeight: '700', fontSize: 12 },
+  resultText: { color: pal.colors.muted, fontSize: 12, fontWeight: '600' },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: pal.colors.primaryLight + '2e', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: pal.colors.primaryLight },
+  refreshText: { color: pal.colors.primaryDark, fontWeight: '700', fontSize: 12 },
   // Panel Siapkan Offline
-  offlinePanel: { marginTop: 10, backgroundColor: '#faf9ff', borderRadius: 14, borderWidth: 1, borderColor: theme.colors.primaryLight, padding: 12 },
+  offlinePanel: { marginTop: 10, backgroundColor: pal.colors.surface, borderRadius: 14, borderWidth: 1, borderColor: pal.colors.primaryLight, padding: 12 },
   offlineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   offlineInfo: { flex: 1, minWidth: 0, marginRight: 10 },
-  offlineTitle: { fontWeight: '800', color: theme.colors.text, fontSize: 14 },
-  offlineSubtitle: { color: theme.colors.muted, fontSize: 11, fontWeight: '600', marginTop: 2 },
-  offlineBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: theme.colors.primary, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 12 },
+  offlineTitle: { fontWeight: '800', color: pal.colors.text, fontSize: 14 },
+  offlineSubtitle: { color: pal.colors.muted, fontSize: 11, fontWeight: '600', marginTop: 2 },
+  offlineBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: pal.colors.primary, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 12 },
   offlineBtnDisabled: { opacity: 0.6 },
   offlineBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
-  offlineProgressWrap: { height: 6, borderRadius: 3, backgroundColor: '#ede9fe', marginTop: 10, overflow: 'hidden' },
-  offlineProgressBar: { height: 6, borderRadius: 3, backgroundColor: theme.colors.primary },
+  offlineProgressWrap: { height: 6, borderRadius: 3, backgroundColor: pal.colors.primaryLight + '2e', marginTop: 10, overflow: 'hidden' },
+  offlineProgressBar: { height: 6, borderRadius: 3, backgroundColor: pal.colors.primary },
   audioStatsRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
     paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(124,58,237,0.12)',
   },
-  audioStatsText: { flex: 1, fontSize: 11.5, color: '#6b7280' },
+  audioStatsText: { flex: 1, fontSize: 11.5, color: pal.colors.muted },
   audioBatchBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(124,58,237,0.12)' },
-  audioBatchText: { fontSize: 11.5, fontWeight: '700', color: theme.colors.primaryDark },
+  audioBatchText: { fontSize: 11.5, fontWeight: '700', color: pal.colors.primaryDark },
   audioBatchProgressWrap: {
     height: 6, borderRadius: 3, backgroundColor: 'rgba(124,58,237,0.15)', marginTop: 10, overflow: 'hidden',
   },
@@ -877,61 +812,60 @@ const styles = StyleSheet.create({
   offlineOk: { color: '#047857', fontWeight: '700', fontSize: 12, marginTop: 8 },
   offlineErrText: { color: '#b91c1c', fontWeight: '700', fontSize: 12, marginTop: 8 },
   // Kartu item: badge nomor ungu + baris info rapi
-  item: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#ede9fe', ...theme.shadow.card },
-  itemHeader: { flexDirection: 'row', alignItems: 'center' },
-  itemNumberBadge: { width: 38, height: 38, borderRadius: 12, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 12, ...theme.shadow.card },
+  item: { backgroundColor: pal.colors.surface, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: pal.colors.surfaceBorder, ...theme.shadow.card },  itemHeader: { flexDirection: 'row', alignItems: 'center' },
+  itemNumberBadge: { width: 38, height: 38, borderRadius: 12, backgroundColor: pal.colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 12, ...theme.shadow.card },
   itemNumber: { fontWeight: '800', color: '#ffffff', fontSize: 15 },
   itemTextBox: { flex: 1, minWidth: 0 },
-  itemLatin: { fontSize: 16, fontWeight: '800', color: theme.colors.text },
-  itemArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: theme.colors.primaryDark, fontFamily: 'NotoNaskhArabic', marginLeft: 8 },
-  itemMeta: { marginTop: 2, color: theme.colors.muted, fontSize: 12 },
+  itemLatin: { fontSize: 16, fontWeight: '800', color: pal.colors.text },
+  itemArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: pal.colors.primaryDark, fontFamily: 'NotoNaskhArabic', marginLeft: 8 },
+  itemMeta: { marginTop: 2, color: pal.colors.muted, fontSize: 12 },
   // Chip per surah di kartu Juz (tab Para)
   juzChipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
   juzChip: {
-    backgroundColor: '#f3efff',
+    backgroundColor: pal.colors.primaryLight + '1f',
     borderRadius: 10,
     paddingVertical: 5,
     paddingHorizontal: 10,
     marginRight: 6,
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#e2d9fb',
+    borderColor: pal.colors.surfaceBorder,
   },
-  juzChipText: { color: theme.colors.primaryDark, fontSize: 12, fontWeight: '600' },
+  juzChipText: { color: pal.colors.primaryDark, fontSize: 12, fontWeight: '600' },
   itemActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
-  infoToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: theme.colors.primaryLight, backgroundColor: '#f5f3ff', marginLeft: 8 },
-  infoToggleText: { color: theme.colors.primaryDark, fontWeight: '700', fontSize: 11 },
+  infoToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: pal.colors.primaryLight, backgroundColor: pal.colors.primaryLight + '1f', marginLeft: 8 },
+  infoToggleText: { color: pal.colors.primaryDark, fontWeight: '700', fontSize: 11 },
   expandLoading: { marginTop: 8 },
-  expandBox: { marginTop: 10, backgroundColor: '#faf9ff', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#ede9fe' },
-  expandTitle: { fontWeight: '700', marginBottom: 6, color: '#111' },
-  expandMeta: { color: '#374151', marginBottom: 2 },
-  expandDescBox: { marginTop: 6, backgroundColor: '#f5f3ff', padding: 8, borderRadius: 8 },
-  expandDescTitle: { fontWeight: '700', color: '#1f2937', marginBottom: 4 },
-  expandDesc: { color: '#1f2937' },
-  divider: { height: 1, backgroundColor: '#e5e7eb', marginVertical: 10 },
-  expandAyatArabic: { fontSize: 20, textAlign: 'right', lineHeight: 28, color: '#111', fontFamily: 'NotoNaskhArabic' },
-  expandAyatLatin: { color: '#444', marginTop: 6 },
-  expandAyatTrans: { color: '#222', marginTop: 4 },
-  expandEmpty: { color: '#666', fontStyle: 'italic' },
+  expandBox: { marginTop: 10, backgroundColor: pal.colors.surface, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: pal.colors.surfaceBorder },
+  expandTitle: { fontWeight: '700', marginBottom: 6, color: pal.colors.text },
+  expandMeta: { color: pal.colors.muted, marginBottom: 2 },
+  expandDescBox: { marginTop: 6, backgroundColor: pal.colors.primaryLight + '1f', padding: 8, borderRadius: 8 },
+  expandDescTitle: { fontWeight: '700', color: pal.colors.text, marginBottom: 4 },
+  expandDesc: { color: pal.colors.text },
+  divider: { height: 1, backgroundColor: pal.colors.surfaceBorder, marginVertical: 10 },
+  expandAyatArabic: { fontSize: 20, textAlign: 'right', lineHeight: 28, color: pal.colors.text, fontFamily: 'NotoNaskhArabic' },
+  expandAyatLatin: { color: pal.colors.text, marginTop: 6 },
+  expandAyatTrans: { color: pal.colors.text, marginTop: 4 },
+  expandEmpty: { color: pal.colors.muted, fontStyle: 'italic' },
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, marginRight: 8, marginBottom: 8, backgroundColor: theme.colors.primaryDark },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, marginRight: 8, marginBottom: 8, backgroundColor: pal.colors.primaryDark },
   detailBtn: { backgroundColor: '#6366f1' },
-  tafsirBtn: { backgroundColor: theme.colors.primary },
-  downloadBtn: { backgroundColor: theme.colors.primaryDark },
+  tafsirBtn: { backgroundColor: pal.colors.primary },
+  downloadBtn: { backgroundColor: pal.colors.primaryDark },
   actionText: { color: '#fff', fontWeight: '600' },
   previewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  pagerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: theme.colors.primaryLight, marginHorizontal: 8 },
+  pagerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.primaryLight, marginHorizontal: 8 },
   pagerBtnDisabled: { opacity: 0.5 },
-  pagerText: { color: theme.colors.primary, fontWeight: '700' },
+  pagerText: { color: pal.colors.primary, fontWeight: '700' },
   pageInfoRow: { marginTop: 8, alignItems: 'center' },
-  pageInfo: { color: '#666', textAlign: 'center', fontWeight: '600' },
+  pageInfo: { color: pal.colors.muted, textAlign: 'center', fontWeight: '600' },
   footerRow: { marginTop: 12, alignItems: 'center' },
-  footerText: { color: '#64748b', fontSize: 12 },
-  nameBox: { backgroundColor: '#faf9ff', borderWidth: 1, borderColor: '#ede9fe', borderRadius: 10, padding: 10, marginTop: 8 },
-  nameLabel: { fontSize: 12, color: theme.colors.muted, fontWeight: '700' },
-  nameArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: '#111', fontFamily: 'NotoNaskhArabic' },
-  nameLatin: { fontSize: 14, fontWeight: '600', color: theme.colors.text, marginBottom: 4 },
+  footerText: { color: pal.colors.muted, fontSize: 12 },
+  nameBox: { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 10, padding: 10, marginTop: 8 },
+  nameLabel: { fontSize: 12, color: pal.colors.muted, fontWeight: '700' },
+  nameArabic: { fontSize: 18, fontWeight: '700', textAlign: 'right', color: pal.colors.text, fontFamily: 'NotoNaskhArabic' },
+  nameLatin: { fontSize: 14, fontWeight: '600', color: pal.colors.text, marginBottom: 4 },
   cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 8 },
   cacheText: { color: '#92400e', fontWeight: '700' },
   refreshRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginHorizontal: 16 },
@@ -948,25 +882,25 @@ const styles = StyleSheet.create({
   // qariRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
   // qariChip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: '#ddd', marginRight: 8, marginBottom: 8 },
   // qariChipActive: { backgroundColor: '#0ea5e9', borderColor: '#0ea5e9' },
-  // qariChipText: { color: '#333' },
+  // qariChipText: { color: pal.colors.text },
   // qariChipTextActive: { color: '#fff', fontWeight: '600' },
   tabsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 },
   tabBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, borderWidth: 1, borderColor: 'transparent' },
-  tabBtnActive: { borderColor: theme.colors.primaryLight, backgroundColor: '#f5f3ff' },
-  tabText: { color: theme.colors.muted, fontWeight: '700', fontSize: 13 },
-  tabTextActive: { color: theme.colors.primaryDark },
+  tabBtnActive: { borderColor: pal.colors.primaryLight, backgroundColor: pal.colors.primaryLight + '1f' },
+  tabText: { color: pal.colors.muted, fontWeight: '700', fontSize: 13 },
+  tabTextActive: { color: pal.colors.primaryDark },
   // Kartu Juz (Para): identik dengan kartu Surah (kartu putih + badge ungu)
 
   // Kartu halaman mushaf memakai styles.item yang sama dengan kartu Surah
   pageTabHeader: {
-    backgroundColor: '#faf9ff', borderRadius: 14, borderWidth: 1, borderColor: '#ede9fe',
+    backgroundColor: pal.colors.surface, borderRadius: 14, borderWidth: 1, borderColor: pal.colors.surfaceBorder,
     padding: 12,
   },
   pageTabHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pageTabIconWrap: {
-    width: 34, height: 34, borderRadius: 10, backgroundColor: '#f5f3ff', borderWidth: 1,
-    borderColor: '#ddd6fe', alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, borderRadius: 10, backgroundColor: pal.colors.primaryLight + '1f', borderWidth: 1,
+    borderColor: pal.colors.surfaceBorder, alignItems: 'center', justifyContent: 'center',
   },
-  pageTabTitle: { fontWeight: '800', color: theme.colors.text, fontSize: 14 },
-  pageTabDesc: { color: theme.colors.muted, fontSize: 11.5, fontWeight: '600', marginTop: 2 },
+  pageTabTitle: { fontWeight: '800', color: pal.colors.text, fontSize: 14 },
+  pageTabDesc: { color: pal.colors.muted, fontSize: 11.5, fontWeight: '600', marginTop: 2 },
 });

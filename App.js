@@ -31,7 +31,8 @@ import UserScreen from './src/screens/auth/UserScreen';
 import UlamaListScreen from './src/screens/ulama/UlamaListScreen';
 import UlamaDetailScreen from './src/screens/ulama/UlamaDetailScreen';
 import SanadChainScreen from './src/screens/ulama/SanadChainScreen';
-import { theme } from './src/ui';
+import { theme, themeDark } from './src/ui';
+import { useAppearance } from './src/api/appearance';
 
 // Navigasi bawah: 5 tab konsisten (tab Profil otomatis muncul saat login)
 const NAV_ITEMS = [
@@ -99,6 +100,9 @@ class ScreenErrorBoundary extends React.Component {
 }
 
 export default function App() {
+  // Dark mode global: dibaca dari Pengaturan (tersimpan via AsyncStorage, event-driven)
+  const { darkMode } = useAppearance();
+  const pal = darkMode ? themeDark : theme;
   const [initialResolved, setInitialResolved] = useState(false);
   const [deepLinked] = useState(() => parseInitialStack() != null);
   const [stack, setStack] = useState(() => parseInitialStack() || [{ name: 'Home', params: null }]);
@@ -396,7 +400,7 @@ export default function App() {
           <StatusBar translucent={false} backgroundColor={theme.colors.shellDark} barStyle="light-content" />
           <Header />
         </SafeAreaView>
-        <SafeAreaView edges={["bottom"]} style={styles.content}>
+        <SafeAreaView edges={["bottom"]} style={[styles.content, { backgroundColor: pal.colors.bg }]}>
           <View style={{ flex: 1 }}>
             <ScreenErrorBoundary onGoHome={() => setStack([{ name: 'Home', params: null }])}>
               {ScreenEl}

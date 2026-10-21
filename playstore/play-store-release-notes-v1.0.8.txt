@@ -1,0 +1,23 @@
+Versi 1.0.8
+
+Update ini fokus pada kestabilan bacaan dan kenyamanan penggunaan.
+
+• Menstabilkan tampilan daftar hadits Arba'in Nawawi, termasuk tampilan dan pergerakan layar.
+• Memperbaiki tampilan daftar doa agar lebih konsisten.
+• Penyesuaian baca dan navigasi di beberapa layar.
+• Minor perbaikan pengalaman browsing doa dan hadits.
+
+Al-Qur'an, terjemahan, tafsir, audio, doa, hadits, jadwal sholat, kiblat, kalender Hijriyah, dan bookmark tetap tersedia seperti sebelumnya.
+
+---
+
+English reference notes
+
+Versi 1.0.8 focuses on reading stability and usability.
+
+• Stabilized the Arba'in Nawawi hadits list display and navigation.
+• Improved consistency in the doa list display.
+• Adjusted reading and navigation on several screens.
+• Minor browsing improvements for the doa and hadits lists.
+
+Existing features remain unchanged: Qur'an, translation, tafsir, audio, duas, hadits, prayer times, qibla, Hijri calendar, and bookmarks.

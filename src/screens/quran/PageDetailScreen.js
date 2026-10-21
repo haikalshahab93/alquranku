@@ -18,7 +18,8 @@ const MODE_KEY = 'pagedetail:displayMode';
 
 // Nomor ayat dalam angka Arab-Indic untuk tanda akhir ayat mushaf (۝١)
 const toArabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
 
 export default function PageDetailScreen({ route, navigation }) {
   const initialPage = Math.min(
@@ -29,7 +30,10 @@ export default function PageDetailScreen({ route, navigation }) {
   const [verses, setVerses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [textScale, setTextScale] = useState(1.0);
+  // textScale terpusat dari pengaturan tampilan (sinkron dengan layar Pengaturan)
+  const { textScale, darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
+  const styles = makeStyles(pal);
   // 'ayat' = Arab + latin + terjemahan per ayat; 'mushaf' = teks Arab mengalir
   // penuh seperti mushaf cetak (tanpa terjemahan di antara ayat).
   const [displayMode, setDisplayMode] = useState('ayat');
@@ -148,7 +152,7 @@ export default function PageDetailScreen({ route, navigation }) {
                   style={[styles.modeBtn, displayMode !== 'mushaf' && styles.modeBtnActive]}
                   onPress={() => switchMode('ayat')}
                 >
-                  <Ionicons name="list" size={13} color={displayMode !== 'mushaf' ? '#fff' : theme.colors.primaryDark} />
+                  <Ionicons name="list" size={13} color={displayMode !== 'mushaf' ? '#fff' : pal.colors.primary} />
                   <Text style={[styles.modeBtnText, displayMode !== 'mushaf' && styles.modeBtnTextActive]}>
                     Per Ayat
                   </Text>
@@ -157,7 +161,7 @@ export default function PageDetailScreen({ route, navigation }) {
                   style={[styles.modeBtn, displayMode === 'mushaf' && styles.modeBtnActive]}
                   onPress={() => switchMode('mushaf')}
                 >
-                  <Ionicons name="book" size={13} color={displayMode === 'mushaf' ? '#fff' : theme.colors.primaryDark} />
+                  <Ionicons name="book" size={13} color={displayMode === 'mushaf' ? '#fff' : pal.colors.primary} />
                   <Text style={[styles.modeBtnText, displayMode === 'mushaf' && styles.modeBtnTextActive]}>
                     Mushaf
                   </Text>
@@ -165,10 +169,10 @@ export default function PageDetailScreen({ route, navigation }) {
               </View>
             </View>
             <View style={styles.fontRow}>
-              <TouchableOpacity style={styles.fontBtn} onPress={() => setTextScale((s) => Math.max(0.8, +(s - 0.1).toFixed(1)))}>
+              <TouchableOpacity style={styles.fontBtn} onPress={() => saveTextScale(textScale - 0.1)}>
                 <Text style={styles.fontBtnText}>A-</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.fontBtn} onPress={() => setTextScale((s) => Math.min(2, +(s + 0.1).toFixed(1)))}>
+              <TouchableOpacity style={styles.fontBtn} onPress={() => saveTextScale(textScale + 0.1)}>
                 <Text style={styles.fontBtnText}>A+</Text>
               </TouchableOpacity>
               <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
@@ -240,7 +244,7 @@ export default function PageDetailScreen({ route, navigation }) {
             onPress={goPrev}
             disabled={page <= 1}
           >
-            <Ionicons name="chevron-back" size={16} color={page <= 1 ? '#94a3b8' : theme.colors.primaryDark} />
+            <Ionicons name="chevron-back" size={16} color={page <= 1 ? pal.colors.muted : pal.colors.primary} />
             <Text style={[styles.navBtnText, page <= 1 && styles.navBtnTextDisabled]}>Sebelumnya</Text>
           </TouchableOpacity>
           <Text style={styles.navInfo}>{page} / {TOTAL_PAGES}</Text>
@@ -250,7 +254,7 @@ export default function PageDetailScreen({ route, navigation }) {
             disabled={page >= TOTAL_PAGES}
           >
             <Text style={[styles.navBtnText, page >= TOTAL_PAGES && styles.navBtnTextDisabled]}>Berikutnya</Text>
-            <Ionicons name="chevron-forward" size={16} color={page >= TOTAL_PAGES ? '#94a3b8' : theme.colors.primaryDark} />
+            <Ionicons name="chevron-forward" size={16} color={page >= TOTAL_PAGES ? pal.colors.muted : pal.colors.primary} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -258,8 +262,8 @@ export default function PageDetailScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.bg },
+const makeStyles = (pal) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: pal.colors.bg },
   scroll: { padding: 16, paddingBottom: 32 },
   center: { paddingVertical: 40, alignItems: 'center' },
   errText: { color: '#b91c1c', fontWeight: '600', textAlign: 'center' },
@@ -272,11 +276,11 @@ const styles = StyleSheet.create({
   pageBadgeNum: { color: '#fff', fontSize: 24, fontWeight: '800', lineHeight: 28 },
   pageBadgeLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 8, fontWeight: '800', letterSpacing: 1 },
   pageHeadInfo: { flex: 1, minWidth: 0 },
-  pageMeta: { color: theme.colors.text, fontWeight: '700', fontSize: 13 },
+  pageMeta: { color: pal.colors.text, fontWeight: '700', fontSize: 13 },
   // Toggle mode tampil (per ayat vs mushaf)
   modeRow: { flexDirection: 'row', marginTop: 8 },
   modeToggle: {
-    flexDirection: 'row', backgroundColor: '#ede9fe', borderRadius: 10, padding: 2,
+    flexDirection: 'row', backgroundColor: pal.colors.primaryLight + '2e', borderRadius: 10, padding: 2,
   },
   modeBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 5,
@@ -287,42 +291,42 @@ const styles = StyleSheet.create({
   modeBtnTextActive: { color: '#fff' },
   cardMushaf: { paddingVertical: 16, paddingHorizontal: 16 },
   mushafSectionTitle: {
-    fontSize: 12, fontWeight: '800', color: theme.colors.primaryDark,
+    fontSize: 12, fontWeight: '800', color: pal.colors.primary,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
   },
-  mushafListText: { color: '#1f2937', marginBottom: 8 },
-  mushafListNum: { fontWeight: '800', color: theme.colors.primaryDark },
+  mushafListText: { color: pal.colors.text, marginBottom: 8 },
+  mushafListNum: { fontWeight: '800', color: pal.colors.primary },
   arabMushaf: {
-    color: '#111', textAlign: 'justify', fontFamily: 'NotoNaskhArabic',
+    color: pal.colors.text, textAlign: 'justify', fontFamily: 'NotoNaskhArabic',
     writingDirection: 'rtl',
   },
   fontRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   fontBtn: {
     paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8,
-    borderWidth: 1, borderColor: '#ddd', backgroundColor: '#f1f5f9', marginRight: 8,
+    borderWidth: 1, borderColor: pal.colors.surfaceBorder, backgroundColor: pal.colors.surface, marginRight: 8,
   },
   fontBtnText: { fontWeight: '700', color: theme.colors.primary },
-  fontInfo: { color: '#64748b', fontSize: 12 },
+  fontInfo: { color: pal.colors.muted, fontSize: 12 },
   // Kartu berisi ayat-ayat halaman
   card: {
-    backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#ede9fe',
+    backgroundColor: pal.colors.surface, borderRadius: 16, borderWidth: 1, borderColor: pal.colors.surfaceBorder,
     padding: 14, ...theme.shadow.card,
   },
   surahDivider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 10 },
-  surahDividerLine: { flex: 1, height: 1, backgroundColor: '#ede9fe' },
-  surahDividerText: { color: theme.colors.primaryDark, fontWeight: '800', fontSize: 13 },
+  surahDividerLine: { flex: 1, height: 1, backgroundColor: pal.colors.surfaceBorder },
+  surahDividerText: { color: pal.colors.primary, fontWeight: '800', fontSize: 13 },
   ayahBlock: { marginBottom: 16 },
   ayahTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   ayahNumBadge: {
-    minWidth: 30, height: 24, borderRadius: 12, backgroundColor: '#ede9fe',
+    minWidth: 30, height: 24, borderRadius: 12, backgroundColor: pal.colors.primaryLight + '2e',
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
     borderWidth: 1, borderColor: theme.colors.primaryLight,
   },
-  ayahNumText: { color: theme.colors.primaryDark, fontWeight: '800', fontSize: 12 },
-  ayahMeta: { color: theme.colors.muted, fontSize: 11, fontWeight: '600' },
-  arab: { color: '#111', textAlign: 'right', fontFamily: 'NotoNaskhArabic' },
-  latin: { color: '#374151', marginTop: 6 },
-  indo: { color: '#1f2937', marginTop: 4 },
+  ayahNumText: { color: pal.colors.primary, fontWeight: '800', fontSize: 12 },
+  ayahMeta: { color: pal.colors.muted, fontSize: 11, fontWeight: '600' },
+  arab: { color: pal.colors.text, textAlign: 'right', fontFamily: 'NotoNaskhArabic' },
+  latin: { color: pal.colors.muted, marginTop: 6 },
+  indo: { color: pal.colors.text, marginTop: 4 },
   // Navigasi bawah
   navRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -330,11 +334,11 @@ const styles = StyleSheet.create({
   },
   navBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 10,
-    paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#fff',
+    paddingHorizontal: 14, borderRadius: 12, backgroundColor: pal.colors.surface,
     borderWidth: 1, borderColor: theme.colors.primaryLight,
   },
   navBtnDisabled: { opacity: 0.5 },
-  navBtnText: { color: theme.colors.primary, fontWeight: '700' },
+  navBtnText: { color: pal.colors.primary, fontWeight: '700' },
   navBtnTextDisabled: { color: '#94a3b8' },
-  navInfo: { color: '#666', fontWeight: '700' },
+  navInfo: { color: pal.colors.muted, fontWeight: '700' },
 });

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { theme } from '../../ui';
+import { getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
@@ -11,6 +12,8 @@ import Constants from 'expo-constants';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -157,55 +160,57 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Masuk</Text>
+    <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
+      <View style={[styles.card, { backgroundColor: pal.colors.surface }]}>
+        <Text style={[styles.title, { color: pal.colors.text }]}>Masuk</Text>
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         {/* social login buttons */}
         <View style={styles.socialRow}>
-          <TouchableOpacity style={[styles.socialBtn, { backgroundColor: '#fff', borderColor: '#e2e8f0' }]} onPress={googleLogin} disabled={loading || !request}>
+          <TouchableOpacity style={[styles.socialBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={googleLogin} disabled={loading || !request}>
             <FontAwesome5 name="google" size={16} color="#dc2626" style={{ marginRight: 8 }} />
-            <Text style={styles.socialText}>{loading ? 'Memuat...' : 'Google'}</Text>
+            <Text style={[styles.socialText, { color: pal.colors.text }]}>{loading ? 'Memuat...' : 'Google'}</Text>
           </TouchableOpacity>
           {/* Hapus sementara tombol Apple login */}
         </View>
 
         {/* divider */}
         <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>atau</Text>
-          <View style={styles.dividerLine} />
+          <View style={[styles.dividerLine, { backgroundColor: pal.colors.surfaceBorder }]} />
+          <Text style={[styles.dividerText, { color: pal.colors.muted }]}>atau</Text>
+          <View style={[styles.dividerLine, { backgroundColor: pal.colors.surfaceBorder }]} />
         </View>
 
         {/* inputs with icons */}
-        <View style={styles.inputRow}>
-          <FontAwesome5 name="envelope" size={14} color="#64748b" style={styles.inputIcon} />
+        <View style={[styles.inputRow, { borderColor: pal.colors.surfaceBorder }]}>
+          <FontAwesome5 name="envelope" size={14} color={pal.colors.muted} style={styles.inputIcon} />
           <TextInput
             value={email}
             onChangeText={setEmail}
             placeholder="Email"
-            style={styles.input}
+            placeholderTextColor={pal.colors.muted}
+            style={[styles.input, { color: pal.colors.text }]}
             autoCapitalize="none"
             keyboardType="email-address"
           />
         </View>
-        <View style={styles.inputRow}>
-          <FontAwesome5 name="lock" size={14} color="#64748b" style={styles.inputIcon} />
+        <View style={[styles.inputRow, { borderColor: pal.colors.surfaceBorder }]}>
+          <FontAwesome5 name="lock" size={14} color={pal.colors.muted} style={styles.inputIcon} />
           <TextInput
             value={password}
             onChangeText={setPassword}
             placeholder="Password"
-            style={styles.input}
+            placeholderTextColor={pal.colors.muted}
+            style={[styles.input, { color: pal.colors.text }]}
             secureTextEntry={!showPassword}
           />
         </View>
         <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.showLink}>
-          <Text style={styles.showText}>{showPassword ? 'Sembunyikan' : 'Tampilkan'} Password</Text>
+          <Text style={[styles.showText, { color: pal.colors.primary }]}>{showPassword ? 'Sembunyikan' : 'Tampilkan'} Password</Text>
         </TouchableOpacity>
 
         {/* submit */}
-        <TouchableOpacity style={[styles.submitBtn, loading ? styles.submitBtnDisabled : null]} onPress={submit} disabled={loading}>
+        <TouchableOpacity style={[styles.submitBtn, { backgroundColor: pal.colors.primary }, loading ? { backgroundColor: pal.colors.muted } : null]} onPress={submit} disabled={loading}>
           <Text style={styles.submitText}>{loading ? 'Memuat...' : 'Masuk'}</Text>
         </TouchableOpacity>
       </View>
@@ -216,11 +221,9 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
     padding: 16,
   },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginTop: 24,
@@ -230,7 +233,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: theme.colors.text,
     marginBottom: 12,
   },
   error: {
@@ -250,11 +252,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ddd',
     flex: 1,
   },
   socialText: {
-    color: theme.colors.text,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -266,17 +266,14 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e5e7eb',
   },
   dividerText: {
     marginHorizontal: 8,
-    color: '#6b7280',
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
     borderRadius: 8,
     paddingHorizontal: 10,
     marginBottom: 12,
@@ -293,16 +290,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   showText: {
-    color: theme.colors.primary,
+    fontWeight: '600',
   },
   submitBtn: {
-    backgroundColor: theme.colors.primary,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-  },
-  submitBtnDisabled: {
-    backgroundColor: theme.colors.muted,
   },
   submitText: {
     color: '#fff',

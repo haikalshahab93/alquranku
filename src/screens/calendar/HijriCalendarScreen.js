@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Animated, Share } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Animated, Share, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 import { mapMonthlyToDay } from '../../api/kalender';
 
 // Konversi Gregorian -> Julian Day Number (JDN)
@@ -76,6 +77,8 @@ function todayHijri() {
 }
 
 export default function HijriCalendarScreen() {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   const today = useMemo(() => todayHijri(), []);
   const [viewYear, setViewYear] = useState(today.year);
   const [viewMonth, setViewMonth] = useState(today.month);
@@ -90,9 +93,10 @@ export default function HijriCalendarScreen() {
   // Animasi transisi bulan (fade)
   const animMonth = useRef(new Animated.Value(1)).current;
   useEffect(() => {
+    const useNative = Platform.OS !== 'web'; // di web native driver tidak tersedia
     Animated.sequence([
-      Animated.timing(animMonth, { toValue: 0, duration: 120 }),
-      Animated.timing(animMonth, { toValue: 1, duration: 160 }),
+      Animated.timing(animMonth, { toValue: 0, duration: 120, useNativeDriver: useNative }),
+      Animated.timing(animMonth, { toValue: 1, duration: 160, useNativeDriver: useNative }),
     ]).start();
   }, [viewYear, viewMonth]);
 
@@ -213,15 +217,15 @@ export default function HijriCalendarScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Kalender Hijriah</Text>
-      <Text style={styles.subtitle}>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: pal.colors.bg }]}>
+      <Text style={[styles.title, { color: pal.colors.text }]}>Kalender Hijriah</Text>
+      <Text style={[styles.subtitle, { color: pal.colors.muted }]}>
         Hari ini: {todayLabelFull} • Masehi: {todayGregorian}
       </Text>
 
-      <Text style={styles.monthTitleCenter}>{MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
-      <Text style={styles.subtitle}>{`Rentang Masehi: ${gregRangeLabel}`}</Text>
-      {!!apiLoading && <Text style={styles.apiInfo}>Memuat kalender bulan…</Text>}
+      <Text style={[styles.monthTitleCenter, { color: pal.colors.text }]}>{MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
+      <Text style={[styles.subtitle, { color: pal.colors.muted }]}>{`Rentang Masehi: ${gregRangeLabel}`}</Text>
+      {!!apiLoading && <Text style={[styles.apiInfo, { color: pal.colors.muted }]}>Memuat kalender bulan…</Text>}
       {!!apiError && (
         <View style={{ padding: 8, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fee2e2', borderRadius: 8, marginBottom: 8 }}>
           <Text style={styles.apiInfoErr}>{apiError}</Text>
@@ -231,8 +235,8 @@ export default function HijriCalendarScreen() {
         </View>
       )}
       <View style={styles.navButtonsRow}>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onPrev}><Text style={styles.btnGhostText}>← Sebelumnya</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={onNext}><Text style={styles.btnGhostText}>Berikutnya →</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={onPrev}><Text style={[styles.btnGhostText, { color: pal.colors.text }]}>← Sebelumnya</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={onNext}><Text style={[styles.btnGhostText, { color: pal.colors.text }]}>Berikutnya →</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onReset}>
         <Text style={styles.btnText}>Kembali ke bulan ini</Text>
@@ -240,15 +244,15 @@ export default function HijriCalendarScreen() {
 
       <View style={styles.weekHeader}>
         {WEEKDAY_NAMES_ID.map((w) => (
-          <Text key={w} style={styles.weekHeaderText}>{w}</Text>
+          <Text key={w} style={[styles.weekHeaderText, { color: pal.colors.muted }]}>{w}</Text>
         ))}
       </View>
 
-      <View style={[styles.grid, { opacity: animMonth }]}>
+      <Animated.View style={[styles.grid, { opacity: animMonth }]}>
         {cells.map((cell, idx) => {
           if (cell === null) {
             return (
-              <View key={`blank-${idx}`} style={[styles.cell, styles.cellBlank]} />
+              <View key={`blank-${idx}`} style={[styles.cell, styles.cellBlank, { borderColor: pal.colors.surfaceBorder }]} />
             );
           }
           const day = cell;
@@ -262,17 +266,17 @@ export default function HijriCalendarScreen() {
           const isSelected = !!selected && selected.jdn === jdn;
           const ev = eventMap[day];
           return (
-            <TouchableOpacity key={day} style={[styles.cell, isToday ? styles.cellToday : null, isSelected ? styles.cellSelected : null, isFriday ? styles.cellFriday : null]} onPress={() => openEditor(day)} onLongPress={() => openEditor(day)}>
+            <TouchableOpacity key={day} style={[styles.cell, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, isToday ? styles.cellToday : null, isSelected ? styles.cellSelected : null, isFriday ? styles.cellFriday : null]} onPress={() => openEditor(day)} onLongPress={() => openEditor(day)}>
               <View style={styles.cellInner}>
-                <Text style={[styles.cellHijri, isToday ? styles.cellTextToday : null]}>{day}</Text>
-                <Text style={styles.cellGreg}>{gregLabel}</Text>
+                <Text style={[styles.cellHijri, { color: pal.colors.text }, isToday ? styles.cellTextToday : null]}>{day}</Text>
+                <Text style={[styles.cellGreg, { color: pal.colors.muted }]}>{gregLabel}</Text>
                 {hasMemo ? <View style={styles.memoDot} /> : null}
                 {ev ? <View style={[styles.eventBadge, ev.type === 'holiday' ? styles.badgeHoliday : ev.type === 'monthStart' ? styles.badgeMonthStart : styles.badgeSunna]} /> : null}
               </View>
             </TouchableOpacity>
           );
         })}
-      </View>
+      </Animated.View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <View style={styles.memoDot} />
@@ -286,12 +290,13 @@ export default function HijriCalendarScreen() {
       </View>
 
       {selected ? (
-        <View style={styles.memoCard}>
-          <Text style={styles.memoTitle}>Memo untuk {selected.day} {MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
-          <Text style={styles.memoSubtitle}>Masehi: {selected.gDate.day} {GREGORIAN_MONTH_NAMES_ID[selected.gDate.month - 1]} {selected.gDate.year}</Text>
+        <View style={[styles.memoCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+          <Text style={[styles.memoTitle, { color: pal.colors.text }]}>Memo untuk {selected.day} {MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
+          <Text style={[styles.memoSubtitle, { color: pal.colors.muted }]}>Masehi: {selected.gDate.day} {GREGORIAN_MONTH_NAMES_ID[selected.gDate.month - 1]} {selected.gDate.year}</Text>
           <TextInput
-            style={styles.memoInput}
+            style={[styles.memoInput, { backgroundColor: pal.colors.bg, color: pal.colors.text, borderColor: pal.colors.surfaceBorder }]}
             placeholder="Tulis catatan/memo di sini..."
+            placeholderTextColor={pal.colors.muted}
             multiline
             value={memoText}
             onChangeText={setMemoText}
@@ -318,7 +323,7 @@ export default function HijriCalendarScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.info}>
+      <Text style={[styles.info, { color: pal.colors.muted }]}>
         Catatan: Perhitungan ini menggunakan kalender Hijriah aritmetika (civil). Pada praktiknya, awal bulan dapat berbeda berdasarkan rukyat atau otoritas setempat.
       </Text>
     </ScrollView>

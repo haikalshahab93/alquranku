@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 
 const ULAMA = require('../../data/ulama.json');
 // Peta id -> data ulama agar setiap rujukan id (guru/murid/[id]) bisa dibuka langsung
@@ -12,6 +13,9 @@ const ULAMA_BY_ID = new Map(ULAMA.map((u) => [String(u.id), u]));
 const RELATION_SKIP_KEYS = new Set(['teachers', 'teachers_inds', 'students', 'students_inds']);
 
 export default function UlamaDetailScreen({ navigation, route }) {
+  // Palet tema aktif (dark mode) dari pengaturan tampilan
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   // Params harus dibaca via hook-friendly pattern: jika params berubah (scholar lain),
   // seluruh konten di bawah bergantung pada `scholar` sehingga ikut berubah.
   const params = route?.params || {};
@@ -142,8 +146,8 @@ export default function UlamaDetailScreen({ navigation, route }) {
       <View style={styles.refInlineWrap}>
         {parts.map((p, i) =>
           p.type === 'link' ? (
-            <TouchableOpacity key={i} style={styles.refChip} onPress={() => openScholar(p.id)} activeOpacity={0.7}>
-              <Text style={styles.refChipText} numberOfLines={1}>{p.value}</Text>
+            <TouchableOpacity key={i} style={[styles.refChip, { backgroundColor: pal.colors.primaryLight + '2e', borderColor: pal.colors.surfaceBorder }]} onPress={() => openScholar(p.id)} activeOpacity={0.7}>
+              <Text style={[styles.refChipText, { color: pal.colors.primary }]} numberOfLines={1}>{p.value}</Text>
             </TouchableOpacity>
           ) : (
             <Text key={i} style={styles[styleKey]}>{p.value}</Text>
@@ -175,7 +179,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
       const entries = Object.entries(val);
       if (!entries.length) return <Text style={styles.cardText}>{'{}'}</Text>;
       return (
-        <View style={styles.objBox}>
+        <View style={[styles.objBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
           {entries.map(([k2, v2], idx) => (
             <View key={idx} style={styles.kvRow}>
               <Text style={styles.kvKey}>{String(k2)}</Text>
@@ -204,9 +208,9 @@ export default function UlamaDetailScreen({ navigation, route }) {
   // Layar tidak ditemukan: ditampilkan setelah semua hooks agar urutan hook tetap konsisten
   if (!scholar) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
         <View style={styles.center}>
-          <Text>Data ulama tidak ditemukan.</Text>
+          <Text style={{ color: pal.colors.text }}>Data ulama tidak ditemukan.</Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
             <Text style={styles.backText}>Kembali</Text>
           </TouchableOpacity>
@@ -219,44 +223,44 @@ export default function UlamaDetailScreen({ navigation, route }) {
   const gregSpan = [scholar.birth_gregorian, scholar.death_gregorian].filter(Boolean).join(' — ');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <LinearGradient colors={[theme.colors.primaryLight, theme.colors.white]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
-          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">{scholar.name}</Text>
-          {!!scholar.name_ar && <Text style={styles.titleAr} numberOfLines={1} ellipsizeMode="tail">{scholar.name_ar}</Text>}
-          {!!scholar.origin && <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">Asal: {scholar.origin}</Text>}
-          {!!hijriSpan && <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
-          {!!gregSpan && <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
+    <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
+      <ScrollView contentContainerStyle={[styles.container, { backgroundColor: pal.colors.bg }]}>
+        <LinearGradient colors={pal.gradients.brandSoft} start={{x:0,y:0}} end={{x:1,y:1}} style={[styles.headerCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+          <Text style={[styles.title, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{scholar.name}</Text>
+          {!!scholar.name_ar && <Text style={[styles.titleAr, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{scholar.name_ar}</Text>}
+          {!!scholar.origin && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Asal: {scholar.origin}</Text>}
+          {!!hijriSpan && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
+          {!!gregSpan && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
         </LinearGradient>
         {!!scholar.bio && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Biografi Singkat</Text>
-            <Text style={styles.cardText}>{scholar.bio}</Text>
+          <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+            <Text style={[styles.cardTitle, { color: pal.colors.text }]}>Biografi Singkat</Text>
+            <Text style={[styles.cardText, { color: pal.colors.text }]}>{scholar.bio}</Text>
           </View>
         )}
         {!!scholar.works && scholar.works.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Karya</Text>
+          <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+            <Text style={[styles.cardTitle, { color: pal.colors.text }]}>Karya</Text>
             {scholar.works.map((w, i) => (
-              <Text key={i} style={styles.cardText}>• {w}</Text>
+              <Text key={i} style={[styles.cardText, { color: pal.colors.text }]}>• {w}</Text>
             ))}
           </View>
         )}
 
         {/* Visualisasi rantai sanad (guru → murid) dari ulama ini ke atas */}
-        <TouchableOpacity style={styles.sanadBtn} activeOpacity={0.85} onPress={() => navigation.navigate('SanadChain', { scholarId: String(scholar.id) })}>
-          <View style={styles.sanadBtnIcon}>
+        <TouchableOpacity style={[styles.sanadBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} activeOpacity={0.85} onPress={() => navigation.navigate('SanadChain', { scholarId: String(scholar.id) })}>
+          <View style={[styles.sanadBtnIcon, { backgroundColor: pal.colors.primaryLight + '2e' }]}>
             <Ionicons name="git-network-outline" size={18} color={theme.colors.primaryDark} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.sanadBtnTitle}>Lihat Rantai Sanad</Text>
-            <Text style={styles.sanadBtnSub}>Telusuri guru dari ulama ini hingga ke atas</Text>
+            <Text style={[styles.sanadBtnTitle, { color: pal.colors.text }]}>Lihat Rantai Sanad</Text>
+            <Text style={[styles.sanadBtnSub, { color: pal.colors.muted }]}>Telusuri guru dari ulama ini hingga ke atas</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={theme.colors.primaryDark} />
         </TouchableOpacity>
 
         {(relations.teachers.length > 0 || relations.students.length > 0) && (
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
             {relations.teachers.length > 0 && (
               <View key="teachers">
                 <View style={styles.relationHeaderRow}>
@@ -265,9 +269,9 @@ export default function UlamaDetailScreen({ navigation, route }) {
                 </View>
                 <View style={styles.chipWrap}>
                   {relations.teachers.map((t) => (
-                    <TouchableOpacity key={`t-${t.id}`} style={styles.chip} onPress={() => openScholar(t.id)} activeOpacity={0.7}>
+                    <TouchableOpacity key={`t-${t.id}`} style={[styles.chip, { backgroundColor: pal.colors.primaryLight + '2e', borderColor: pal.colors.surfaceBorder }]} onPress={() => openScholar(t.id)} activeOpacity={0.7}>
                       <Ionicons name="person-circle-outline" size={14} color={theme.colors.primaryDark} />
-                      <Text style={styles.chipText} numberOfLines={1}>{t.name}</Text>
+                      <Text style={[styles.chipText, { color: pal.colors.primary }]} numberOfLines={1}>{t.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -281,9 +285,9 @@ export default function UlamaDetailScreen({ navigation, route }) {
                 </View>
                 <View style={styles.chipWrap}>
                   {relations.students.map((s) => (
-                    <TouchableOpacity key={`s-${s.id}`} style={styles.chip} onPress={() => openScholar(s.id)} activeOpacity={0.7}>
+                    <TouchableOpacity key={`s-${s.id}`} style={[styles.chip, { backgroundColor: pal.colors.primaryLight + '2e', borderColor: pal.colors.surfaceBorder }]} onPress={() => openScholar(s.id)} activeOpacity={0.7}>
                       <Ionicons name="person-circle-outline" size={14} color={theme.colors.primaryDark} />
-                      <Text style={styles.chipText} numberOfLines={1}>{s.name}</Text>
+                      <Text style={[styles.chipText, { color: pal.colors.primary }]} numberOfLines={1}>{s.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>

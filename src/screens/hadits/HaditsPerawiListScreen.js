@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import { getHaditsPerawiList } from '../../api/hadits';
-import { theme } from '../../ui';
+import { getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 
 export default function HaditsPerawiListScreen({ navigation }) {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
@@ -46,26 +49,26 @@ export default function HaditsPerawiListScreen({ navigation }) {
     const name = item?.nama ?? item?.name ?? '';
     const slug = item?.slug ?? item?.id ?? '';
     return (
-      <TouchableOpacity style={styles.item} onPress={() => navigation.navigate('HaditsPerawiEntry', { slug, name })}>
-        <Text style={styles.itemTitle}>{name}</Text>
-        <Text style={styles.itemSubtitle}>{slug}</Text>
+      <TouchableOpacity style={[styles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => navigation.navigate('HaditsPerawiEntry', { slug, name })}>
+        <Text style={[styles.itemTitle, { color: pal.colors.text }]}>{name}</Text>
+        <Text style={[styles.itemSubtitle, { color: pal.colors.muted }]}>{slug}</Text>
       </TouchableOpacity>
     );
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
-  if (error) return <View style={styles.center}><Text>{error}</Text></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><ActivityIndicator size="large" color={pal.colors.primary} /></View>;
+  if (error) return <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><Text style={{ color: pal.colors.text }}>{error}</Text></View>;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <FlatList data={paged} keyExtractor={(item, idx) => String(item?.slug ?? idx)} renderItem={renderItem} contentContainerStyle={styles.list} />
-      <View style={styles.pager}>
-        <TouchableOpacity onPress={goPrev} disabled={safePage <= 0} style={[styles.pagerBtn, safePage <= 0 && styles.pagerBtnDisabled]}>
-          <Text style={[styles.pagerBtnText, safePage <= 0 && styles.pagerBtnTextDisabled]}>Sebelumnya</Text>
+      <View style={[styles.pager, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+        <TouchableOpacity onPress={goPrev} disabled={safePage <= 0} style={[styles.pagerBtn, { backgroundColor: pal.colors.bg, borderColor: pal.colors.surfaceBorder }, safePage <= 0 && styles.pagerBtnDisabled]}>
+          <Text style={[styles.pagerBtnText, { color: safePage <= 0 ? pal.colors.muted : pal.colors.primary }]}>Sebelumnya</Text>
         </TouchableOpacity>
-        <Text style={styles.pagerText}>Halaman {safePage + 1} / {totalPages}</Text>
-        <TouchableOpacity onPress={goNext} disabled={safePage >= totalPages - 1} style={[styles.pagerBtn, safePage >= totalPages - 1 && styles.pagerBtnDisabled]}>
-          <Text style={[styles.pagerBtnText, safePage >= totalPages - 1 && styles.pagerBtnTextDisabled]}>Berikutnya</Text>
+        <Text style={[styles.pagerText, { color: pal.colors.text }]}>Halaman {safePage + 1} / {totalPages}</Text>
+        <TouchableOpacity onPress={goNext} disabled={safePage >= totalPages - 1} style={[styles.pagerBtn, { backgroundColor: pal.colors.bg, borderColor: pal.colors.surfaceBorder }, safePage >= totalPages - 1 && styles.pagerBtnDisabled]}>
+          <Text style={[styles.pagerBtnText, { color: safePage >= totalPages - 1 ? pal.colors.muted : pal.colors.primary }]}>Berikutnya</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -75,14 +78,13 @@ export default function HaditsPerawiListScreen({ navigation }) {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 16 },
-  item: { padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 10, backgroundColor: '#fff', marginBottom: 10 },
-  itemTitle: { fontSize: 16, fontWeight: '700', color: '#111' },
-  itemSubtitle: { color: '#64748b', marginTop: 4 },
+  item: { padding: 12, borderWidth: 1, borderRadius: 10, marginBottom: 10 },
+  itemTitle: { fontSize: 16, fontWeight: '700' },
+  itemSubtitle: { marginTop: 4 },
   // Pager styles
-  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' },
-  pagerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
+  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
+  pagerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1 },
   pagerBtnDisabled: { opacity: 0.6 },
-  pagerBtnText: { color: theme.colors.primary, fontWeight: '700' },
-  pagerBtnTextDisabled: { color: '#94a3b8' },
-  pagerText: { color: '#0f172a', fontWeight: '700' },
+  pagerBtnText: { fontWeight: '700' },
+  pagerText: { fontWeight: '700' },
 });

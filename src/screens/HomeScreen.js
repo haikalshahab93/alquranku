@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Share, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { GradientCard, PurpleButton, OutlineLightButton, FeatureTile, theme } from '../ui';
+import { GradientCard, PurpleButton, OutlineLightButton, FeatureTile, theme, getPalette } from '../ui';
+import { useAppearance } from '../api/appearance';
+import { getSurahDetail } from '../api/quran';
 import { getAladhanHarianCity, getAladhanHarianCoords } from '../api/aladhan';
 import { schedulePrayerReminders } from '../api/notifications';
 import { onSettingsChanged } from '../api/settingsEvents';
@@ -31,6 +33,88 @@ export default function HomeScreen({ navigation }) {
   const [logoSource, setLogoSource] = useState(require('../../assets/icon.png'));
   const [lastRead, setLastRead] = useState(null);
 
+  // === Tampilan (dark mode) ===
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
+  // Tanggal hari ini (yyyy-mm-dd) — diprefix ke depan karena dipakai efek Ayat Hari Ini
+  const [dateString] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
+
+  // === Ayat Hari Ini: rotasi harian dari API equran (surah acak dari seed tanggal) ===
+  const [dailyAyah, setDailyAyah] = useState(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
+
+  const shareDailyAyah = useCallback(async () => {
+    if (!dailyAyah) return;
+    const ayLabel = `${dailyAyah.surahLatin} : ${dailyAyah.ayahNumber}`;
+    const msg = `Ayat Hari Ini • ${ayLabel}\n\n${dailyAyah.arab}\n\n${dailyAyah.latin}\n\n${dailyAyah.indo}\n\n— dibagikan dari Alquranku`;
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ title: 'Ayat Hari Ini', text: msg });
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(msg);
+          alert('Teks ayat dikopi ke clipboard.');
+        } else {
+          alert(msg);
+        }
+      } else {
+        await Share.share({ title: 'Ayat Hari Ini', message: msg });
+      }
+    } catch {}
+  }, [dailyAyah]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDailyAyah = async () => {
+      // Sudah ada untuk hari ini? (di-cache supaya tidak hit API setiap buka Home)
+      try {
+        const raw = await AsyncStorage.getItem('daily_ayah');
+        const obj = raw ? JSON.parse(raw) : null;
+        if (obj && obj.date === dateString && obj.arab) {
+          setDailyAyah(obj);
+          return;
+        }
+      } catch {}
+      setDailyLoading(true);
+      try {
+        // Seed deterministik dari tanggal: semua perangkat di tanggal yang sama
+        // menampilkan ayat yang sama, dan tetap konsisten saat layar di-refresh.
+        let seed = 0;
+        for (const ch of String(dateString)) seed = (seed * 31 + ch.charCodeAt(0)) % 1000000;
+        const surahNo = (seed % 114) + 1;
+        const detail = await getSurahDetail(surahNo);
+        const ayat = detail?.ayat || [];
+        if (!ayat.length) return;
+        const ayIndex = seed % ayat.length;
+        const a = ayat[ayIndex];
+        const next = {
+          date: dateString,
+          surahNo,
+          surahLatin: detail?.surat?.namaLatin ?? detail?.surat?.nama_latin ?? detail?.namaLatin ?? '',
+          ayahNumber: a?.nomorAyat ?? a?.nomor ?? (ayIndex + 1),
+          arab: a?.teksArab ?? a?.teks_arab ?? '',
+          latin: a?.teksLatin ?? a?.teks_latin ?? '',
+          indo: a?.teksIndonesia ?? a?.teks_terjemahan ?? '',
+        };
+        try { await AsyncStorage.setItem('daily_ayah', JSON.stringify(next)); } catch {}
+        if (!cancelled) setDailyAyah(next);
+      } catch (e) {
+        // Offline / gagal: kartu tetap hilang rapi (tidak memblokir Home)
+      } finally {
+        if (!cancelled) setDailyLoading(false);
+      }
+    };
+    loadDailyAyah();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateString]);
+
   const [city, setCity] = useState('Kuala Lumpur');
   const [country, setCountry] = useState('Malaysia');
   const [lat, setLat] = useState(null);
@@ -44,13 +128,6 @@ export default function HomeScreen({ navigation }) {
   const [latitudeAdjustmentMethod, setLatitudeAdjustmentMethod] = useState('');
   const [calendarMethod, setCalendarMethod] = useState('');
   const [shafaq, setShafaq] = useState('');
-  const [dateString] = useState(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  });
   const [loadingPrayer, setLoadingPrayer] = useState(false);
   const [errorPrayer, setErrorPrayer] = useState(null);
   const [prayerData, setPrayerData] = useState(null);
@@ -333,7 +410,11 @@ export default function HomeScreen({ navigation }) {
         const s = await AsyncStorage.getItem('last_read');
         if (s) {
           const obj = JSON.parse(s);
-          setLastRead(obj);
+          // Terima hanya format valid { nomor, namaLatin, lastAyah } — format lama
+          // yang tanpa nomor menyebabkan judul "Surah undefined".
+          if (Number.isFinite(Number(obj?.nomor))) {
+            setLastRead(obj);
+          }
         }
       } catch (e) {
         // ignore
@@ -444,11 +525,11 @@ export default function HomeScreen({ navigation }) {
     return () => { try { if (id) clearInterval(id); } catch {} };
   }, [tzString, prayerData]);
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: pal.colors.bg }]} showsVerticalScrollIndicator={false}>
       <View style={styles.greetingRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>{greeting ? `${greeting} 👋` : 'Assalamualaikum 👋'}</Text>
-          <Text style={styles.greetingSub}>Semoga harimu penuh berkah</Text>
+          <Text style={[styles.greeting, { color: pal.colors.text }]}>{greeting ? `${greeting} 👋` : 'Assalamualaikum 👋'}</Text>
+          <Text style={[styles.greetingSub, { color: pal.colors.muted }]}>Semoga harimu penuh berkah</Text>
         </View>
         <Image
           source={logoSource}
@@ -534,6 +615,36 @@ export default function HomeScreen({ navigation }) {
         )}
       </LinearGradient>
 
+      {/* ============ AYAT HARI INI ============ */}
+      <View style={[styles.dailyCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+          <Ionicons name="sparkles-outline" size={15} color={pal.colors.primary} />
+          <Text style={[styles.dailyLabel, { color: pal.colors.primaryLight }]}>Ayat Hari Ini</Text>
+        </View>
+        {dailyLoading && !dailyAyah ? (
+          <ActivityIndicator size="small" color={pal.colors.primary} />
+        ) : dailyAyah ? (
+          <>
+            <Text style={[styles.dailySurah, { color: pal.colors.text }]}>QS {dailyAyah.surahLatin} : {dailyAyah.ayahNumber}</Text>
+            {!!dailyAyah.arab && <Text style={[styles.dailyArab, { color: pal.colors.text }]}>{dailyAyah.arab}</Text>}
+            {!!dailyAyah.latin && <Text style={[styles.dailyLatin, { color: pal.colors.muted }]}>{dailyAyah.latin}</Text>}
+            {!!dailyAyah.indo && <Text style={[styles.dailyIndo, { color: pal.colors.text }]}>“{dailyAyah.indo}”</Text>}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('SurahDetail', { nomor: dailyAyah.surahNo, nama_latin: dailyAyah.surahLatin, namaLatin: dailyAyah.surahLatin })}
+                style={styles.dailyReadBtn}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.dailyReadText}>Baca Surah</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={shareDailyAyah} style={[styles.dailyShareBtn, { borderColor: pal.colors.surfaceBorder }]} activeOpacity={0.8}>
+                <Ionicons name="share-social-outline" size={14} color={pal.colors.primaryLight} />
+                <Text style={[styles.dailyShareText, { color: pal.colors.primaryLight }]}>Bagikan</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : null}
+      </View>
       {lastRead && (
         <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.lastReadCard}>
           <Text style={styles.lastReadLabel}>Terakhir dibaca</Text>
@@ -565,14 +676,25 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>© {new Date().getFullYear()} Alquranku</Text>
+        <Text style={[styles.footerText, { color: pal.colors.muted }]}>© {new Date().getFullYear()} Alquranku</Text>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: theme.colors.bg },
+  container: { padding: 16, flexGrow: 1 },
+  // Kartu Ayat Hari Ini
+  dailyCard: { borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1 },
+  dailyLabel: { fontWeight: '800', fontSize: 13, marginLeft: 8, letterSpacing: 0.3 },
+  dailySurah: { fontWeight: '700', fontSize: 12.5, color: '#6b7280', marginBottom: 6 },
+  dailyArab: { fontFamily: 'NotoNaskhArabic', fontSize: 21, lineHeight: 36, textAlign: 'right' },
+  dailyLatin: { marginTop: 8, fontSize: 13, fontStyle: 'italic' },
+  dailyIndo: { marginTop: 6, fontSize: 13, lineHeight: 19 },
+  dailyReadBtn: { backgroundColor: theme.colors.primaryDark, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.colors.primaryLight, marginRight: 10 },
+  dailyReadText: { color: '#fff', fontWeight: '700' },
+  dailyShareBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, backgroundColor: 'transparent' },
+  dailyShareText: { fontWeight: '700' },
   // Header sapaan
   greetingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   greeting: { fontSize: 22, fontWeight: '800', color: theme.colors.text },

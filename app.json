@@ -21,8 +21,8 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.alfarisy.infoalquran",
-      "versionCode": 3,
-      "permissions": []
+      "versionCode": 9,
+        "permissions": []
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -55,7 +55,8 @@
             "assets/sounds/default_preview.mp3"
           ]
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {

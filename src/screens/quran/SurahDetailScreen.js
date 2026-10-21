@@ -3,14 +3,19 @@ import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, 
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getSuratDetail, getTafsir } from '../../api/quran';
 import { fetchChapterAudioData, findVerseTiming, wordPosAt, splitArabicWords, getPreferredKaraokeReciter } from '../../api/quranAudio';
-import { getKaraokeAudioData, isAudioSavedOffline, downloadSurahAudio, deleteSurahAudio } from '../../api/offlineAudio';
+import { getKaraokeAudioData, isAudioSavedOffline } from '../../api/offlineAudio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 
 // Nomor ayat dalam angka Arab-Indic untuk tanda akhir ayat mode mushaf (۝١)
 const toArabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
+
+// Label nama qari (sebelumnya dipakai tapi belum didefinisikan -> ReferenceError).
+// Kalau sudah punya map sendiri di api/quran, hapus ini dan import dari sana.
+const QARI_LABELS = {};
 
 export default function SurahDetailScreen({ route, navigation }) {
   // Definisi fetchDetail ditempatkan di atas return agar bisa dipanggil dari effect & tombol
@@ -29,12 +34,17 @@ export default function SurahDetailScreen({ route, navigation }) {
   const [tafsirMap, setTafsirMap] = useState({});
   const [expandedTafsirAyahs, setExpandedTafsirAyahs] = useState({});
   const [tafsirPageIndexByAyah, setTafsirPageIndexByAyah] = useState({});
-  const [textScale, setTextScale] = useState(1);
+  // textScale & dark mode dibaca TERPUSAT dari pengaturan tampilan,
+  // sinkron otomatis dengan layar Pengaturan lewat event bus.
+  const { darkMode, textScale } = useAppearance();
+  const pal = getPalette(darkMode);
   const [fromCacheDetail, setFromCacheDetail] = useState(false);
   const [tafsirBoxWidths, setTafsirBoxWidths] = useState({});
   const tafsirScrollRefs = useRef({});
   const flatListRef = useRef(null);
   const lastAutoScrollAtRef = useRef(0);
+  // Penanda: event "selesai" untuk pemutaran saat ini sudah ditangani (cegah dobel)
+  const finishHandledRef = useRef(false);
   // updateInterval 250ms: event status mengalir berkala (native & web) supaya
   // marking karaoke bergerak halus mengikuti bacaan.
   const player = useAudioPlayer(null, { updateInterval: 250 });
@@ -60,7 +70,7 @@ export default function SurahDetailScreen({ route, navigation }) {
 
   // === Audio offline: status unduhan per surah ===
   const [audioOffline, setAudioOffline] = useState(null); // meta tersimpan
-  const [audioDownloading, setAudioDownloading] = useState(null); // 0..1 saat mengunduh
+
 
   useEffect(() => {
     navigation.setOptions({ title: `${namaLatin ?? nama_latin ?? ''}` });
@@ -232,8 +242,9 @@ export default function SurahDetailScreen({ route, navigation }) {
     return () => clearInterval(id);
   }, [karaokeMode, karaokeData, activeVerseKey, detail, displayMode, nomor]);
 
-  // Sinkron flag isPlaying + akhir pemutaran: lanjut ayat berikutnya (mode per-ayat)
-  // atau bersih-bersih state saat audio selesai.
+  // Sinkron flag isPlaying + akhir pemutaran.
+  // Mode per-ayat: setelah ayat yang diputar selesai, audio BERHENTI (tidak lanjut ke ayat berikutnya).
+  // Mode karaoke: bersihkan state saat audio satu surah selesai.
   useEffect(() => {
     if ('playing' in playerStatus) {
       setIsPlaying(!!playerStatus.playing);
@@ -248,8 +259,12 @@ export default function SurahDetailScreen({ route, navigation }) {
       const p = Math.min(1, Math.max(0, playerStatus.currentTime / playerStatus.duration));
       setPlayProgress((prev) => (Math.abs(prev - p) >= 0.01 ? Math.round(p * 100) / 100 : prev));
     }
-    // Audio selesai (unit detik; toleransi 0.5s). Lanjut ayat berikutnya (mode per-ayat)
-    // atau bersihkan state karaoke.
+
+    // Hanya relevan kalau memang ada pemutaran aktif (per-ayat atau karaoke).
+    // Tanpa guard ini, sisa status audio lama bisa terbaca sebagai "selesai".
+    if (playingAyahIndex == null && !karaokeMode) return;
+
+    // Audio selesai (unit detik; toleransi 0.5s)
     const finished =
       playerStatus.didJustFinish === true ||
       (!playerStatus.playing &&
@@ -257,22 +272,27 @@ export default function SurahDetailScreen({ route, navigation }) {
         typeof playerStatus.currentTime === 'number' &&
         playerStatus.duration > 0 &&
         playerStatus.currentTime >= playerStatus.duration - 0.5);
-    if (finished) {
-      const next = (playingAyahIndex != null ? playingAyahIndex + 1 : null);
-      if (next != null && detail?.ayat && next < detail.ayat.length) {
-        playAyah(next);
-      } else {
-        setPlayingAyahId(null);
-        setPlayingAyahIndex(null);
-        setIsPlaying(false);
-        if (karaokeMode) {
-          setKaraokeMode(false);
-          setActiveVerseKey(null);
-          setActiveWordPos(-1);
-        }
-        try { player.seekTo(0); } catch {}
-      }
+
+    if (!finished) {
+      // Sedang diputar lagi -> siap menangani akhir pemutaran berikutnya
+      finishHandledRef.current = false;
+      return;
     }
+    if (finishHandledRef.current) return; // sudah ditangani, jangan dobel
+    finishHandledRef.current = true;
+
+    // BERHENTI total: tidak ada auto-lanjut ke ayat berikutnya
+    setPlayingAyahId(null);
+    setPlayingAyahIndex(null);
+    setIsPlaying(false);
+    setPlayProgress(0);
+    if (karaokeMode) {
+      setKaraokeMode(false);
+      setActiveVerseKey(null);
+      setActiveWordPos(-1);
+    }
+    try { player.pause(); } catch {}
+    try { player.seekTo(0); } catch {}
   }, [playerStatus.playing, playerStatus.didJustFinish, playerStatus.duration, detail?.ayat, playingAyahIndex, karaokeMode]);
   // Pakan utama marking karaoke: setiap event status player (tiap ~250ms),
   // hitung posisi ayat + kata aktif supaya marking bergerak mengikuti bacaan.
@@ -306,48 +326,16 @@ export default function SurahDetailScreen({ route, navigation }) {
   }, [selectedQari]);
 
   // === Reciter karaoke dimuat dari preferensi (dipilih di layar Pengaturan) ===
+  // (Efek penyimpanan balik dihapus: setPreferredKaraokeReciter tidak di-import,
+  //  dan reciter memang hanya diubah dari layar Pengaturan.)
   useEffect(() => {
     getPreferredKaraokeReciter()
       .then((id) => { if (id != null) setSelectedKaraokeReciterId(id); })
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      if (selectedKaraokeReciterId != null) {
-        try {
-          await setPreferredKaraokeReciter(selectedKaraokeReciterId);
-        } catch {}
-      }
-    })();
-  }, [selectedKaraokeReciterId]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const saved = await AsyncStorage.getItem('text_scale');
-        if (saved) {
-          const v = parseFloat(saved);
-          if (!Number.isNaN(v)) {
-            const clamped = Math.min(1.6, Math.max(0.8, v));
-            setTextScale(clamped);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load text scale', e);
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        await AsyncStorage.setItem('text_scale', String(textScale));
-      } catch (e) {
-        console.warn('Failed to save text scale', e);
-      }
-    })();
-  }, [textScale]);
+  // textScale tidak lagi disimpan di sini: modul appearance yang jadi satu sumber kebenaran
+  // (skala tersimpan di AsyncStorage 'text_scale' — kunci yang sama dengan sebelumnya).
 
   // Muat & simpan preferensi mode tampil (dibagi dengan layar Halaman)
   useEffect(() => {
@@ -360,10 +348,10 @@ export default function SurahDetailScreen({ route, navigation }) {
   }, [displayMode]);
 
   const increaseTextScale = () => {
-    setTextScale((s) => Math.min(1.6, Math.round((s + 0.1) * 10) / 10));
+    saveTextScale(textScale + 0.1);
   };
   const decreaseTextScale = () => {
-    setTextScale((s) => Math.max(0.8, Math.round((s - 0.1) * 10) / 10));
+    saveTextScale(textScale - 0.1);
   };
 
   useEffect(() => {
@@ -399,6 +387,7 @@ export default function SurahDetailScreen({ route, navigation }) {
     try {
       setKaraokeLoading(true);
       setKaraokeErr(null);
+      finishHandledRef.current = false;
       // Gunakan cache yang ada; jika tidak ada atau reciter berbeda, fetch ulang
       const cached = karaokeData && karaokeData.reciterId === reciterId ? karaokeData : null;
       const data = cached || (await getKaraokeAudioData(Number(nomor), reciterId)); // offline dulu, baru online
@@ -450,30 +439,11 @@ export default function SurahDetailScreen({ route, navigation }) {
     setDisplayMode(m);
   };
 
-  // === Unduh / hapus audio offline ===
-  const handleDownloadAudio = async () => {
-    if (audioDownloading != null) return;
-    setAudioDownloading(0);
-    setKaraokeErr(null);
-    try {
-      const meta = await downloadSurahAudio(Number(nomor), selectedKaraokeReciterId, (p) => setAudioDownloading(p));
-      setAudioOffline(meta);
-    } catch (e) {
-      setKaraokeErr(e?.message || 'Gagal mengunduh audio. Periksa koneksi internet lalu coba lagi.');
-    } finally {
-      setAudioDownloading(null);
-    }
-  };
-
-  const handleDeleteOfflineAudio = async () => {
-    try { await deleteSurahAudio(Number(nomor), selectedKaraokeReciterId); } catch {}
-    setAudioOffline(null);
-  };
-
   const playAyah = async (index) => {
     try {
       const url = getAyahAudioUrl(index);
       if (!url) return;
+      finishHandledRef.current = false;
       await stopCurrent();
       player.replace({ uri: url });
       setPlayingAyahIndex(index);
@@ -619,10 +589,13 @@ export default function SurahDetailScreen({ route, navigation }) {
     const currentChunk = tafsirChunks[currentPage] ?? (tafsirForAyah || '');
 
     const isTargetHighlight = highlightAyah != null && ayahNumber === highlightAyah && !isActive;
+    // Dark mode: permukaan kartu mengikuti palet; highlight aktif/tetap ungu lembut
+    const ayahCardStyle = [styles.ayat, isActive && styles.ayatActive, isTargetHighlight && styles.ayatTargetHighlight];
+    if (pal.dark) ayahCardStyle.push({ backgroundColor: pal.colors.surface });
 
     return (
       <View
-        style={[styles.ayat, isActive && styles.ayatActive, isTargetHighlight && styles.ayatTargetHighlight]}
+        style={ayahCardStyle}
         onLayout={(e) => {
           const w = e?.nativeEvent?.layout?.width;
           if (w && w > 0 && rowWidth !== w) setRowWidth(w);
@@ -638,7 +611,11 @@ export default function SurahDetailScreen({ route, navigation }) {
         {tafsirForAyah ? (
           <View style={styles.header}>
             <TouchableOpacity
-              style={[styles.tafsirToggle, isTafsirExpanded && styles.tafsirToggleActive]}
+              style={[
+                styles.tafsirToggle,
+                { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder },
+                isTafsirExpanded && { borderColor: pal.colors.primary },
+              ]}
               onPress={() => {
                 const nextExpanded = !isTafsirExpanded;
                 setExpandedTafsirAyahs((prev) => ({ ...prev, [ayahNumber]: nextExpanded }));
@@ -679,7 +656,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                 >
                   {tafsirChunks.map((chunk, i) => (
                     <View key={`tafsir-chunk-${ayahNumber}-${i}`} style={{ width: tafsirBoxWidths[ayahNumber] || '100%' }}>
-                      <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{chunk}</Text>
+                      <Text style={[styles.tafsirContent, { fontSize: 14 * textScale, lineHeight: 20 * textScale }, pal.dark && { color: pal.colors.text }]}>{chunk}</Text>
                     </View>
                   ))}
                 </ScrollView>
@@ -715,16 +692,16 @@ export default function SurahDetailScreen({ route, navigation }) {
           </View>
         ) : null}
         <View style={styles.ayatTopRow}>
-          <View style={styles.numberPill}>
-            <Text style={styles.numberPillText}>{ayahNumber}</Text>
+          <View style={[styles.numberPill, { backgroundColor: pal.colors.primaryLight + '2e', borderColor: pal.colors.primaryLight }]}>
+            <Text style={[styles.numberPillText, { color: pal.colors.primary }]}>{ayahNumber}</Text>
           </View>
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => shareAyah(ayahNumber, arabText, latinText, indoText)}>
-              <Ionicons name="share-social-outline" size={20} color="#6B21A8" />
+            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => shareAyah(ayahNumber, arabText, latinText, indoText)}>
+              <Ionicons name="share-social-outline" size={20} color={pal.colors.primary} />
             </TouchableOpacity>
             {hasAudio ? (
-              <TouchableOpacity style={styles.iconBtn} onPress={() => (karaokeMode ? startKaraoke(index) : (isActive ? togglePlayPause() : playAyah(index)))}>
-                <Ionicons name={isActive && isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={22} color="#6B21A8" />
+              <TouchableOpacity style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => (karaokeMode ? startKaraoke(index) : (isActive ? togglePlayPause() : playAyah(index)))}>
+                <Ionicons name={isActive && isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={22} color={pal.colors.primary} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -735,7 +712,7 @@ export default function SurahDetailScreen({ route, navigation }) {
               const timing = findVerseTiming(karaokeData, Number(nomor), ayahNumber);
               const words = splitArabicWords(arabText);
               if (!timing || !words.length) {
-                return <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arabText}</Text>;
+                return <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }, pal.dark && { color: pal.colors.text }]}>{arabText}</Text>;
               }
               return (
                 <View style={styles.karaokeWrap}>
@@ -745,6 +722,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                       style={[
                         styles.karaokeWord,
                         { fontSize: 22 * textScale, lineHeight: 32 * textScale },
+                        pal.dark && { color: pal.colors.text },
                         wi + 1 === activeWordPos && styles.karaokeWordActive,
                       ]}
                     >
@@ -755,11 +733,11 @@ export default function SurahDetailScreen({ route, navigation }) {
               );
             })()
           ) : (
-            <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arabText}</Text>
+            <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }, pal.dark && { color: pal.colors.text }]}>{arabText}</Text>
           )
         ) : null}
-        {latinText ? <Text style={[styles.latin, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{latinText}</Text> : null}
-        {indoText ? <Text style={[styles.terjemahan, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{indoText}</Text> : null}
+        {latinText ? <Text style={[styles.latin, { fontSize: 14 * textScale, lineHeight: 20 * textScale }, pal.dark && { color: pal.colors.muted }]}>{latinText}</Text> : null}
+        {indoText ? <Text style={[styles.terjemahan, { fontSize: 14 * textScale, lineHeight: 20 * textScale }, pal.dark && { color: pal.colors.text }]}>{indoText}</Text> : null}
       </View>
     );
   };
@@ -902,8 +880,29 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   floatText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  // Dark mode: ganti gaya kartu tampilan Mushaf
+  themeMobile: { flex: 1, backgroundColor: pal.colors.bg },
+  // Gaya untuk tampilan list ayat (di luar renderMushaf)
+  ayatList: { padding: 16 },
 });
-// Kartu tunggal mode Mushaf: seluruh surah sebagai teks Arab mengalir
+const stylesMobile = StyleSheet.create({
+  // Kartu tunggal mode Mushaf: seluruh surah sebagai teks Arab mengalir
+  mushafCard: { paddingVertical: 16, paddingHorizontal: 16 },
+  mushafSectionTitle: {
+    fontSize: 12, fontWeight: '800', color: theme.colors.primaryDark,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
+  },
+  mushafListText: { color: '#1f2937', marginBottom: 8 },
+  mushafListNum: { fontWeight: '800', color: theme.colors.primaryDark },
+  arabMushafWord: {
+    fontFamily: 'NotoNaskhArabic', color: '#111', paddingHorizontal: 2,
+    borderRadius: 6,
+  },
+  mushafAyatActive: { color: theme.colors.primaryDark, backgroundColor: '#ede9fe' },
+  arabMushafMarker: {
+    fontFamily: 'NotoNaskhArabic', color: theme.colors.primary, paddingHorizontal: 2,
+  },
+});
   if (loading) {
     return (
       <View style={styles.center}>
@@ -917,7 +916,7 @@ const styles = StyleSheet.create({
   const renderMushaf = () => {
     return (
       <>
-        <View style={[styles.ayat, styles.mushafCard]}>
+        <View style={[styles.ayat, styles.mushafCard, pal.dark && { backgroundColor: '#1a1130' }]}>
           <Text style={styles.mushafSectionTitle}>Teks Arab</Text>
           <View style={styles.karaokeWrap}>
             {mushafWords.map((w, i) => {
@@ -936,6 +935,7 @@ const styles = StyleSheet.create({
                   style={[
                     styles.arabMushafWord,
                     { fontSize: 22 * textScale, lineHeight: 42 * textScale },
+                    pal.dark && { color: pal.colors.text },
                     isAyatActive && styles.mushafAyatActive,
                     isWordActive && styles.karaokeWordActive,
                   ]}
@@ -946,27 +946,27 @@ const styles = StyleSheet.create({
             })}
           </View>
         </View>
-        <View style={[styles.ayat, styles.mushafCard]}>
+        <View style={[styles.ayat, styles.mushafCard, pal.dark && { backgroundColor: '#1a1130' }]}>
           <Text style={styles.mushafSectionTitle}>Arti</Text>
           {(detail?.ayat || []).map((a, i) => {
             const n = (a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : i + 1));
             const t = a?.teksIndonesia ?? a?.teks_terjemahan;
             if (!t) return null;
             return (
-              <Text key={`arti-${n}`} style={[styles.mushafListText, { fontSize: 14 * textScale, lineHeight: 21 * textScale }]}>
+              <Text key={`arti-${n}`} style={[styles.mushafListText, { fontSize: 14 * textScale, lineHeight: 21 * textScale }, pal.dark && { color: pal.colors.text }]}>
                 <Text style={styles.mushafListNum}>{n}. </Text>{t}
               </Text>
             );
           })}
         </View>
-        <View style={[styles.ayat, styles.mushafCard]}>
+        <View style={[styles.ayat, styles.mushafCard, pal.dark && { backgroundColor: '#1a1130' }]}>
           <Text style={styles.mushafSectionTitle}>Cara baca</Text>
           {(detail?.ayat || []).map((a, i) => {
             const n = (a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : i + 1));
             const t = a?.teksLatin ?? a?.teks_latin;
             if (!t) return null;
             return (
-              <Text key={`latin-${n}`} style={[styles.mushafListText, { fontSize: 14 * textScale, lineHeight: 21 * textScale }]}>
+              <Text key={`latin-${n}`} style={[styles.mushafListText, { fontSize: 14 * textScale, lineHeight: 21 * textScale }, pal.dark && { color: pal.colors.muted }]}>
                 <Text style={styles.mushafListNum}>{n}. </Text>{t}
               </Text>
             );
@@ -1009,7 +1009,7 @@ const styles = StyleSheet.create({
           <Text style={styles.headerSubtitle}>{detail?.arti}</Text>
           <Text style={styles.headerMeta}>{`${(detail?.tempatTurun ?? detail?.tempat_turun)?.toUpperCase()} • ${(detail?.jumlahAyat ?? detail?.jumlah_ayat)} AYAT`}</Text>
           {nomor !== 9 ? (
-            <Text style={styles.basmalah}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>
+            <Text style={styles.basmalah}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>
           ) : null}
         </LinearGradient>
 
@@ -1019,20 +1019,20 @@ const styles = StyleSheet.create({
           ) : null}
           {/* === Toggle mode tampil: Per Ayat / Mushaf (konsisten dgn layar Halaman) === */}
           <View style={styles.modeRow}>
-            <View style={styles.modeToggle}>
+            <View style={[styles.modeToggle, { backgroundColor: pal.colors.primaryLight + '2e' }]}>
               <TouchableOpacity
                 style={[styles.modeBtn, displayMode !== 'mushaf' && styles.modeBtnActive]}
                 onPress={() => switchMode('ayat')}
               >
-                <Ionicons name="list" size={13} color={displayMode !== 'mushaf' ? '#fff' : theme.colors.primaryDark} />
-                <Text style={[styles.modeBtnText, displayMode !== 'mushaf' && styles.modeBtnTextActive]}>Per Ayat</Text>
+                <Ionicons name="list" size={13} color={displayMode !== 'mushaf' ? '#fff' : pal.colors.primary} />
+                <Text style={[styles.modeBtnText, { color: displayMode !== 'mushaf' ? '#fff' : pal.colors.primary }, displayMode !== 'mushaf' && styles.modeBtnTextActive]}>Per Ayat</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modeBtn, displayMode === 'mushaf' && styles.modeBtnActive]}
                 onPress={() => switchMode('mushaf')}
               >
-                <Ionicons name="book" size={13} color={displayMode === 'mushaf' ? '#fff' : theme.colors.primaryDark} />
-                <Text style={[styles.modeBtnText, displayMode === 'mushaf' && styles.modeBtnTextActive]}>Mushaf</Text>
+                <Ionicons name="book" size={13} color={displayMode === 'mushaf' ? '#fff' : pal.colors.primary} />
+                <Text style={[styles.modeBtnText, { color: displayMode === 'mushaf' ? '#fff' : pal.colors.primary }, displayMode === 'mushaf' && styles.modeBtnTextActive]}>Mushaf</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1046,36 +1046,24 @@ const styles = StyleSheet.create({
               <Text style={styles.ctrlText}>{karaokeLoading ? 'Memuat Karaoke…' : karaokeMode ? 'Karaoke Aktif ✓' : 'Mode Karaoke'}</Text>
             </TouchableOpacity>
           </View>
-          {/* === Audio offline: unduh / hapus / status === */}
-          <View style={styles.offlineAudioRow}>
-            {audioDownloading != null ? (
-              <View style={styles.offlineAudioProgressWrap}>
-                <View style={styles.offlineAudioProgressTrack}>
-                  <View style={[styles.offlineAudioProgressBar, { width: `${Math.round((audioDownloading || 0) * 100)}%` }]} />
-                </View>
-                <Text style={styles.offlineAudioStatusText}>Mengunduh… {Math.round((audioDownloading || 0) * 100)}%</Text>
-              </View>
-            ) : audioOffline ? (
-              <TouchableOpacity style={styles.offlineAudioBtn} onPress={handleDeleteOfflineAudio}>
+          {/* Status audio offline (unduhan dikelola dari Pengaturan → Unduh Semua Audio) */}
+          {audioOffline ? (
+            <View style={styles.offlineAudioRow}>
+              <View style={[styles.offlineAudioBtn, { opacity: 0.9 }]}>
                 <Ionicons name="checkmark-circle" size={16} color="#4ade80" />
-                <Text style={styles.offlineAudioStatusText}>Tersimpan offline • ketuk untuk hapus</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.offlineAudioBtn} onPress={handleDownloadAudio}>
-                <Ionicons name="cloud-download-outline" size={16} color={theme.colors.primary} />
-                <Text style={styles.offlineAudioStatusText}>Unduh audio surah ini (bisa dipakai offline)</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+                <Text style={styles.offlineAudioStatusText}>Audio surah ini sudah diunduh</Text>
+              </View>
+            </View>
+          ) : null}
           {!!karaokeErr && (
             <Text style={styles.karaokeErr}>{karaokeErr}</Text>
           )}
           <View style={styles.fontRow}>
-            <TouchableOpacity style={styles.fontBtn} onPress={decreaseTextScale}>
-              <Text style={styles.fontBtnText}>A-</Text>
+            <TouchableOpacity style={[styles.fontBtn, { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder }]} onPress={decreaseTextScale}>
+              <Text style={[styles.fontBtnText, { color: pal.colors.primary }]}>A-</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.fontBtn} onPress={increaseTextScale}>
-              <Text style={styles.fontBtnText}>A+</Text>
+            <TouchableOpacity style={[styles.fontBtn, { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder }]} onPress={increaseTextScale}>
+              <Text style={[styles.fontBtnText, { color: pal.colors.primary }]}>A+</Text>
             </TouchableOpacity>
             <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
           </View>

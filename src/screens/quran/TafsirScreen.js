@@ -2,8 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { getTafsir } from '../../api/quran';
 import { theme } from '../../ui';
+import { useTheme } from '../../ui';
 
 export default function TafsirScreen({ route }) {
+  // Tema aktif (dark mode) + skala font terpusat
+  const t = useTheme();
+  const pal = t;
+  const ts = t.textScale || 1;
+
   const { nomor } = route.params;
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -71,8 +77,8 @@ export default function TafsirScreen({ route }) {
     setCurrentAyah((prev) => Math.min(prev + 1, maxAyah || prev + 1));
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
-  if (error) return <View style={styles.center}><Text>{error}</Text></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><ActivityIndicator size="large" color={pal.colors.primary} /></View>;
+  if (error) return <View style={styles.center}><Text style={{ color: pal.colors.text }}>{error}</Text></View>;
   if (!data) return null;
 
   const surahLatin = data?.namaLatin ?? data?.nama_latin;
@@ -83,9 +89,9 @@ export default function TafsirScreen({ route }) {
   const nextText = hasList ? tafsirMap[currentAyah + 1] : null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tafsir Surat {surahLatin} ({data?.nama})</Text>
-      <Text style={styles.meta}>{data?.arti} • {jumlahAyat} ayat • {tempatTurun}</Text>
+    <View style={[styles.container, { backgroundColor: pal.colors.bg, flex: 1 }]}>
+      <Text style={[styles.title, { color: pal.colors.text }]}>Tafsir Surat {surahLatin} ({data?.nama})</Text>
+      <Text style={[styles.meta, { color: pal.colors.muted }]}>{data?.arti} • {jumlahAyat} ayat • {tempatTurun}</Text>
 
       {fromCache ? (
         <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
@@ -94,28 +100,26 @@ export default function TafsirScreen({ route }) {
       {hasList ? (
         <View>
           <View style={styles.navRow}>
-            <TouchableOpacity style={styles.navBtn} onPress={goPrev} disabled={currentAyah <= minAyah}>
+            <TouchableOpacity style={[styles.navBtn, { backgroundColor: pal.dark ? pal.colors.surface : '#f1f5f9', borderWidth: 1, borderColor: pal.dark ? pal.colors.surfaceBorder : 'transparent' }]} onPress={goPrev} disabled={currentAyah <= minAyah}>
               <Text style={[styles.navText, currentAyah <= minAyah && styles.navTextDisabled]}>Sebelumnya</Text>
             </TouchableOpacity>
-            <Text style={styles.ayatLabel}>Ayat {currentAyah}</Text>
-            <TouchableOpacity style={styles.navBtn} onPress={goNext} disabled={currentAyah >= maxAyah}>
+            <Text style={[styles.ayatLabel, { color: pal.colors.text }]}>Ayat {currentAyah}</Text>
+            <TouchableOpacity style={[styles.navBtn, { backgroundColor: pal.dark ? pal.colors.surface : '#f1f5f9', borderWidth: 1, borderColor: pal.dark ? pal.colors.surfaceBorder : 'transparent' }]} onPress={goNext} disabled={currentAyah >= maxAyah}>
               <Text style={[styles.navText, currentAyah >= maxAyah && styles.navTextDisabled]}>Berikutnya</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.contentBox}>
+          </View>          <View style={[styles.contentBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
             <ScrollView style={{ maxHeight: contentMaxHeight }}>
-              <Text style={styles.content}>{currentText}</Text>
+              <Text style={[styles.content, { fontSize: 15 * ts, lineHeight: 22 * ts }, pal.dark && { color: pal.colors.text }]}>{currentText}</Text>
               {prevText ? (
-                <View style={styles.contextBox}>
-                  <Text style={styles.contextLabel}>Sebelum</Text>
-                  <Text style={styles.contextText}>{prevText}</Text>
+                <View style={[styles.contextBox, pal.dark && { backgroundColor: '#241640', borderColor: pal.colors.surfaceBorder }]}>
+                  <Text style={[styles.contextLabel, { color: pal.colors.muted }]}>Sebelum</Text>
+                  <Text style={[styles.contextText, { color: pal.colors.muted }]}>{prevText}</Text>
                 </View>
               ) : null}
               {nextText ? (
-                <View style={styles.contextBox}>
-                  <Text style={styles.contextLabel}>Sesudah</Text>
-                  <Text style={styles.contextText}>{nextText}</Text>
+                <View style={[styles.contextBox, pal.dark && { backgroundColor: '#241640', borderColor: pal.colors.surfaceBorder }]}>
+                  <Text style={[styles.contextLabel, { color: pal.colors.muted }]}>Sesudah</Text>
+                  <Text style={[styles.contextText, { color: pal.colors.muted }]}>{nextText}</Text>
                 </View>
               ) : null}
             </ScrollView>
@@ -123,9 +127,9 @@ export default function TafsirScreen({ route }) {
         </View>
       ) : (
         data?.tafsir ? (
-          <View style={styles.contentBox}>
+          <View style={[styles.contentBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
             <ScrollView style={{ maxHeight: contentMaxHeight }}>
-              <Text style={styles.content}>{data.tafsir}</Text>
+              <Text style={[styles.content, { fontSize: 15 * ts, lineHeight: 22 * ts }, pal.dark && { color: pal.colors.text }]}>{data.tafsir}</Text>
             </ScrollView>
           </View>
         ) : null

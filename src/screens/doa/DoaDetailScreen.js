@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Share } from 'react-native';
 import { getDoaDetail } from '../../api/doa';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
 import { Ionicons } from '@expo/vector-icons';
 import { isDoaFavorite, toggleDoaFavorite, setLastReadDoa } from '../../api/doa';
 
@@ -11,9 +12,11 @@ export default function DoaDetailScreen({ navigation, route }) {
   const [detail, setDetail] = useState(null);
   const [fromCache, setFromCache] = useState(false);
   const [error, setError] = useState(null);
-  const [textScale, setTextScale] = useState(1.0);
-  const increaseTextScale = () => setTextScale((s) => Math.min(2, +(s + 0.1).toFixed(1)));
-  const decreaseTextScale = () => setTextScale((s) => Math.max(0.8, +(s - 0.1).toFixed(1)));
+  // textScale terpusat dari pengaturan tampilan (sinkron dengan semua layar bacaan)
+  const { textScale, darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
+  const increaseTextScale = () => saveTextScale(textScale + 0.1);
+  const decreaseTextScale = () => saveTextScale(textScale - 0.1);
   const [fav, setFav] = useState(false);
 
   // Ambil detail doa berdasarkan id (sebelumnya fungsi ini dipanggil tanpa didefinisikan → crash/blank)
@@ -60,21 +63,21 @@ export default function DoaDetailScreen({ navigation, route }) {
 
   if (loading) {
     return (
-      <View style={styles.center}><ActivityIndicator size="large" /></View>
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><ActivityIndicator size="large" color={pal.colors.primary} /></View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.center}>
-        <Ionicons name="cloud-offline-outline" size={40} color="#94a3b8" />
-        <Text style={styles.errorText}>{String(error)}</Text>
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}>
+        <Ionicons name="cloud-offline-outline" size={40} color={pal.colors.muted} />
+        <Text style={[styles.errorText, { color: pal.colors.text }]}>{String(error)}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={fetchDetail} activeOpacity={0.8}>
           <Ionicons name="refresh" size={14} color="#ffffff" />
           <Text style={styles.retryText}>Coba Lagi</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.backLinkBtn}>
-          <Text style={styles.backLinkText}>Kembali</Text>
+          <Text style={[styles.backLinkText, { color: pal.colors.primary }]}>Kembali</Text>
         </TouchableOpacity>
       </View>
     );
@@ -95,51 +98,51 @@ export default function DoaDetailScreen({ navigation, route }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView style={{ backgroundColor: pal.colors.bg }} contentContainerStyle={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>{title}</Text>
-        <TouchableOpacity style={styles.refreshBtn} onPress={fetchDetail}>
-          <Text style={styles.refreshText}>Refresh</Text>
+        <Text style={[styles.title, { color: pal.colors.text }]}>{title}</Text>
+        <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={fetchDetail}>
+          <Text style={[styles.refreshText, { color: pal.colors.primary }]}>Refresh</Text>
         </TouchableOpacity>
       </View>
       {fromCache ? (
         <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
       ) : null}
-      {!!tags && <Text style={styles.tags}>{tags}</Text>}
+      {!!tags && <Text style={[styles.tags, { color: pal.colors.muted }]}>{tags}</Text>}
 
       {/* Kontrol ukuran font (serupa SurahDetail) */}
       <View style={styles.fontRow}>
-        <TouchableOpacity style={styles.fontBtn} onPress={decreaseTextScale}>
-          <Text style={styles.fontBtnText}>A-</Text>
+        <TouchableOpacity style={[styles.fontBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={decreaseTextScale}>
+          <Text style={[styles.fontBtnText, { color: pal.colors.primary }]}>A-</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.fontBtn} onPress={increaseTextScale}>
-          <Text style={styles.fontBtnText}>A+</Text>
+        <TouchableOpacity style={[styles.fontBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={increaseTextScale}>
+          <Text style={[styles.fontBtnText, { color: pal.colors.primary }]}>A+</Text>
         </TouchableOpacity>
-        <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
+        <Text style={[styles.fontInfo, { color: pal.colors.muted }]}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
       </View>
 
       {/* Baris atas: nomor & aksi */}
       <View style={styles.ayatTopRow}>
-        <View style={styles.numberPill}>
-          <Text style={styles.numberPillText}>{id != null ? id : '-'}</Text>
+        <View style={[styles.numberPill, { backgroundColor: pal.colors.primaryLight + '22', borderColor: pal.colors.primaryLight }]}>
+          <Text style={[styles.numberPillText, { color: pal.colors.primary }]}>{id != null ? id : '-'}</Text>
         </View>
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.iconBtn} onPress={toggleFav}>
-            <Ionicons name={fav ? 'heart' : 'heart-outline'} size={20} color={fav ? '#dc2626' : '#6B21A8'} />
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={toggleFav}>
+            <Ionicons name={fav ? 'heart' : 'heart-outline'} size={20} color={fav ? '#dc2626' : pal.colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconBtn, { marginLeft: 8 }]} onPress={shareDoa}>
-            <Ionicons name="share-social-outline" size={20} color="#6B21A8" />
+          <TouchableOpacity style={[styles.iconBtn, { marginLeft: 8, backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={shareDoa}>
+            <Ionicons name="share-social-outline" size={20} color={pal.colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {!!arab && <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arab}</Text>}
-      {!!latin && <Text style={[styles.latin, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{latin}</Text>}
-      {!!ind && <Text style={[styles.ind, { fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{ind}</Text>}
+      {!!arab && <Text style={[styles.arab, { color: pal.colors.text, fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arab}</Text>}
+      {!!latin && <Text style={[styles.latin, { color: pal.colors.text, fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{latin}</Text>}
+      {!!ind && <Text style={[styles.ind, { color: pal.colors.text, fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{ind}</Text>}
       {!!refText && (
-        <View style={styles.refBox}>
-          <Text style={styles.refLabel}>Tentang / Referensi:</Text>
-          <Text style={styles.refText}>{refText}</Text>
+        <View style={[styles.refBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+          <Text style={[styles.refLabel, { color: pal.colors.muted }]}>Tentang / Referensi:</Text>
+          <Text style={[styles.refText, { color: pal.colors.text }]}>{refText}</Text>
         </View>
       )}
     </ScrollView>

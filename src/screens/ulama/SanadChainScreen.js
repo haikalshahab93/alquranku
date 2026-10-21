@@ -9,12 +9,16 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../ui';
+import { theme, getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 import { buildTeacherChain, eraLabelForChain, getScholar, teachersOf, shortName } from '../../api/sanad';
 
 const MAX_DEPTH = 8;
 
 export default function SanadChainScreen({ navigation, route }) {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
+  const styles = makeStyles(pal);
   const startId = route?.params?.scholarId != null ? String(route.params.scholarId) : null;
 
   // Preferensi rute: daftar { kind, at, ownerId, preferId } — paksa hop dari node index `at`
@@ -59,11 +63,11 @@ export default function SanadChainScreen({ navigation, route }) {
 
   if (!startId || !getScholar(startId)) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
         <View style={styles.center}>
-          <Text style={styles.centerText}>Data ulama tidak ditemukan.</Text>
+          <Text style={[styles.centerText, { color: pal.colors.text }]}>Data ulama tidak ditemukan.</Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
-            <Text style={styles.backText}>Kembali</Text>
+            <Text style={[styles.backText, { color: pal.colors.primary }]}>Kembali</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -89,18 +93,18 @@ export default function SanadChainScreen({ navigation, route }) {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Ringkasan rantai */}
         <LinearGradient
-          colors={[theme.colors.primaryLight, theme.colors.white]}
+          colors={darkMode ? [pal.colors.primaryLight + '33', pal.colors.surface] : [pal.colors.primaryLight, pal.colors.white]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.headerCard}
+          style={[styles.headerCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}
         >
           <View style={styles.headerRow}>
-            <View style={styles.headerIcon}>
-              <Ionicons name="git-network-outline" size={20} color={theme.colors.primaryDark} />
+            <View style={[styles.headerIcon, { backgroundColor: pal.colors.primaryLight + '22' }]}>
+              <Ionicons name="git-network-outline" size={20} color={pal.colors.primaryDark} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle} numberOfLines={1}>
@@ -126,7 +130,11 @@ export default function SanadChainScreen({ navigation, route }) {
             <View key={`${u.id}-${i}`}>
               {/* Kartu ulama */}
               <TouchableOpacity
-                style={[styles.nodeCard, isLast && styles.nodeCardLast]}
+                style={[
+                  styles.nodeCard,
+                  { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder },
+                  isLast && { borderColor: pal.colors.primary },
+                ]}
                 activeOpacity={0.85}
                 onPress={() => navigation.navigate('UlamaDetail', { scholarId: String(u.id) })}
               >
@@ -145,14 +153,14 @@ export default function SanadChainScreen({ navigation, route }) {
                   )}
                   <View style={styles.metaRow}>
                     {!!year && (
-                      <View style={styles.metaChip}>
-                        <Ionicons name="calendar-outline" size={11} color={theme.colors.primaryDark} />
+                      <View style={[styles.metaChip, { backgroundColor: pal.colors.primaryLight + '22', borderColor: pal.colors.primaryLight }]}>
+                        <Ionicons name="calendar-outline" size={11} color={pal.colors.primaryDark} />
                         <Text style={styles.metaChipText}>{year}</Text>
                       </View>
                     )}
                     {node.viaOtherTeachers > 0 && (
                       <View style={[styles.metaChip, styles.metaChipAlt]}>
-                        <Ionicons name="layers-outline" size={11} color={theme.colors.primaryDark} />
+                        <Ionicons name="layers-outline" size={11} color={pal.colors.primaryDark} />
                         <Text style={styles.metaChipText}>+{node.viaOtherTeachers} guru lain</Text>
                       </View>
                     )}
@@ -164,7 +172,7 @@ export default function SanadChainScreen({ navigation, route }) {
                     )}
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.muted} />
+                <Ionicons name="chevron-forward" size={16} color={pal.colors.muted} />
               </TouchableOpacity>
 
               {/* Chip re-rute: guru lain selain yang dipilih rute otomatis */}
@@ -179,11 +187,11 @@ export default function SanadChainScreen({ navigation, route }) {
                     {others.slice(0, 6).map((t) => (
                       <TouchableOpacity
                         key={t.id}
-                        style={styles.altChip}
+                        style={[styles.altChip, { backgroundColor: pal.colors.primaryLight + '22', borderColor: pal.colors.surfaceBorder }]}
                         activeOpacity={0.7}
                         onPress={() => reroute(i, String(u.id), String(t.id))}
                       >
-                        <Text style={styles.altChipText} numberOfLines={1}>
+                        <Text style={[styles.altChipText, { color: pal.colors.primary }]} numberOfLines={1}>
                           {shortName(t)}
                         </Text>
                       </TouchableOpacity>
@@ -212,7 +220,7 @@ export default function SanadChainScreen({ navigation, route }) {
           activeOpacity={0.8}
           onPress={() => chain.length > 0 && navigation.navigate('UlamaDetail', { scholarId: String(chain[0].scholar.id) })}
         >
-          <Ionicons name="person-circle-outline" size={14} color={theme.colors.primaryDark} />
+          <Ionicons name="person-circle-outline" size={14} color={pal.colors.primaryDark} />
           <Text style={styles.detailLinkText}>
             Buka detail {shortName(chain[0]?.scholar)}
           </Text>
@@ -224,79 +232,79 @@ export default function SanadChainScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (pal) => StyleSheet.create({
   container: { padding: 16 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  centerText: { color: theme.colors.text },
+  centerText: { color: pal.colors.text },
   backLink: { marginTop: 8 },
-  backText: { color: theme.colors.primary, fontWeight: '700' },
+  backText: { color: pal.colors.primary, fontWeight: '700' },
   headerCard: {
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: theme.colors.primaryLight,
-    backgroundColor: theme.colors.white,
+    borderColor: pal.colors.primaryLight,
+    backgroundColor: pal.colors.surface,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIcon: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#ede9fe',
+    backgroundColor: pal.colors.primaryLight + '2e',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.text },
-  headerMeta: { color: theme.colors.primaryDark, fontWeight: '700', marginTop: 2, fontSize: 12 },
-  headerHint: { color: theme.colors.muted, fontSize: 11.5, marginTop: 8, lineHeight: 16 },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: pal.colors.text },
+  headerMeta: { color: pal.colors.primaryDark, fontWeight: '700', marginTop: 2, fontSize: 12 },
+  headerHint: { color: pal.colors.muted, fontSize: 11.5, marginTop: 8, lineHeight: 16 },
   // Kartu node rantai
   nodeCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: theme.colors.white,
+    backgroundColor: pal.colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.primaryLight,
+    borderColor: pal.colors.primaryLight,
     borderRadius: 14,
     padding: 12,
   },
-  nodeCardLast: { borderColor: theme.colors.primary },
+  nodeCardLast: { borderColor: pal.colors.primary },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: pal.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: { color: '#ffffff', fontWeight: '800', fontSize: 16, lineHeight: 18 },
   avatarGen: { color: 'rgba(255,255,255,0.8)', fontSize: 6.5, fontWeight: '700', letterSpacing: 0.5 },
-  nodeName: { fontSize: 15, fontWeight: '700', color: theme.colors.text },
-  nodeNameAr: { fontSize: 13, color: theme.colors.muted, marginTop: 1 },
+  nodeName: { fontSize: 15, fontWeight: '700', color: pal.colors.text },
+  nodeNameAr: { fontSize: 13, color: pal.colors.muted, marginTop: 1 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
   metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#f5f3ff',
+    backgroundColor: pal.colors.primaryLight + '1f',
     borderWidth: 1,
-    borderColor: theme.colors.primaryLight,
+    borderColor: pal.colors.primaryLight,
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
-  metaChipAlt: { backgroundColor: '#fefce8', borderColor: '#fde047' },
-  metaChipForced: { backgroundColor: '#eff6ff', borderColor: '#93c5fd' },
-  metaChipText: { color: theme.colors.primaryDark, fontSize: 10.5, fontWeight: '700' },
+  metaChipAlt: { backgroundColor: pal.colors.primaryLight + '1f', borderColor: pal.colors.surfaceBorder },
+  metaChipForced: { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder },
+  metaChipText: { color: pal.colors.primaryDark, fontSize: 10.5, fontWeight: '700' },
   metaChipTextForced: { color: '#1d4ed8', fontSize: 10.5, fontWeight: '700' },
   // Connector antar generasi
   connector: { flexDirection: 'row', alignItems: 'center', paddingLeft: 33, height: 30 },
-  connectorLine: { flex: 1, height: 2, backgroundColor: theme.colors.primaryLight },
+  connectorLine: { flex: 1, height: 2, backgroundColor: pal.colors.primaryLight },
   connectorBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: theme.colors.primaryDark,
+    backgroundColor: pal.colors.primaryDark,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -311,24 +319,24 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingLeft: 4,
   },
-  altLabel: { color: theme.colors.muted, fontSize: 11, fontWeight: '700' },
+  altLabel: { color: pal.colors.muted, fontSize: 11, fontWeight: '700' },
   altChip: {
-    backgroundColor: '#ede9fe',
+    backgroundColor: pal.colors.primaryLight + '2e',
     borderWidth: 1,
-    borderColor: theme.colors.primaryLight,
+    borderColor: pal.colors.primaryLight,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
     maxWidth: 220,
   },
-  altChipText: { color: theme.colors.primaryDark, fontSize: 11, fontWeight: '600' },
+  altChipText: { color: pal.colors.primaryDark, fontSize: 11, fontWeight: '600' },
   // Tombol perdalam
   deepenBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: pal.colors.primary,
     borderRadius: 12,
     paddingVertical: 12,
     marginTop: 14,
@@ -343,5 +351,5 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 8,
   },
-  detailLinkText: { color: theme.colors.primaryDark, fontWeight: '700', fontSize: 13 },
+  detailLinkText: { color: pal.colors.primaryDark, fontWeight: '700', fontSize: 13 },
 });

@@ -3,6 +3,7 @@ import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Rect, Polygon } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppearance } from '../api/appearance';
 
 export const theme = {
   colors: {
@@ -16,6 +17,10 @@ export const theme = {
     shellText: '#e9e4f5',
     shellMuted: '#8d84ab',
     bg: '#f8fafc',
+    // Permukaan kartu/tab di mode terang (kunci sama dengan themeDark agar
+    // layar bisa memakai pal.colors.surface tanpa cek mode).
+    surface: '#ffffff',
+    surfaceBorder: '#ede9fe',
     text: '#1f2937',
     muted: '#6b7280',
     white: '#ffffff',
@@ -32,6 +37,49 @@ export const theme = {
     float: { elevation: 6, boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.18)' },
   },
 };
+
+// Palet gelap: hanya permukaan & warna teks yang berubah; aksen ungu tetap konsisten.
+export const themeDark = {
+  dark: true,
+  colors: {
+    primary: '#8b5cf6',
+    primaryDark: '#6d28d9',
+    primaryLight: '#a78bfa',
+    shellDark: '#17102b',
+    shellDark2: '#1e1535',
+    shellBorder: 'rgba(167, 139, 250, 0.25)',
+    shellText: '#e9e4f5',
+    shellMuted: '#8d84ab',
+    bg: '#0f0a1f',
+    // Permukaan kartu/tab di mode gelap
+    surface: '#1a1130',
+    surfaceBorder: 'rgba(167, 139, 250, 0.22)',
+    text: '#ede9f7',
+    muted: '#a29bc0',
+    white: '#ffffff',
+  },
+  gradients: {
+    brand: ['#7c3aed', '#4c1d95'],
+    brandSoft: ['#2a1b4d', '#241640'],
+    shell: ['#1a1130', '#221743'],
+  },
+  radii: theme.radii,
+  shadow: theme.shadow,
+};
+
+// Kembalikan palet sesuai mode gelap/terang.
+export function getPalette(dark) {
+  return dark ? themeDark : theme;
+}
+
+/**
+ * Hook tema: return { colors, gradients, dark }. Re-render otomatis saat
+ * pengguna menyalakan/mematikan dark mode di Pengaturan.
+ */
+export function useTheme() {
+  const { darkMode, textScale } = useAppearance();
+  return { ...getPalette(darkMode), dark: darkMode, textScale };
+}
 
 export function BookIcon({ size = 72, style }) {
   return (
@@ -52,13 +100,14 @@ export function BookIcon({ size = 72, style }) {
 }
 
 export function GradientCard({ title, desc, onPress, style, showQuran }) {
+  const t = useTheme();
   return (
-    <TouchableOpacity style={[styles.card, style]} onPress={onPress} activeOpacity={0.85}>
-      <LinearGradient colors={theme.gradients.brandSoft} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardBg}>
+    <TouchableOpacity style={[styles.card, { backgroundColor: t.colors.surface, borderColor: t.colors.surfaceBorder }, style]} onPress={onPress} activeOpacity={0.85}>
+      <LinearGradient colors={t.gradients.brandSoft} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardBg}>
         <View style={styles.cardRow}>
           <View style={styles.cardTextBox}>
-            <Text style={styles.cardTitle}>{title}</Text>
-            {!!desc && <Text style={styles.cardDesc}>{desc}</Text>}
+            <Text style={[styles.cardTitle, { color: t.colors.text }]}>{title}</Text>
+            {!!desc && <Text style={[styles.cardDesc, { color: t.colors.muted }]}>{desc}</Text>}
           </View>
           {showQuran && <BookIcon style={styles.cardIcon} />}
         </View>
@@ -93,13 +142,14 @@ export function SecondaryText({ children, style }) {
 
 // Ubin menu dengan ikon berwarna untuk grid fitur
 export function FeatureTile({ title, icon, iconColor, onPress, style }) {
+  const t = useTheme();
   return (
-    <TouchableOpacity style={[styles.tile, style]} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.tile, { backgroundColor: t.colors.surface, borderColor: t.colors.surfaceBorder }, style]} onPress={onPress} activeOpacity={0.85}>
       <View style={styles.tileInner}>
         <View style={[styles.tileIconWrap, { backgroundColor: (iconColor || theme.colors.primary) + '1f' }]}>
           <Ionicons name={icon} size={22} color={iconColor || theme.colors.primary} />
         </View>
-        <Text style={styles.tileTitle}>{title}</Text>
+        <Text style={[styles.tileTitle, { color: t.colors.text }]}>{title}</Text>
       </View>
     </TouchableOpacity>
   );

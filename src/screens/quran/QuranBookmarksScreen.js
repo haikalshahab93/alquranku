@@ -2,11 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { getPalette } from '../../ui';
+import { useAppearance } from '../../api/appearance';
 
 const BOOKMARK_KEY = 'quran_bookmarks';
 const CURRENT_COLLECTION_KEY = 'quran_bookmarks_active_collection';
 
 export default function QuranBookmarksScreen({ navigation }) {
+  const { darkMode } = useAppearance();
+  const pal = getPalette(darkMode);
   const [collections, setCollections] = useState({});
   const [activeCollection, setActiveCollection] = useState('My Favorite');
 
@@ -98,11 +102,11 @@ export default function QuranBookmarksScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <View style={styles.itemRow}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.itemTitle}>{item.namaSurah} • Ayat {item.ayahNumber}</Text>
-        <Text style={styles.itemMeta}>Surah {item.nomorSurah}</Text>
+        <Text style={[styles.itemTitle, { color: pal.colors.text }]}>{item.namaSurah} • Ayat {item.ayahNumber}</Text>
+        <Text style={[styles.itemMeta, { color: pal.colors.muted }]}>Surah {item.nomorSurah}</Text>
       </View>
       <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomorSurah, targetAyah: item.ayahNumber })}>
-        <Ionicons name="arrow-forward-circle-outline" size={22} color="#6B21A8" />
+        <Ionicons name="arrow-forward-circle-outline" size={22} color={pal.colors.primary} />
       </TouchableOpacity>
       <TouchableOpacity style={styles.iconBtn} onPress={() => removeItem(item)}>
         <Ionicons name="trash-outline" size={20} color="#EF4444" />
@@ -111,29 +115,36 @@ export default function QuranBookmarksScreen({ navigation }) {
   );
 
   const renderCollection = ({ item: name }) => (
-    <TouchableOpacity style={[styles.collectionRow, activeCollection === name && styles.collectionActive]} onPress={() => switchCollection(name)}>
+    <TouchableOpacity
+      style={[
+        styles.collectionRow,
+        activeCollection === name && { backgroundColor: pal.colors.primaryLight + '22' },
+        { borderBottomColor: pal.colors.surfaceBorder },
+      ]}
+      onPress={() => switchCollection(name)}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Ionicons name="folder-outline" size={18} color="#6B21A8" style={{ marginRight: 8 }} />
-        <Text style={styles.collectionTitle}>{name}</Text>
-        <Text style={styles.collectionCount}> {Array.isArray(collections[name]) ? `${collections[name].length} items` : '0 items'}</Text>
+        <Ionicons name="folder-outline" size={18} color={pal.colors.primary} style={{ marginRight: 8 }} />
+        <Text style={[styles.collectionTitle, { color: pal.colors.text }]}>{name}</Text>
+        <Text style={[styles.collectionCount, { color: pal.colors.muted }]}> {Array.isArray(collections[name]) ? `${collections[name].length} items` : '0 items'}</Text>
       </View>
       <TouchableOpacity style={styles.iconBtn} onPress={() => removeCollection(name)}>
-        <Ionicons name="ellipsis-vertical" size={16} color="#6B21A8" />
+        <Ionicons name="ellipsis-vertical" size={16} color={pal.colors.primary} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
       <View style={styles.headerRow}>
-        <Text style={styles.header}>Bookmarks</Text>
+        <Text style={[styles.header, { color: pal.colors.primary }]}>Bookmarks</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={addCollection}>
-            <Ionicons name="add-circle-outline" size={22} color="#6B21A8" />
-            <Text style={styles.headerIconText}>Add new collection</Text>
+          <TouchableOpacity style={[styles.headerIconBtn, { backgroundColor: pal.colors.primaryLight + '22', borderColor: pal.colors.surfaceBorder }]} onPress={addCollection}>
+            <Ionicons name="add-circle-outline" size={22} color={pal.colors.primary} />
+            <Text style={[styles.headerIconText, { color: pal.colors.primary }]}>Add new collection</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.clearBtn} onPress={clearAll}>
-            <Text style={styles.clearText}>Clear all</Text>
+          <TouchableOpacity style={[styles.clearBtn, { backgroundColor: pal.colors.primaryLight + '22' }]} onPress={clearAll}>
+            <Text style={[styles.clearText, { color: pal.colors.primary }]}>Clear all</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -142,19 +153,19 @@ export default function QuranBookmarksScreen({ navigation }) {
         data={Object.keys(collections)}
         keyExtractor={(name) => name}
         renderItem={renderCollection}
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
+        ItemSeparatorComponent={() => <View style={[styles.sep, { backgroundColor: pal.colors.surfaceBorder }]} />}
         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 4 }}
-        ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#6B7280', padding: 12 }}>Belum ada koleksi</Text>}
+        ListEmptyComponent={<Text style={{ textAlign: 'center', color: pal.colors.muted, padding: 12 }}>Belum ada koleksi</Text>}
       />
 
-      <Text style={styles.groupHeader}>{activeCollection}</Text>
+      <Text style={[styles.groupHeader, { color: pal.colors.primary }]}>{activeCollection}</Text>
       <FlatList
         data={sortedItems}
         keyExtractor={(item, idx) => `${item.nomorSurah}-${item.ayahNumber}-${idx}`}
         renderItem={renderItem}
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
+        ItemSeparatorComponent={() => <View style={[styles.sep, { backgroundColor: pal.colors.surfaceBorder }]} />}
         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12 }}
-        ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#6B7280' }}>Belum ada bookmark</Text>}
+        ListEmptyComponent={<Text style={{ textAlign: 'center', color: pal.colors.muted }}>Belum ada bookmark</Text>}
       />
     </View>
   );
@@ -164,14 +175,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 16 },
   header: { fontSize: 20, fontWeight: '700', color: '#6B21A8' },
-  headerIconBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, backgroundColor: '#F3E8FF', borderRadius: 8, marginRight: 8 },
+  headerIconBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, backgroundColor: '#F3E8FF', borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: 'transparent' },
   headerIconText: { marginLeft: 6, color: '#6B21A8', fontWeight: '600' },
   clearBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#F3E8FF', borderRadius: 8 },
   clearText: { color: '#6B21A8', fontWeight: '600' },
   sep: { height: 1, backgroundColor: '#E5E7EB' },
   groupHeader: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 6, fontSize: 14, fontWeight: '700', color: '#6B21A8' },
   collectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
-  collectionActive: { backgroundColor: '#faf5ff' },
   collectionTitle: { fontSize: 15, fontWeight: '600', color: '#111827' },
   collectionCount: { fontSize: 12, color: '#6B7280' },
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
