@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { SafeAreaView, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { SafeAreaView, View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { ListSearch, ListResultInfo, ListPager, usePagedList } from '../../ui/ListScaffold';
 
 const ULAMA = require('../../data/ulama.json');
 const PAGE_SIZE = 30; // set dari 100 ke 30 sesuai permintaan
@@ -11,7 +12,6 @@ export default function UlamaListScreen({ navigation }) {
   const { darkMode } = useAppearance();
   const pal = getPalette(darkMode);
   const [query, setQuery] = useState('');
-  const [pageIndex, setPageIndex] = useState(0);
   const { width } = useWindowDimensions();
   const numCols = width >= 1200 ? 3 : width >= 768 ? 2 : 1;
   const isGrid = numCols > 1;
@@ -31,22 +31,8 @@ export default function UlamaListScreen({ navigation }) {
     });
   }, [query]);
 
-  useEffect(() => {
-    setPageIndex(0);
-  }, [query]);
-
-  const data = useMemo(() => {
-    const start = pageIndex * PAGE_SIZE;
-    const end = Math.min((pageIndex + 1) * PAGE_SIZE, filtered.length);
-    return filtered.slice(start, end);
-  }, [filtered, pageIndex]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const canPrev = pageIndex > 0;
-  const canNext = pageIndex < (totalPages - 1);
-  const goPrev = () => { if (canPrev) setPageIndex((p) => Math.max(0, p - 1)); };
-  const goNext = () => { if (canNext) setPageIndex((p) => Math.min(totalPages - 1, p + 1)); };
-
+  // Paging via kerangka: reset otomatis saat query berubah
+  const { page: pageIndex, totalPages, pageData: data, goPrev, goNext, canPrev, canNext } = usePagedList(filtered, PAGE_SIZE, query);
   const renderItem = ({ item }) => {
     const hijriSpan = [item.birth_hijri, item.death_hijri].filter(Boolean).join(' — ');
     const gregSpan = [item.birth_gregorian, item.death_gregorian].filter(Boolean).join(' — ');
@@ -67,56 +53,41 @@ export default function UlamaListScreen({ navigation }) {
     );
   };
 
-  const ListFooter = () => {
-    const start = pageIndex * PAGE_SIZE + 1;
-    const end = Math.min((pageIndex + 1) * PAGE_SIZE, filtered.length);
-    const showPagination = filtered.length > PAGE_SIZE;
-    return (
-      <View style={styles.footerBox}>
-        {showPagination && (
-          <View style={styles.paginationRow}>
-            <TouchableOpacity style={[styles.pageBtn, !canPrev && styles.pageBtnDisabled]} onPress={goPrev} disabled={!canPrev}>
-              <Text style={[styles.pageBtnText, !canPrev && styles.pageBtnTextDisabled]}>Sebelumnya</Text>
-            </TouchableOpacity>
-            <Text style={styles.pageInfo}>{`Halaman ${pageIndex + 1} dari ${totalPages}`}</Text>
-            <TouchableOpacity style={[styles.pageBtn, !canNext && styles.pageBtnDisabled]} onPress={goNext} disabled={!canNext}>
-              <Text style={[styles.pageBtnText, !canNext && styles.pageBtnTextDisabled]}>Sesudahnya</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        <Text style={styles.footerInfo}>{`Menampilkan ${start}-${end} dari ${filtered.length}`}</Text>
-      </View>
-    );
-  };
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <LinearGradient colors={pal.gradients.brandSoft} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
         <Text style={[styles.title, { color: pal.colors.text }]}>Ulama Islam</Text>
         <Text style={[styles.subtitle, { color: pal.colors.muted }]}>Kumpulan data ulama dan karya-karyanya</Text>
-        <TextInput
+        <ListSearch
           value={query}
           onChangeText={setQuery}
           placeholder="Cari ulama (nama/asal/karya)"
-          placeholderTextColor={pal.colors.muted}
-          style={[styles.search, { backgroundColor: pal.colors.surface, borderColor: pal.colors.primary, color: pal.colors.text }, isGrid && styles.searchWide]}
+          style={[styles.search, { margin: 0, marginBottom: 8, borderColor: pal.colors.primary }, isGrid && styles.searchWide]}
         />
-        <Text style={[styles.resultInfo, { color: pal.colors.muted }]}>{`Hasil: ${filtered.length} dari ${ULAMA.length}`}</Text>
+        <ListResultInfo style={{ paddingHorizontal: 0 }}>{`Hasil: ${filtered.length} dari ${ULAMA.length}`}</ListResultInfo>
       </LinearGradient>
-      <FlatList
-        key={numCols}
-        data={data}
-        keyExtractor={(item, idx) => String(item.id ?? idx)}
-        contentContainerStyle={[styles.list, { backgroundColor: pal.colors.bg }, isGrid && styles.listGrid]}
-        renderItem={renderItem}
-        ListEmptyComponent={<View style={styles.center}><Text style={{ color: pal.colors.muted }}>Tidak ada hasil.</Text></View>}
-        initialNumToRender={20}
-        windowSize={10}
-        removeClippedSubviews={true}
-        ListFooterComponent={ListFooter}
-        numColumns={numCols}
-        columnWrapperStyle={isGrid ? styles.columnWrapper : undefined}
-      />
+      <View style={{ flex: 1 }}>
+        <FlatList
+          key={numCols}
+          data={data}
+          keyExtractor={(item, idx) => String(item.id ?? idx)}
+          contentContainerStyle={[styles.list, isGrid && styles.listGrid]}
+          renderItem={renderItem}
+          ListEmptyComponent={<View style={styles.center}><Text style={{ color: pal.colors.muted }}>Tidak ada hasil.</Text></View>}
+          initialNumToRender={20}
+          windowSize={10}
+          removeClippedSubviews={true}
+          numColumns={numCols}
+          columnWrapperStyle={isGrid ? styles.columnWrapper : undefined}
+        />
+        {filtered.length > PAGE_SIZE && (
+          <ListPager
+            onPrev={goPrev} onNext={goNext}
+            canPrev={canPrev} canNext={canNext}
+            label={`Halaman ${pageIndex + 1} dari ${totalPages}`}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -140,12 +111,6 @@ const styles = StyleSheet.create({
   itemTitleAr: { fontSize: 14, color: theme.colors.muted, marginTop: 2 },
   itemMeta: { color: theme.colors.muted, marginTop: 2 },
   center: { alignItems: 'center', padding: 16 },
-  footerBox: { alignItems: 'center', paddingVertical: 12 },
-  paginationRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  pageBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(139,92,246,0.08)', borderWidth: 1, borderColor: theme.colors.primaryLight },
-  pageBtnDisabled: { backgroundColor: 'rgba(148,163,184,0.08)', borderColor: 'rgba(148,163,184,0.3)' },
-  pageBtnText: { color: theme.colors.primaryDark, fontWeight: '600' },
-  pageBtnTextDisabled: { color: '#94a3b8' },
-  pageInfo: { color: theme.colors.muted },
-  footerInfo: { color: theme.colors.muted, marginTop: 8 },
+
+
 });

@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import { getHaditsPerawiList } from '../../api/hadits';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { ListScreen, ListTitleRow, ListSearch, ListResultInfo, ListStatus, ListPager, usePagedList } from '../../ui/ListScaffold';
+
+// Layar daftar perawi - memakai kerangka list standar (ListScaffold).
+// Konten spesifik layar ini HANYA renderItem.
 
 export default function HaditsPerawiListScreen({ navigation }) {
   const { darkMode } = useAppearance();
@@ -10,14 +14,14 @@ export default function HaditsPerawiListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
-  const [page, setPage] = useState(0);
-  // Hitung ukuran halaman dinamis berdasarkan tinggi layar (khusus mobile)
+  const [query, setQuery] = useState('');
+
+  // Ukuran halaman dinamis (mobile) / tetap 30 (web) - sama pola dengan layar list lain
   const { height: windowHeight } = useWindowDimensions();
-  const isMobile = Platform.OS === 'android' || Platform.OS === 'ios';
-  const headerHeight = 80;  // estimasi tinggi header
-  const footerHeight = 72;  // estimasi tinggi pager
-  const itemHeightEstimate = 72; // estimasi tinggi kartu item perawi
-  const pageSize = isMobile ? Math.max(8, Math.floor((windowHeight - headerHeight - footerHeight) / itemHeightEstimate)) : 30;
+  const itemHeightEstimate = 72;
+  const pageSize = (Platform.OS === 'android' || Platform.OS === 'ios')
+    ? Math.max(8, Math.floor((windowHeight - 152) / itemHeightEstimate))
+    : 30;
 
   useEffect(() => {
     (async () => {
@@ -36,55 +40,60 @@ export default function HaditsPerawiListScreen({ navigation }) {
     })();
   }, []);
 
-  // Paging
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const safePage = Math.min(page, totalPages - 1);
-  const start = safePage * pageSize;
-  const end = start + pageSize;
-  const paged = items.slice(start, end);
-  const goPrev = () => setPage((p) => Math.max(0, p - 1));
-  const goNext = () => setPage((p) => Math.min(totalPages - 1, p + 1));
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((it) => {
+      const hay = `${it?.nama ?? it?.name ?? ''} ${it?.slug ?? it?.id ?? ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [items, query]);
+
+  // Paging via kerangka (reset otomatis saat pencarian berubah)
+  const { page, totalPages, pageData: paged, goPrev, goNext, canPrev, canNext } = usePagedList(filtered, pageSize, query);
 
   const renderItem = ({ item }) => {
     const name = item?.nama ?? item?.name ?? '';
     const slug = item?.slug ?? item?.id ?? '';
     return (
-      <TouchableOpacity style={[styles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => navigation.navigate('HaditsPerawiEntry', { slug, name })}>
-        <Text style={[styles.itemTitle, { color: pal.colors.text }]}>{name}</Text>
-        <Text style={[styles.itemSubtitle, { color: pal.colors.muted }]}>{slug}</Text>
+      <TouchableOpacity
+        style={[localStyles.item, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}
+        onPress={() => navigation.navigate('HaditsPerawiEntry', { slug, name })}
+      >
+        <Text style={[localStyles.itemTitle, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
+        <Text style={[localStyles.itemSubtitle, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{slug}</Text>
       </TouchableOpacity>
     );
   };
 
-  if (loading) return <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><ActivityIndicator size="large" color={pal.colors.primary} /></View>;
-  if (error) return <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><Text style={{ color: pal.colors.text }}>{error}</Text></View>;
-
   return (
-    <View style={{ flex: 1, backgroundColor: pal.colors.bg }}>
-      <FlatList data={paged} keyExtractor={(item, idx) => String(item?.slug ?? idx)} renderItem={renderItem} contentContainerStyle={styles.list} />
-      <View style={[styles.pager, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-        <TouchableOpacity onPress={goPrev} disabled={safePage <= 0} style={[styles.pagerBtn, { backgroundColor: pal.colors.bg, borderColor: pal.colors.surfaceBorder }, safePage <= 0 && styles.pagerBtnDisabled]}>
-          <Text style={[styles.pagerBtnText, { color: safePage <= 0 ? pal.colors.muted : pal.colors.primary }]}>Sebelumnya</Text>
-        </TouchableOpacity>
-        <Text style={[styles.pagerText, { color: pal.colors.text }]}>Halaman {safePage + 1} / {totalPages}</Text>
-        <TouchableOpacity onPress={goNext} disabled={safePage >= totalPages - 1} style={[styles.pagerBtn, { backgroundColor: pal.colors.bg, borderColor: pal.colors.surfaceBorder }, safePage >= totalPages - 1 && styles.pagerBtnDisabled]}>
-          <Text style={[styles.pagerBtnText, { color: safePage >= totalPages - 1 ? pal.colors.muted : pal.colors.primary }]}>Berikutnya</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <ListScreen>
+      <ListTitleRow title="Hadits 9 Perawi" />
+      <ListSearch value={query} onChangeText={setQuery} placeholder="Cari perawi (nama/slug)" />
+      <ListResultInfo>Total Perawi: {filtered.length}</ListResultInfo>
+      <ListStatus loading={loading} error={error} empty={filtered.length === 0} emptyText="Perawi tidak ditemukan.">
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={paged}
+            keyExtractor={(item, idx) => String(item?.slug ?? idx)}
+            renderItem={renderItem}
+            contentContainerStyle={localStyles.list}
+          />
+          <ListPager
+            onPrev={goPrev} onNext={goNext}
+            canPrev={canPrev} canNext={canNext}
+            label={`Halaman ${page + 1} / ${totalPages}`}
+          />
+        </View>
+      </ListStatus>
+    </ListScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+// Gaya spesifik konten (sisa kerangka datang dari ListScaffold)
+const localStyles = StyleSheet.create({
   list: { padding: 16 },
   item: { padding: 12, borderWidth: 1, borderRadius: 10, marginBottom: 10 },
   itemTitle: { fontSize: 16, fontWeight: '700' },
   itemSubtitle: { marginTop: 4 },
-  // Pager styles
-  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1 },
-  pagerBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1 },
-  pagerBtnDisabled: { opacity: 0.6 },
-  pagerBtnText: { fontWeight: '700' },
-  pagerText: { fontWeight: '700' },
 });
