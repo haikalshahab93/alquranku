@@ -1,9 +1,10 @@
 import React, {useEffect, useState, useRef} from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Platform, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { getAladhanHarianCoords, getAladhanHarianCity } from '../../api/aladhan';
-import { schedulePrayerReminders } from '../../api/notifications';
-import { useAudioPlayer } from 'expo-audio';
+import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../../api/notifications';
+import { createAudioPlayer } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { emitSettingsChanged } from '../../api/settingsEvents';
 import { getDarkMode, setDarkMode, getTextScale, setTextScale, MIN_TEXT_SCALE, MAX_TEXT_SCALE } from '../../api/appearance';
@@ -54,7 +55,7 @@ export default function SettingsScreen() {
   // Notifikasi pengingat waktu sholat
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [notifOffset, setNotifOffset] = useState(0); // menit sebelum waktu sholat
-  const [notifSound, setNotifSound] = useState('default'); // 'default' | 'adhan'
+  const [notifSound, setNotifSound] = useState('default'); // 'default' | 'adhan' | 'getar' | 'silent'
   // === Pilihan qari/reciter untuk Mode Karaoke (dipindah dari layar detail surah) ===
   const [karaokeReciters, setKaraokeReciters] = useState([]);
   const [reciterId, setReciterId] = useState(7);
@@ -72,15 +73,42 @@ export default function SettingsScreen() {
   const [audioByReciter, setAudioByReciter] = useState({});
   const audioCancelRef = useRef(false); // batal unduh batch
 
-  // Pemain audio untuk preview suara notifikasi (dirilis otomatis saat unmount)
+  // Pemain pratinjau suara dikelola manual (createAudioPlayer + release) supaya
+  // tidak ada pemain lama yang menyisakan bunyi dobel / tak bisa dihentikan saat
+  // pengguna toggle cepat atau berganti chip Bunyi Biasa <-> Suara Adzan.
   const previewSource = notifSound === 'adhan' ? ADHAN_PREVIEW : DEFAULT_PREVIEW;
-  const previewPlayer = useAudioPlayer(previewSource);
-  const playPreview = () => {
-    try {
-      previewPlayer.seekTo(0);
-      previewPlayer.play();
-    } catch (e) {}
+  const previewPlayerRef = useRef(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+
+  const stopPreview = () => {
+    const p = previewPlayerRef.current;
+    if (p) {
+      try { p.pause(); } catch {}
+      try { p.removeListener?.('playToEnd', stopPreview); } catch {}
+      try { p.release?.(); } catch {}
+    }
+    previewPlayerRef.current = null;
+    setPreviewPlaying(false);
   };
+
+  // Toggle pratinjau: klik untuk MEMUTAR, klik lagi untuk MENGHENTIKAN.
+  // Selalu reset penuh sebelum memutar agar tidak ada bunyi dobel.
+  const togglePreview = () => {
+    try {
+      if (previewPlaying || previewPlayerRef.current) { stopPreview(); return; }
+      stopPreview();
+      const player = createAudioPlayer(previewSource);
+      previewPlayerRef.current = player;
+      try { player.addListener('playToEnd', stopPreview); } catch {}
+      player.play();
+      setPreviewPlaying(true);
+    } catch (e) { stopPreview(); }
+  };
+
+  // Chip suara berganti: pastikan pratinjau lama berhenti & pemain dilepas
+  useEffect(() => { stopPreview(); }, [notifSound]);
+  // Bersihkan saat layar ditutup
+  useEffect(() => { return () => { stopPreview(); }; }, []);
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(null);
@@ -256,8 +284,10 @@ export default function SettingsScreen() {
     try {
       await AsyncStorage.setItem('notif_prayer_enabled', enabled ? '1' : '0');
       await AsyncStorage.setItem('notif_prayer_offset', String(offset));
-      await AsyncStorage.setItem('notif_prayer_sound', sound === 'adhan' ? 'adhan' : 'default');
+      await AsyncStorage.setItem('notif_prayer_sound', ['adhan', 'getar', 'silent'].includes(sound) ? sound : 'default');
     } catch (e) {}
+    // Beri tahu semua layar (termasuk layar Jadwal Sholat) agar ikut berubah live
+    emitSettingsChanged();
     if (!enabled) {
       try { await schedulePrayerReminders({ enabled: false }); } catch (e) {}
       return;
@@ -275,9 +305,8 @@ export default function SettingsScreen() {
         calendarMethod: toNum(calendarMethod),
         shafaq: (shafaq || '').trim() || undefined,
       };
-      let jadwal = null;
-      // Coba koordinat terakhir yang diketahui, fallback ke lokasi via IP
-      let lat = null, lon = null;
+      // Koordinat terakhir yang diketahui; jika belum ada, tarik locasi via IP
+      let lat = null, lon = null, city = null, country = null;
       try {
         const la = await AsyncStorage.getItem('last_lat');
         const lo = await AsyncStorage.getItem('last_lon');
@@ -294,30 +323,58 @@ export default function SettingsScreen() {
           });
         } catch (e) {}
       }
-      if (lat != null && lon != null) {
-        const res = await getAladhanHarianCoords(lat, lon, iso, options);
-        jadwal = res?.data?.jadwal || null;
-      } else {
+      if (lat == null) {
         try {
           const resp = await fetch('https://ipapi.co/json');
           const json = await resp.json();
-          const city = json?.city || json?.region || 'Jakarta';
-          const country = json?.country_name || 'Indonesia';
-          const res = await getAladhanHarianCity(city, country, iso, options);
-          jadwal = res?.data?.jadwal || null;
+          city = json?.city || json?.region || 'Jakarta';
+          country = json?.country_name || 'Indonesia';
         } catch (e) {}
       }
-      if (!jadwal) {
-        if (Platform.OS !== 'web') alert('Tidak bisa mengambil jadwal sholat. Cek koneksi internet lalu coba lagi.');
-        return;
-      }
-      const result = await schedulePrayerReminders({ jadwal, offsetMinutes: offset, enabled: true, soundChoice: sound === 'adhan' ? 'adhan' : 'default' });
+      // Di Android memakai jadwal bulanan multi-hari eksak; iOS pakai repeat harian.
+      // Bila offline, refresh akan memakai snapshot jadwal terakhir yang tersimpan.
+      const result = await refreshPrayerReminderSchedule({
+        lat, lon, city, country,
+        options,
+        offsetMinutes: offset,
+        enabled: true,
+        soundChoice: (['adhan', 'getar', 'silent'].includes(sound) ? sound : 'default'),
+      });
       if (Platform.OS !== 'web') {
         if (result?.reason === 'permission') alert('Izin notifikasi belum diberikan. Aktifkan izin notifikasi untuk aplikasi di pengaturan perangkat.');
-        else alert(`Pengingat waktu sholat dijadwalkan (${result?.scheduled ?? 0} waktu).`);
+        else if (result?.reason === 'no-data') alert('Tidak bisa mengambil jadwal sholat. Cek koneksi internet lalu coba lagi.');
+        else alert(`Pengingat waktu sholat dijadwalkan (${result?.scheduled ?? 0} notifikasi).`);
       }
     } catch (e) {
       if (Platform.OS !== 'web') alert('Gagal menjadwalkan pengingat. Coba lagi.');
+    }
+  };
+
+  // Android: buka pengaturan "peng optimalan baterai" supaya aplikasi boleh
+  // dikecualikan — notifikasi/adzan jadi tepat waktu (tidak tertunda doze).
+  const openBatteryOptimization = async () => {
+    try {
+      await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
+    } catch (e) {
+      try { await Linking.openSettings(); } catch (e2) {}
+    }
+  };
+
+  // Android 12+: buka halaman "Alarm & pengingat" agar aplikasi diizinkan
+  // menjadwalkan ALARM TEPAT — tanpa ini notifikasi bisa muncul molor meski
+  // optimasi baterai sudah dikecualikan.
+  const openExactAlarmSettings = async () => {
+    try {
+      const pkg = Constants?.expoConfig?.android?.package || Constants?.manifest?.android?.package;
+      if (pkg) {
+        await Linking.sendIntent('android.settings.REQUEST_SCHEDULE_EXACT_ALARM', [
+          { key: 'android.intent.extra.PACKAGE_NAME', value: pkg },
+        ]);
+      } else {
+        await Linking.sendIntent('android.settings.REQUEST_SCHEDULE_EXACT_ALARM');
+      }
+    } catch (e) {
+      try { await Linking.openSettings(); } catch (e2) {}
     }
   };
 
@@ -599,21 +656,53 @@ export default function SettingsScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
               <Text style={{ fontWeight: 'bold', marginBottom: 0, color: pal.colors.text }}>Suara notifikasi</Text>
               <TouchableOpacity
-                onPress={playPreview}
+                onPress={togglePreview}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 10, backgroundColor: pal.colors.primaryLight + '2e', borderColor: pal.colors.surfaceBorder, borderWidth: 1, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="volume-high-outline" size={12} color={pal.colors.primary} />
-                <Text style={{ color: pal.colors.primary, fontWeight: '700', fontSize: 11 }}>Dengarkan contoh</Text>
+                <Ionicons name={previewPlaying ? 'stop-circle-outline' : 'volume-high-outline'} size={12} color={pal.colors.primary} />
+                <Text style={{ color: pal.colors.primary, fontWeight: '700', fontSize: 11 }}>{previewPlaying ? 'Stop Suara' : 'Hidupkan Suara'}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
               <Chip label="Bunyi biasa" active={notifSound === 'default'} onPress={() => { setNotifSound('default'); applyNotificationSettings(true, notifOffset, 'default'); }} />
               <Chip label="Suara adzan" active={notifSound === 'adhan'} onPress={() => { setNotifSound('adhan'); applyNotificationSettings(true, notifOffset, 'adhan'); }} />
+              <Chip label="Getar" active={notifSound === 'getar'} onPress={() => { setNotifSound('getar'); applyNotificationSettings(true, notifOffset, 'getar'); }} />
+              <Chip label="Sunyi" active={notifSound === 'silent'} onPress={() => { setNotifSound('silent'); applyNotificationSettings(true, notifOffset, 'silent'); }} />
             </View>
+            <Text style={{ color: pal.colors.muted, fontSize: 11, marginTop: 6 }}>
+              Bunyi biasa = suara sistem • Getar = hanya bergetar • Sunyi = tanpa suara & tanpa getar. Di layar Jadwal Sholat, setiap waktu sholat bisa disetel sendiri lewat ikon suaranya.
+            </Text>
           </View>
         )}
       </View>
+
+      {/* Android: kecualikan aplikasi dari hemat baterai + izinkan alarm tepat
+          agar notifikasi/adzan muncul tepat jam walau aplikasi ditutup */}
+      {Platform.OS === 'android' && (
+        <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginBottom: 16 }}>
+          <Text style={{ fontWeight: 'bold', color: pal.colors.primary }}>Agar adzan tepat waktu</Text>
+          <Text style={{ color: pal.colors.muted, fontSize: 12, marginTop: 2, marginBottom: 10 }}>
+            Notifikasi bisa terlambat kalau "hemat baterai" aktif atau izin "Alarm & pengingat" belum diberikan. Izinkan keduanya:
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              onPress={openBatteryOptimization}
+              style={{ backgroundColor: '#7c3aed', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, flex: 1, alignItems: 'center' }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Hemat Baterai</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={openExactAlarmSettings}
+              style={{ borderColor: '#7c3aed', borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, flex: 1, alignItems: 'center' }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#7c3aed', fontWeight: '700' }}>Alarm Tepat</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* ============ QARI UNTUK MODE KARAOKE ============ */}
       <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 2, color: pal.colors.text}}>Qari Al-Qur'an</Text>

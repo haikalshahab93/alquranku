@@ -1,12 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Platform, Modal } from 'react-native';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAladhanHarianCity, getAladhanHarianCoords } from '../../api/aladhan';
+import { getAladhanHarianCity, getAladhanHarianCoords, readLastSholatSnapshot } from '../../api/aladhan';
+import { refreshPrayerReminderSchedule } from '../../api/notifications';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { onSettingsChanged } from '../../api/settingsEvents';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Suara adzan custom (dibundel via plugin) — dipakai popup "masuk waktu"
+const ADHAN_SOURCE = require('../../../assets/sounds/adhan.mp3');
 
 const keys = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'sunset', 'isya', 'midnight'];
 const keysActive = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'sunset', 'isya'];
@@ -68,12 +74,48 @@ const getWebPosition = () => new Promise((resolve) => {
 export default function SholatJadwalScreen() {
   const { darkMode } = useAppearance();
   const pal = getPalette(darkMode);
+
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
   const [data, setData] = useState(null);
   const [now, setNow] = useState(new Date());
   const [lat, setLat] = useState(null);
   const [lon, setLon] = useState(null);
+  // Popup "masuk waktu sholat" + pemutar adzan
+  const [popup, setPopup] = useState(null); // { key, label, display }
+  const [notifSound, setNotifSound] = useState('default');
+  const [notifEnabled, setNotifEnabled] = useState(true);
+
+  // Suara per-waktu sholat: { subuh: 'adhan'|'silent'|'off' } (tanpa kunci =
+  // ikut pilihan global di Pengaturan). Disetel lewat ikon 🔊 di tiap baris.
+  const [perKeySounds, setPerKeySounds] = useState({});
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('notif_prayer_perkey');
+        const obj = raw ? JSON.parse(raw) : null;
+        if (obj && typeof obj === 'object') setPerKeySounds(obj);
+      } catch {}
+    })();
+  }, []);
+
+  // Nilai suara efektif untuk satu waktu sholat: override per-waktu, atau global
+  const resolveKeySound = (key) => {
+    const v = perKeySounds?.[key];
+    if (v === 'adhan' || v === 'getar' || v === 'silent' || v === 'off') return v;
+    return ['adhan', 'getar', 'silent'].includes(notifSound) ? notifSound : 'default';
+  };
+
+  // Siklus: (ikut global) → adzan → bunyi biasa → getar → sunyi → mati → kembali
+  const CYCLE = [null, 'adhan', 'default', 'getar', 'silent', 'off'];
+  const cycleKeySound = (key) => {
+    const cur = perKeySounds?.[key] || null;
+    const next = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
+    const obj = { ...(perKeySounds || {}) };
+    if (next == null) delete obj[key]; else obj[key] = next;
+    setPerKeySounds(obj);
+    try { AsyncStorage.setItem('notif_prayer_perkey', JSON.stringify(obj)); } catch {}
+  };
 
   // Settings
   const [method, setMethod] = useState(3);
@@ -140,6 +182,39 @@ export default function SholatJadwalScreen() {
 
   // Tick time every second for countdown
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+
+  // ---- Pop-up "masuk waktu" + adzan saat jam sholat ----
+  const adhanPlayer = useAudioPlayer(ADHAN_SOURCE);
+  const firedRef = useRef({}); // { [key]: dateKey } agar tidak dobel dalam satu hari
+
+  // Instant paint: tampilkan jadwal terakhir dari snapshot tanpa menunggu network
+  useEffect(() => {
+    (async () => {
+      try {
+        if (data) return; // sudah ada data, jangan menimpa
+        const snap = await readLastSholatSnapshot();
+        if (snap?.jadwal) setData({ ...snap, __fromCache: true });
+      } catch {}
+    })();
+  }, []);
+
+  // Muat pengaturan pengingat + suara, dan ikuti perubahan live dari Pengaturan
+  // (saklar "Aktifkan pengingat" & suara adzan tersinkron dengan layar ini)
+  useEffect(() => {
+    const reloadNotify = async () => {
+      try {
+        const [eRaw, sRaw] = await Promise.all([
+          AsyncStorage.getItem('notif_prayer_enabled'),
+          AsyncStorage.getItem('notif_prayer_sound'),
+        ]);
+        setNotifEnabled(eRaw !== '0');
+        setNotifSound(sRaw === 'adhan' ? 'adhan' : 'default');
+      } catch {}
+    };
+    reloadNotify();
+    const off = onSettingsChanged(reloadNotify);
+    return () => { off(); };
+  }, []);
 
   // Detect location (GPS or browser) and fill city/country
   useEffect(() => { (async () => { try {
@@ -264,6 +339,46 @@ export default function SholatJadwalScreen() {
     }
   } catch (e) { console.warn(e); } })(); }, [lat, lon, city, country, method, tzString, tune, school, midnightMode, latitudeAdjustmentMethod, calendarMethod, shafaq]);
 
+  // Pastikan notifikasi pengingat & izin sudah beres setiap layar ini dibuka
+  // — walau Home belum sempat menjadwalkan. refreshPrayerReminderSchedule
+  // memakai jadwal bulanan multi-hari eksak di Android (auto-refresh tiap
+  // app dibuka, sehingga waktunya tak bergeser) / repeat harian di iOS.
+  useEffect(() => {
+    (async () => {
+      try {
+        const jadwal = data?.jadwal;
+        if (!jadwal || !(jadwal.subuh || jadwal.dzuhur)) return;
+        const [enabledRaw, offsetRaw, soundRaw] = await Promise.all([
+          AsyncStorage.getItem('notif_prayer_enabled'),
+          AsyncStorage.getItem('notif_prayer_offset'),
+          AsyncStorage.getItem('notif_prayer_sound'),
+        ]);
+        const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : undefined; };
+        await refreshPrayerReminderSchedule({
+          lat,
+          lon,
+          city,
+          country,
+          options: {
+            method,
+            timezonestring: tzString || undefined,
+            tune: tune || undefined,
+            school: toNum(school),
+            midnightMode: toNum(midnightMode),
+            latitudeAdjustmentMethod: toNum(latitudeAdjustmentMethod),
+            calendarMethod: toNum(calendarMethod),
+            shafaq: (shafaq || '').trim() || undefined,
+          },
+          offsetMinutes: Number.isFinite(parseInt(offsetRaw, 10)) ? parseInt(offsetRaw, 10) : 0,
+          enabled: notifEnabled && enabledRaw !== '0',
+          soundChoice: (['adhan', 'getar', 'silent'].includes(soundRaw)
+            ? soundRaw
+            : (['adhan', 'getar', 'silent'].includes(notifSound) ? notifSound : 'default')),
+        });
+      } catch {}
+    })();
+  }, [data?.date, data?.jadwal?.dzuhur, notifEnabled, notifSound, perKeySounds, lat, lon, city, country]);
+
   const times = useMemo(() => {
     const base = new Date();
     const j = data?.jadwal || {};
@@ -297,6 +412,49 @@ export default function SholatJadwalScreen() {
     const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
     return `${h > 0 ? h + ' hours ' : ''}${m} min left`;
   }, [curNext, now]);
+
+  // Deteksi momen "tepat saat jam sholat": munculkan popup & mainkan adzan.
+  // De-dup: satu kali per waktu sholat per hari (firedRef), meski waktu
+  // berulang terdeteksi dalam jendela 15 detik (bekerja saat aplikasi terbuka).
+  useEffect(() => {
+    if (!timesActive.length) return;
+    if (!notifEnabled) return; // hormati saklar "Aktifkan pengingat" di Pengaturan
+    const dateKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    for (const t of timesActive) {
+      const firedKey = `popup:${dateKey}:${t.key}`;
+      const msSince = now - t.time;
+      if (msSince >= 0 && msSince < 15000 && firedRef.current[firedKey] !== true) {
+        firedRef.current[firedKey] = true;
+        setPopup({ key: t.key, label: t.label, display: t.display || displayFromApi(t.raw) });
+        // Suara mengikuti setelan per-waktu; 'silent'/'off' tidak memutar adzan
+        if (resolveKeySound(t.key) === 'adhan' && !adhanPlayer?.playing) {
+          try { adhanPlayer.seekTo(0); adhanPlayer.play(); } catch {}
+        }
+        break;
+      }
+    }
+  }, [now, timesActive, notifSound, notifEnabled, perKeySounds]);
+
+  // Hentikan adzan saat popup ditutup
+  const closePopup = () => {
+    try { adhanPlayer.pause(); } catch {}
+    setPopup(null);
+  };
+
+  // Toggle suara adzan di popup: klik untuk mematikan, klik lagi memutar.
+  // Memakai status live pemain (bukan state manual) agar selalu sinkron.
+  const adhanStatus = useAudioPlayerStatus(adhanPlayer);
+  const adhanPlaying = !!adhanStatus?.playing;
+  const togglePopupSound = () => {
+    try {
+      if (adhanPlaying) {
+        adhanPlayer.pause();
+      } else {
+        adhanPlayer.seekTo(0);
+        adhanPlayer.play();
+      }
+    } catch {}
+  };
 
   const readableDate = useMemo(() => {
     const s = data?.date;
@@ -382,20 +540,45 @@ export default function SholatJadwalScreen() {
         <View style={{ padding: 16, borderBottomWidth: 1, borderColor: pal.colors.surfaceBorder }}>
           <Text style={{ textAlign: 'center', fontWeight: '600', color: pal.colors.text }}>{readableDate}</Text>
           <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4 }}>{hijri}</Text>
+          {data?.__fromCache ? (
+            <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 11, fontStyle: 'italic' }}>
+              Menampilkan jadwal terakhir (perangkat offline / internet belum aktif)
+            </Text>
+          ) : null}
           {tzNow ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 12 }}>Zona waktu (sekarang): {tzNow}</Text> : null}
           {tzApi ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Zona waktu (API): {tzApi}</Text> : null}
           {coordText ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Coords: {coordText}</Text> : null}
           {methodName ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Method: {methodName}</Text> : null}
         </View>
+        {/* Petunjuk: ikon suara di tiap baris bisa diketuk untuk setelan khusus */}
+        <Text style={{ color: pal.colors.muted, fontSize: 11, fontStyle: 'italic', paddingHorizontal: 16, paddingTop: 10 }}>
+          Ketuk ikon suara untuk mengatur tiap waktu: ikut Pengaturan → adzan → bunyi biasa → getar → sunyi → matikan notifikasi.
+        </Text>
         {timesFull.map(t => {
-          const active = curNext.cur?.key === t.key; return (
+          const active = curNext.cur?.key === t.key;
+          const soundState = resolveKeySound(t.key);
+          const ICONS = { adhan: 'volume-high', default: 'volume-medium', getar: 'pulse-outline', silent: 'volume-mute', off: 'notifications-off-outline' };
+          const LABELS = { adhan: 'Suara adzan', default: 'Bunyi biasa (suara sistem)', getar: 'Getar saja', silent: 'Sunyi (tanpa suara & getar)', off: 'Notifikasi mati' };
+          return (
             <View key={t.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: pal.colors.surfaceBorder }}>
               <Text style={{ fontSize: 16, color: pal.colors.text }}>{t.label}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, borderWidth: active ? 2 : 1, borderColor: active ? pal.colors.primary : pal.colors.surfaceBorder }}>
                   <Text style={{ fontWeight: '600', color: active ? pal.colors.primary : pal.colors.text }}>{t.display || displayFromApi(t.raw)}</Text>
                 </View>
-                <Ionicons name={active ? 'volume-high' : 'volume-mute'} size={18} color={active ? pal.colors.primary : pal.colors.muted} style={{ marginLeft: 8 }} />
+                <TouchableOpacity
+                  onPress={() => cycleKeySound(t.key)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessible
+                  accessibilityLabel={`${t.label}: ${LABELS[soundState]}`}
+                  style={{ marginLeft: 8, padding: 4 }}
+                >
+                  <Ionicons
+                    name={ICONS[soundState]}
+                    size={20}
+                    color={soundState === 'adhan' ? pal.colors.primary : (soundState === 'off' || soundState === 'silent') ? pal.colors.muted : pal.colors.text}
+                  />
+                </TouchableOpacity>
               </View>
             </View>
           );
@@ -410,6 +593,33 @@ export default function SholatJadwalScreen() {
         </View>
       </View>
       <View style={{ height: 24 }} />
+
+      {/* Pop-up "masuk waktu sholat" — muncul otomatis tepat saat jam sholat */}
+      <Modal visible={!!popup} transparent animationType="fade" onRequestClose={closePopup}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: pal.colors.surface, borderRadius: 18, borderWidth: 1, borderColor: pal.colors.surfaceBorder, padding: 20, width: '100%', maxWidth: 420 }}>
+            <Text style={{ color: pal.colors.muted, fontWeight: '700', letterSpacing: 1, fontSize: 12 }}>SEKARANG</Text>
+            <Text style={{ color: pal.colors.primary, fontSize: 26, fontWeight: '800', marginTop: 6 }}>Masuk waktu {popup?.label || ''}</Text>
+            <Text style={{ color: pal.colors.text, marginTop: 4 }}>Pukul {popup?.display || ''} — mari salat tepat waktu.</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              {resolveKeySound(popup?.key) === 'adhan' && (
+                <TouchableOpacity
+                  onPress={togglePopupSound}
+                  style={{ borderColor: pal.colors.surfaceBorder, borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}
+                >
+                  <Text style={{ color: pal.colors.primary, fontWeight: '700' }}>{adhanPlaying ? 'Matikan Suara' : 'Putar Adzan'}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={closePopup}
+                style={{ backgroundColor: theme.colors.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Tutup</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

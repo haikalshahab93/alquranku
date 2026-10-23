@@ -196,10 +196,10 @@ Langkah lengkap agar rilis ke Play Store konsisten dan mudah di-maintain:
   ```json
   {
     "expo": {
-      "version": "1.0.1",
+      "version": "1.0.8",
       "android": {
         "package": "com.alfarisy.infoalquran",
-        "versionCode": 2
+        "versionCode":10
       }
     }
   }

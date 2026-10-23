@@ -3,7 +3,7 @@
     "name": "ALQURANKU",
     "slug": "alquranku",
     "scheme": "alquranku",
-    "version": "1.0.1",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,9 +20,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.alfarisy.infoalquran",
-      "versionCode": 9,
-        "permissions": []
+      "package": "com.alfarisy.infoalquran",      "versionCode": 10,
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

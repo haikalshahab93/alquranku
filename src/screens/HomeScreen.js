@@ -7,7 +7,8 @@ import { GradientCard, PurpleButton, OutlineLightButton, FeatureTile, theme, get
 import { useAppearance } from '../api/appearance';
 import { getSurahDetail } from '../api/quran';
 import { getAladhanHarianCity, getAladhanHarianCoords } from '../api/aladhan';
-import { schedulePrayerReminders } from '../api/notifications';
+import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../api/notifications';
+import { readLastSholatSnapshot } from '../api/aladhan';
 import { onSettingsChanged } from '../api/settingsEvents';
 import * as Location from 'expo-location';
 
@@ -295,7 +296,8 @@ export default function HomeScreen({ navigation }) {
     try {
       setLoadingPrayer(true);
       setErrorPrayer(null);
-      setPrayerData(null);
+      // JANGAN wipe prayerData di sini: bila internet mati, jadwal terakhir
+      // dari cache harus tetap tampil (API layer otomatis mengembalikan cache).
       const cityParam = (_city ?? city).trim();
       const countryParam = (_country ?? country).trim();
       let res;
@@ -320,16 +322,22 @@ export default function HomeScreen({ navigation }) {
       const jadwal = payload?.data?.jadwal || {};
       const iso = payload?.data?.date || dateString.trim();
       setStatusInfo(computeStatusFromJadwal(iso, jadwal));
-      // Sinkronkan notifikasi pengingat waktu sholat dengan jadwal terbaru
+      // Sinkronkan notifikasi pengingat waktu sholat dengan jadwal terbaru.
+      // Di Android memakai jadwal bulanan multi-hari eksak (auto-refresh tiap
+      // app dibuka); di iOS pakai repeat harian.
       try {
         const enabledRaw = await AsyncStorage.getItem('notif_prayer_enabled');
         const offsetRaw = await AsyncStorage.getItem('notif_prayer_offset');
         const soundRaw = await AsyncStorage.getItem('notif_prayer_sound');
-        await schedulePrayerReminders({
-          jadwal,
+        await refreshPrayerReminderSchedule({
+          lat: (lat != null ? lat : null),
+          lon: (lon != null ? lon : null),
+          city: cityParam,
+          country: countryParam,
+          options,
           offsetMinutes: Number.isFinite(parseInt(offsetRaw, 10)) ? parseInt(offsetRaw, 10) : 0,
           enabled: enabledRaw !== '0', // default aktif
-          soundChoice: soundRaw === 'adhan' ? 'adhan' : 'default',
+          soundChoice: ['adhan', 'getar', 'silent'].includes(soundRaw) ? soundRaw : 'default',
         });
       } catch (e) {}
     } catch (e) {
@@ -395,6 +403,22 @@ export default function HomeScreen({ navigation }) {
       if (!cancelled) setLocationReady(true);
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // Instant paint: tampilkan jadwal sholat terakhir dari snapshot cache
+  // sebelum network selesai — saat internet mati jadwal tetap tampil.
+  useEffect(() => {
+    (async () => {
+      try {
+        if (prayerData) return;
+        const snap = await readLastSholatSnapshot();
+        if (snap?.jadwal) {
+          setPrayerData({ data: { ...snap, __fromCache: true } });
+          setStatusInfo(computeStatusFromJadwal(snap.date || dateString.trim(), snap.jadwal));
+        }
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Simpan lokasi terakhir agar kembali ke Home tidak kedip & hemat geolocation
