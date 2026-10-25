@@ -13,6 +13,7 @@ import { getPalette, theme } from '../../ui';
 import { getKaraokeReciters, getPreferredKaraokeReciter, setPreferredKaraokeReciter } from '../../api/quranAudio';
 import { bigGetAllKeys, bigRemoveItem, bigStats } from '../../api/bigStore';
 import { listOfflineAudio, deleteAllOfflineAudio, downloadAllSurahAudio } from '../../api/offlineAudio';
+import { useI18n, setLanguageSetting } from '../../api/i18n';
 
 // Sumber audio preview (dua-duanya dibundel lewat config plugin expo-notifications)
 const ADHAN_PREVIEW = require('../../../assets/sounds/adhan.mp3');
@@ -32,6 +33,8 @@ const MADZHAB_OPSI = [
 ];
 
 export default function SettingsScreen() {
+  // === Bahasa aplikasi (dwibahasa ID/EN): pilihan bisa diganti live ===
+  const { setting: langSetting, t } = useI18n();
   // === Tampilan: dark mode + ukuran font ===
   const [darkMode, setDarkModeState] = useState(false);
   const [textScale, setTextScaleState] = useState(1);
@@ -498,6 +501,18 @@ export default function SettingsScreen() {
     <ScrollView contentContainerStyle={{padding: 16, backgroundColor: pal.colors.bg}}>
 
       {/* ============ 0. TAMPILAN (dark mode + ukuran font) ============ */}
+      {/* === Bahasa aplikasi: Ikuti HP / Indonesia / English === */}
+      <View style={{ marginBottom: 18 }}>
+        <Text style={{ fontSize: 18, fontWeight: 'bold', color: pal.colors.text }}>{t('settings.language')}</Text>
+        <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>{t('settings.langDesc')}</Text>
+        <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            <Chip label={t('settings.langSystem')} active={langSetting === 'system'} onPress={() => { setLanguageSetting('system'); }} />
+            <Chip label={t('settings.langId')} active={langSetting === 'id'} onPress={() => { setLanguageSetting('id'); }} />
+            <Chip label={t('settings.langEn')} active={langSetting === 'en'} onPress={() => { setLanguageSetting('en'); }} />
+          </View>
+        </View>
+      </View>
       <Text style={{fontSize: 18, fontWeight: 'bold', color: pal.colors.text}}>Tampilan</Text>
       <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>Tema dan kenyamanan membaca.</Text>
       <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginBottom: 18 }}>

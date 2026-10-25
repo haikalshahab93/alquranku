@@ -33,15 +33,17 @@ import UlamaDetailScreen from './src/screens/ulama/UlamaDetailScreen';
 import SanadChainScreen from './src/screens/ulama/SanadChainScreen';
 import { theme, themeDark } from './src/ui';
 import { useAppearance } from './src/api/appearance';
+import { useI18n } from './src/api/i18n';
 import { installSync } from './src/api/sync';
 
-// Navigasi bawah: 5 tab konsisten (tab Profil otomatis muncul saat login)
+// Navigasi bawah: 5 tab konsisten (tab Profil otomatis muncul saat login).
+// Label memakai kunci kamus i18n agar dwi-bahasa mengikuti bahasa terpilih.
 const NAV_ITEMS = [
-  { name: 'Home', label: 'Home', icon: 'home' },
-  { name: 'SurahList', label: "Al-Qur'an", icon: 'book' },
-  { name: 'QuranBookmarks', label: 'Bookmark', icon: 'bookmark' },
-  { name: 'User', label: 'Profil', icon: 'user' },
-  { name: 'Settings', label: 'Pengaturan', icon: 'cog' },
+  { name: 'Home', labelKey: 'nav.home', icon: 'home' },
+  { name: 'SurahList', labelKey: 'nav.quran', icon: 'book' },
+  { name: 'QuranBookmarks', labelKey: 'nav.bookmark', icon: 'bookmark' },
+  { name: 'User', labelKey: 'nav.profile', icon: 'user' },
+  { name: 'Settings', labelKey: 'nav.settings', icon: 'cog' },
 ];
 
 // Layar top-level: tidak menampilkan tombol kembali di header
@@ -103,6 +105,8 @@ class ScreenErrorBoundary extends React.Component {
 export default function App() {
   // Dark mode global: dibaca dari Pengaturan (tersimpan via AsyncStorage, event-driven)
   const { darkMode } = useAppearance();
+  // Dwibahasa ID/EN: t() otomatis mengikuti bahasa terpilih (lihat src/api/i18n.js)
+  const { t } = useI18n();
   const pal = darkMode ? themeDark : theme;
   const [initialResolved, setInitialResolved] = useState(false);
   const [deepLinked] = useState(() => parseInitialStack() != null);
@@ -217,8 +221,7 @@ export default function App() {
     return (
       <LinearGradient colors={theme.gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.splash}>
         <Image source={require('./assets/icon.png')} style={styles.splashLogo} resizeMode="contain" />
-        <Text style={styles.splashTitle}>ALQURANKU</Text>
-        <Text style={styles.splashSubtitle}>Pendamping baca Al-Qur'an harian</Text>
+        <Text style={styles.splashTitle}>ALQURANKU</Text>            <Text style={styles.splashSubtitle}>Pendamping baca Al-Qur'an harian</Text>
       </LinearGradient>
     );
   }
@@ -232,8 +235,8 @@ export default function App() {
           if (showBack) {
             return (
               <TouchableOpacity onPress={navigation.goBack} style={styles.backBtn} activeOpacity={0.7}>
-                <Ionicons name="chevron-back" size={20} color={theme.colors.shellText} />
-                <Text style={styles.backText}>Kembali</Text>
+              <Ionicons name="chevron-back" size={20} color={theme.colors.shellText} />
+              <Text style={styles.backText}>{t('nav.back')}</Text>
               </TouchableOpacity>
             );
           }
@@ -388,7 +391,7 @@ export default function App() {
             <View style={[styles.navIconWrap, active && styles.navIconWrapActive]}>
               <FontAwesome5 name={it.icon} size={15} color={active ? '#ffffff' : theme.colors.shellMuted} />
             </View>
-            <Text style={[styles.navText, active && styles.navTextActive]}>{it.label}</Text>
+            <Text style={[styles.navText, active && styles.navTextActive]}>{t(it.labelKey)}</Text>
           </TouchableOpacity>
         );
       })}

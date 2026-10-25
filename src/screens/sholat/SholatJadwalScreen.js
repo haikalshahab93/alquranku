@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Platform, Modal } from 'react-native';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAladhanHarianCity, getAladhanHarianCoords, readLastSholatSnapshot } from '../../api/aladhan';
@@ -73,6 +74,7 @@ const getWebPosition = () => new Promise((resolve) => {
 
 export default function SholatJadwalScreen() {
   const { darkMode } = useAppearance();
+  const { t: tt } = useI18n();
   const pal = getPalette(darkMode);
 
   const [city, setCity] = useState('');
@@ -408,10 +410,10 @@ export default function SholatJadwalScreen() {
   }, [timesActive, now]);
 
   const leftLabel = useMemo(() => {
-    const n = curNext.next?.time; if (!n) return '—'; const ms = n - now; if (ms <= 0) return 'Now';
+    const n = curNext.next?.time; if (!n) return '—'; const ms = n - now; if (ms <= 0) return tt('sholat.nowShort');
     const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
-    return `${h > 0 ? h + ' hours ' : ''}${m} min left`;
-  }, [curNext, now]);
+    return h > 0 ? tt('sholat.hoursLeft', { h, m }) : tt('sholat.minutesLeft', { m });
+  }, [curNext, now, tt]);
 
   // Deteksi momen "tepat saat jam sholat": munculkan popup & mainkan adzan.
   // De-dup: satu kali per waktu sholat per hari (firedRef), meski waktu
@@ -542,23 +544,23 @@ export default function SholatJadwalScreen() {
           <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4 }}>{hijri}</Text>
           {data?.__fromCache ? (
             <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 11, fontStyle: 'italic' }}>
-              Menampilkan jadwal terakhir (perangkat offline / internet belum aktif)
+              {tt('sholat.outdatedSchedule')}
             </Text>
           ) : null}
-          {tzNow ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 12 }}>Zona waktu (sekarang): {tzNow}</Text> : null}
-          {tzApi ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Zona waktu (API): {tzApi}</Text> : null}
-          {coordText ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Coords: {coordText}</Text> : null}
-          {methodName ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>Method: {methodName}</Text> : null}
+          {tzNow ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 12 }}>{tt('sholat.timezoneNow')}: {tzNow}</Text> : null}
+          {tzApi ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>{tt('sholat.timezoneApi')}: {tzApi}</Text> : null}
+          {coordText ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>{tt('sholat.coords')}: {coordText}</Text> : null}
+          {methodName ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>{tt('sholat.method')}: {methodName}</Text> : null}
         </View>
         {/* Petunjuk: ikon suara di tiap baris bisa diketuk untuk setelan khusus */}
         <Text style={{ color: pal.colors.muted, fontSize: 11, fontStyle: 'italic', paddingHorizontal: 16, paddingTop: 10 }}>
-          Ketuk ikon suara untuk mengatur tiap waktu: ikut Pengaturan → adzan → bunyi biasa → getar → sunyi → matikan notifikasi.
+          {tt('sholat.soundTip')}
         </Text>
         {timesFull.map(t => {
           const active = curNext.cur?.key === t.key;
           const soundState = resolveKeySound(t.key);
           const ICONS = { adhan: 'volume-high', default: 'volume-medium', getar: 'pulse-outline', silent: 'volume-mute', off: 'notifications-off-outline' };
-          const LABELS = { adhan: 'Suara adzan', default: 'Bunyi biasa (suara sistem)', getar: 'Getar saja', silent: 'Sunyi (tanpa suara & getar)', off: 'Notifikasi mati' };
+          const LABELS = { adhan: tt('sholat.adhanSound'), default: tt('sholat.defaultSound'), getar: tt('sholat.vibrateOnly'), silent: tt('sholat.silentMode'), off: tt('sholat.offNotice') };
           return (
             <View key={t.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderColor: pal.colors.surfaceBorder }}>
               <Text style={{ fontSize: 16, color: pal.colors.text }}>{t.label}</Text>
@@ -585,10 +587,10 @@ export default function SholatJadwalScreen() {
         })}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 14 }}>
           <TouchableOpacity style={{ backgroundColor: theme.colors.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>{curNext.cur?.label ? 'Prayers' : 'Loading'}</Text>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>{curNext.cur?.label ? tt('sholat.prayers') : tt('home.loading')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ borderColor: pal.colors.surfaceBorder, borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}>
-            <Text style={{ color: pal.colors.text }}>{hijri ? 'Hijri' : '—'}</Text>
+            <Text style={{ color: pal.colors.text }}>{hijri ? tt('sholat.hijri') : '—'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -598,23 +600,23 @@ export default function SholatJadwalScreen() {
       <Modal visible={!!popup} transparent animationType="fade" onRequestClose={closePopup}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <View style={{ backgroundColor: pal.colors.surface, borderRadius: 18, borderWidth: 1, borderColor: pal.colors.surfaceBorder, padding: 20, width: '100%', maxWidth: 420 }}>
-            <Text style={{ color: pal.colors.muted, fontWeight: '700', letterSpacing: 1, fontSize: 12 }}>SEKARANG</Text>
-            <Text style={{ color: pal.colors.primary, fontSize: 26, fontWeight: '800', marginTop: 6 }}>Masuk waktu {popup?.label || ''}</Text>
-            <Text style={{ color: pal.colors.text, marginTop: 4 }}>Pukul {popup?.display || ''} — mari salat tepat waktu.</Text>
+            <Text style={{ color: pal.colors.muted, fontWeight: '700', letterSpacing: 1, fontSize: 12 }}>{tt('sholat.now')}</Text>
+            <Text style={{ color: pal.colors.primary, fontSize: 26, fontWeight: '800', marginTop: 6 }}>{tt('sholat.popupEnterTime')} {popup?.label || ''}</Text>
+            <Text style={{ color: pal.colors.text, marginTop: 4 }}>{tt('sholat.popupBody', { time: popup?.display || '' })}</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               {resolveKeySound(popup?.key) === 'adhan' && (
                 <TouchableOpacity
                   onPress={togglePopupSound}
                   style={{ borderColor: pal.colors.surfaceBorder, borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 }}
                 >
-                  <Text style={{ color: pal.colors.primary, fontWeight: '700' }}>{adhanPlaying ? 'Matikan Suara' : 'Putar Adzan'}</Text>
+                  <Text style={{ color: pal.colors.primary, fontWeight: '700' }}>{adhanPlaying ? tt('sholat.muteSound') : tt('sholat.playAdhan')}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
                 onPress={closePopup}
                 style={{ backgroundColor: theme.colors.primary, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 20, alignItems: 'center' }}
               >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Tutup</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>{tt('common.close')}</Text>
               </TouchableOpacity>
             </View>
           </View>
