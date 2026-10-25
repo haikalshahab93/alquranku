@@ -129,7 +129,7 @@ export default function SettingsScreen() {
         const ns = await AsyncStorage.getItem('notif_prayer_sound');
         if (ne != null) setNotifEnabled(ne !== '0');
         if (no != null && Number.isFinite(parseInt(no, 10))) setNotifOffset(parseInt(no, 10));
-        if (ns === 'adhan' || ns === 'default') setNotifSound(ns);
+        if (['adhan', 'getar', 'silent'].includes(ns)) setNotifSound(ns);
         if (m) setMethod(m);
         if (tz) setTimezonestring(tz);
         if (tn) setTune(tn);

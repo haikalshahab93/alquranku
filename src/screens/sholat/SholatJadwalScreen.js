@@ -208,7 +208,7 @@ export default function SholatJadwalScreen() {
           AsyncStorage.getItem('notif_prayer_sound'),
         ]);
         setNotifEnabled(eRaw !== '0');
-        setNotifSound(sRaw === 'adhan' ? 'adhan' : 'default');
+        setNotifSound(['adhan', 'getar', 'silent'].includes(sRaw) ? sRaw : 'default');
       } catch {}
     };
     reloadNotify();
