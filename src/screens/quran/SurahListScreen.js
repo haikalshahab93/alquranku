@@ -8,6 +8,8 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, GradientCard, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
+import { useSurahTranslationEn } from '../../api/quranEn';
 import { surahsInJuz, juzStartLabel, juzsOfSurah, globalAyahStart, juzFromGlobalAyah, JUZ_STARTS } from '../../api/juz';
 import { getPagePairs, TOTAL_PAGES } from '../../api/mushafPages';
 // Using dynamic import('docx') inside handleDownloadSurah for web only; remove static import to avoid Metro resolution error on native/web bundling
@@ -24,6 +26,16 @@ function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return '0 MB';
   const mb = bytes / (1024 * 1024);
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+}
+
+// Pratinjau terjemahan ayat 1 di kartu "Ringkas": saat bahasa efektif =
+// English, ambil terjemahan EN (api.quran.com) dan tampilkan; jatuh ke
+// teks ID bila belum termuat / gagal. Hanya termuat saat kartu dibuka.
+function EnAyahPreview({ surahNumber, idText, style }) {
+  const { lang } = useI18n();
+  const texts = useSurahTranslationEn(surahNumber, lang === 'en');
+  const out = (lang === 'en' && Array.isArray(texts) && (texts[0] || '')) || idText || '';
+  return <Text style={style} numberOfLines={3}>{out}</Text>;
 }
 
 export default function SurahListScreen({ navigation, route }) {
@@ -577,7 +589,11 @@ export default function SurahListScreen({ navigation, route }) {
                 <>
                   <Text style={styles.expandAyatArabic}>{firstAyah.teksArab || firstAyah.teks_arab}</Text>
                   <Text style={styles.expandAyatLatin}>{firstAyah.teksLatin || firstAyah.teks_latin}</Text>
-                  <Text style={styles.expandAyatTrans} numberOfLines={3}>{firstAyah.teksTerjemahan || firstAyah.teks_terjemahan}</Text>
+                  <EnAyahPreview
+                    surahNumber={item.nomor}
+                    idText={firstAyah.teksTerjemahan || firstAyah.teks_terjemahan}
+                    style={styles.expandAyatTrans}
+                  />
                 </>
               ) : (
                 <Text style={styles.expandEmpty}>{details[item.nomor]?.error || 'Tidak ada preview tersedia.'}</Text>

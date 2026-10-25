@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, getPalette } from '../../ui';
 import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
 import { markDirty } from '../../api/sync';
+import { useI18n } from '../../api/i18n';
+import { useSurahTranslationEn } from '../../api/quranEn';
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 
@@ -38,6 +40,10 @@ export default function SurahDetailScreen({ route, navigation }) {
   // textScale & dark mode dibaca TERPUSAT dari pengaturan tampilan,
   // sinkron otomatis dengan layar Pengaturan lewat event bus.
   const { darkMode, textScale } = useAppearance();
+  // Dwibahasa: bahasa efektif (+ pilih antarmuka, dan terjemahan ayat EN
+  // via api.quran.com hanya saat bahasa efektif = English).
+  const { lang } = useI18n();
+  const enTrans = useSurahTranslationEn(nomor, lang === 'en');
   const pal = getPalette(darkMode);
   const [fromCacheDetail, setFromCacheDetail] = useState(false);
   const [tafsirBoxWidths, setTafsirBoxWidths] = useState({});
@@ -556,7 +562,12 @@ export default function SurahDetailScreen({ route, navigation }) {
     const ayahNumber = (item?.nomorAyat != null ? item.nomorAyat : (item?.nomor != null ? item.nomor : index + 1));
     const arabText = item?.teksArab ?? item?.teks_arab;
     const latinText = item?.teksLatin ?? item?.teks_latin;
-    const indoText = item?.teksIndonesia ?? item?.teks_terjemahan;
+    const indoId = item?.teksIndonesia ?? item?.teks_terjemahan;
+    // Bila bahasa efektif = English, pakai terjemahan EN (api.quran.com)
+    // yang dipetakan per nomor ayat; jatuh ke teks ID bila belum termuat.
+    const indoText = (lang === 'en' && Array.isArray(enTrans)
+      ? (enTrans[ayahNumber - 1] || indoId)
+      : indoId);
     const tafsirForAyah = tafsirMap[ayahNumber];
     const isTafsirExpanded = !!expandedTafsirAyahs[ayahNumber];
 

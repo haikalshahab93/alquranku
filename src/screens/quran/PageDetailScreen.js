@@ -20,6 +20,8 @@ const MODE_KEY = 'pagedetail:displayMode';
 const toArabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
 import { theme, getPalette } from '../../ui';
 import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
+import { getSurahTranslationEn } from '../../api/quranEn';
 
 export default function PageDetailScreen({ route, navigation }) {
   const initialPage = Math.min(
@@ -34,6 +36,26 @@ export default function PageDetailScreen({ route, navigation }) {
   const { textScale, darkMode } = useAppearance();
   const pal = getPalette(darkMode);
   const styles = makeStyles(pal);
+  // Dwibahasa: saat bahasa efektif = English, ambil terjemahan EN untuk
+  // tiap surah yang muncul di halaman ini (satu halaman bisa multi surah).
+  const { lang } = useI18n();
+  const [enTransBySurah, setEnTransBySurah] = useState({});
+  useEffect(() => {
+    if (lang !== 'en') return;
+    let alive = true;
+    (async () => {
+      const unique = Array.from(new Set(verses.map((v) => v.surah).filter(Boolean)));
+      for (const s of unique) {
+        if (enTransBySurah[s]) continue;
+        try {
+          const t = await getSurahTranslationEn(s);
+          if (!alive) return;
+          setEnTransBySurah((prev) => ({ ...prev, [s]: t }));
+        } catch {}
+      }
+    })();
+    return () => { alive = false; };
+  }, [lang, verses]);
   // 'ayat' = Arab + latin + terjemahan per ayat; 'mushaf' = teks Arab mengalir
   // penuh seperti mushaf cetak (tanpa terjemahan di antara ayat).
   const [displayMode, setDisplayMode] = useState('ayat');
@@ -93,6 +115,10 @@ export default function PageDetailScreen({ route, navigation }) {
       );
       lastSurah = v.surah;
     }
+    const enForSurah = lang === 'en' ? enTransBySurah[v.surah] : null;
+    const indo = (lang === 'en' && Array.isArray(enForSurah)
+      ? (enForSurah[v.ayat - 1] || v.indo)
+      : v.indo);
     rows.push(
       <View key={`${v.surah}:${v.ayat}`} style={styles.ayahBlock}>
         <View style={styles.ayahTopRow}>
@@ -111,9 +137,9 @@ export default function PageDetailScreen({ route, navigation }) {
             {v.latin}
           </Text>
         )}
-        {!!v.indo && (
+        {!!indo && (
           <Text style={[styles.indo, { fontSize: 13.5 * textScale }]}>
-            {v.indo}
+            {indo}
           </Text>
         )}
       </View>
@@ -213,13 +239,19 @@ export default function PageDetailScreen({ route, navigation }) {
             {/* Blok 2: Arti (terjemahan) per ayat */}
             <View style={[styles.card, styles.cardMushaf, { marginTop: 12 }]}>
               <Text style={styles.mushafSectionTitle}>Arti</Text>
-              {verses.map((v) => (
-                !!v.indo && (
-                  <Text key={`arti-${v.surah}-${v.ayat}`} style={[styles.mushafListText, { fontSize: 13.5 * textScale, lineHeight: 20 * textScale }]}>
-                    <Text style={styles.mushafListNum}>{v.surahName} {v.ayat}. </Text>{v.indo}
-                  </Text>
-                )
-              ))}
+              {verses.map((v) => {
+                const enForSurah = lang === 'en' ? enTransBySurah[v.surah] : null;
+                const indo = (lang === 'en' && Array.isArray(enForSurah)
+                  ? (enForSurah[v.ayat - 1] || v.indo)
+                  : v.indo);
+                return (
+                  !!indo && (
+                    <Text key={`arti-${v.surah}-${v.ayat}`} style={[styles.mushafListText, { fontSize: 13.5 * textScale, lineHeight: 20 * textScale }]}>
+                      <Text style={styles.mushafListNum}>{v.surahName} {v.ayat}. </Text>{indo}
+                    </Text>
+                  )
+                );
+              })}
             </View>
             {/* Blok 3: Cara baca (latin) per ayat */}
             <View style={[styles.card, styles.cardMushaf, { marginTop: 12 }]}>
