@@ -33,6 +33,7 @@ import UlamaDetailScreen from './src/screens/ulama/UlamaDetailScreen';
 import SanadChainScreen from './src/screens/ulama/SanadChainScreen';
 import { theme, themeDark } from './src/ui';
 import { useAppearance } from './src/api/appearance';
+import { installSync } from './src/api/sync';
 
 // Navigasi bawah: 5 tab konsisten (tab Profil otomatis muncul saat login)
 const NAV_ITEMS = [
@@ -110,6 +111,9 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    // Kerangka sinkronisasi antar-HP: mulai begitu app siap (no-op bila
+    // kredensial cloud belum diisi — aman dipanggil selalu)
+    installSync();
     (async () => {
       try {
         if (deepLinked) {

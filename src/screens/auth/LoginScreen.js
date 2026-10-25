@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncNow } from '../../api/sync';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
@@ -84,6 +85,8 @@ export default function LoginScreen({ navigation }) {
           if (idToken) {
             await AsyncStorage.setItem('googleIdToken', idToken);
           }
+          // Mulai sinkronisasi data (bookmark/posisi baca/setelan) ke cloud
+          syncNow().catch(() => {});
           navigation.navigate('User');
         } catch (e) {
           setError(e?.message || 'Gagal login Google');

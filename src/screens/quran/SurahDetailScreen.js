@@ -7,6 +7,7 @@ import { getKaraokeAudioData, isAudioSavedOffline } from '../../api/offlineAudio
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, getPalette } from '../../ui';
 import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
+import { markDirty } from '../../api/sync';
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 
@@ -139,6 +140,7 @@ export default function SurahDetailScreen({ route, navigation }) {
       }
       data.collections[col] = nextArr;
       await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(data));
+      markDirty('bookmarks');
       await loadBookmarks();
     } catch {}
   };
@@ -226,6 +228,7 @@ export default function SurahDetailScreen({ route, navigation }) {
         }
         const metaNama = detail?.surat?.namaLatin || detail?.surat?.nama_latin || namaLatin || nama_latin || '';
         AsyncStorage.setItem('last_read', JSON.stringify({ nomor, namaLatin: metaNama, lastAyah: ay })).catch(() => {});
+        markDirty('last_read');
       }
     }
   };
@@ -461,6 +464,7 @@ export default function SurahDetailScreen({ route, navigation }) {
           namaLatin: metaNama,
           lastAyah: (detail?.ayat?.[index]?.nomorAyat || detail?.ayat?.[index]?.nomor_ayat || index + 1),
         }));
+        markDirty('last_read');
       } catch (e) {
         console.log('Audio error', e);
       }
@@ -483,6 +487,7 @@ export default function SurahDetailScreen({ route, navigation }) {
             namaLatin: metaNama,
             lastAyah: (detail?.ayat?.[playingAyahIndex]?.nomorAyat || detail?.ayat?.[playingAyahIndex]?.nomor_ayat || (playingAyahIndex != null ? playingAyahIndex + 1 : 1)),
           }));
+          markDirty('last_read');
         } catch {}
       }
     };

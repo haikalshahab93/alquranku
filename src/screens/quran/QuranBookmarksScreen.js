@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { markDirty } from '../../api/sync';
 
 const BOOKMARK_KEY = 'quran_bookmarks';
 const CURRENT_COLLECTION_KEY = 'quran_bookmarks_active_collection';
@@ -43,6 +44,7 @@ export default function QuranBookmarksScreen({ navigation }) {
   const clearAll = async () => {
     try {
       await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify({ collections: {} }));
+      markDirty('bookmarks');
       await load();
     } catch {}
   };
@@ -58,6 +60,8 @@ export default function QuranBookmarksScreen({ navigation }) {
       parsed.collections[name] = [];
       await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(parsed));
       await AsyncStorage.setItem(CURRENT_COLLECTION_KEY, name);
+      markDirty('bookmarks');
+      markDirty('active_collection');
       await load();
     } catch {}
   };
@@ -68,6 +72,7 @@ export default function QuranBookmarksScreen({ navigation }) {
       const parsed = raw ? JSON.parse(raw) : { collections: {} };
       delete parsed.collections[name];
       await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(parsed));
+      markDirty('bookmarks');
       if (activeCollection === name) {
         const fallback = Object.keys(parsed.collections)[0] || 'My Favorite';
         await AsyncStorage.setItem(CURRENT_COLLECTION_KEY, fallback);
@@ -79,6 +84,7 @@ export default function QuranBookmarksScreen({ navigation }) {
   const switchCollection = async (name) => {
     try {
       await AsyncStorage.setItem(CURRENT_COLLECTION_KEY, name);
+      markDirty('active_collection');
       setActiveCollection(name);
       await load();
     } catch {}
@@ -92,6 +98,7 @@ export default function QuranBookmarksScreen({ navigation }) {
       const next = arr.filter((b) => !(b.nomorSurah === item.nomorSurah && b.ayahNumber === item.ayahNumber));
       parsed.collections[activeCollection] = next;
       await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(parsed));
+      markDirty('bookmarks');
       await load();
     } catch {}
   };

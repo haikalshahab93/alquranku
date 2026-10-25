@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { emitSettingsChanged, onSettingsChanged } from './settingsEvents';
+import { markDirty } from './sync';
 
 // Kunci penyimpanan
 const KEY_DARK = 'appearance:darkMode';
@@ -36,6 +37,8 @@ export async function setDarkMode(enabled) {
     await AsyncStorage.setItem(KEY_DARK, enabled ? '1' : '0');
   } catch {}
   emitSettingsChanged();
+  // Setelan tampilan berubah → antre sinkron antar-HP (no-op bila belum disetup)
+  markDirty('settings').catch(() => {});
 }
 
 /** Baca skala font tersimpan (default 1.0). */
@@ -58,6 +61,8 @@ export async function setTextScale(v) {
     await AsyncStorage.setItem(KEY_TEXT_SCALE, String(val));
   } catch {}
   emitSettingsChanged();
+  // Setelan tampilan berubah → antre sinkron antar-HP (no-op bila belum disetup)
+  markDirty('settings').catch(() => {});
   return val;
 }
 

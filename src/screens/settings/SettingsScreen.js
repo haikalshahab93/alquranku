@@ -7,6 +7,7 @@ import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../../ap
 import { createAudioPlayer } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { emitSettingsChanged } from '../../api/settingsEvents';
+import { markDirty } from '../../api/sync';
 import { getDarkMode, setDarkMode, getTextScale, setTextScale, MIN_TEXT_SCALE, MAX_TEXT_SCALE } from '../../api/appearance';
 import { getPalette, theme } from '../../ui';
 import { getKaraokeReciters, getPreferredKaraokeReciter, setPreferredKaraokeReciter } from '../../api/quranAudio';
@@ -288,6 +289,8 @@ export default function SettingsScreen() {
     } catch (e) {}
     // Beri tahu semua layar (termasuk layar Jadwal Sholat) agar ikut berubah live
     emitSettingsChanged();
+    // Setelan berubah → antre sinkronisasi ke cloud (no-op bila belum disetup)
+    markDirty('settings').catch(() => {});
     if (!enabled) {
       try { await schedulePrayerReminders({ enabled: false }); } catch (e) {}
       return;
