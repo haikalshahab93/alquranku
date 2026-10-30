@@ -127,6 +127,12 @@ npx eas build -p android --profile android-production --non-interactive # AAB ut
 
 Aset listing: `playstore/privacy-policy.html`, `playstore/deskripsi-playstore.md`.
 
+### Signing produksi
+Keystore produksi (`alquranku-release.jks`, alias `alquranku`) sudah disiapkan dan dipakai otomatis
+oleh `gradlew assembleRelease` lewat `android/app/keystore.properties`. Rahasianya **tidak** di-commit —
+baca panduan backup & pemulihan di [docs/RELEASE-SIGNING.md](docs/RELEASE-SIGNING.md) **sebelum**
+menjalankan apa pun yang menimpa folder `android/`.
+
 ## Panduan Push ke GitHub (ringkas)
 
 ```bash
