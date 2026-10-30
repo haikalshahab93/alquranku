@@ -3,6 +3,7 @@ import { SafeAreaView, View, Text, FlatList, TouchableOpacity, StyleSheet, useWi
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { ListSearch, ListResultInfo, ListPager, usePagedList } from '../../ui/ListScaffold';
 
 const ULAMA = require('../../data/ulama.json');
@@ -10,6 +11,8 @@ const PAGE_SIZE = 30; // set dari 100 ke 30 sesuai permintaan
 
 export default function UlamaListScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: header, pencarian, hasil, dan pesan status mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const [query, setQuery] = useState('');
   const { width } = useWindowDimensions();
@@ -42,13 +45,13 @@ export default function UlamaListScreen({ navigation }) {
         <View style={styles.itemHeaderRow}>
           <Text style={[styles.itemTitle, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
           {hasRaw && (
-            <View style={styles.badge}><Text style={styles.badgeText}>Lengkap</Text></View>
+            <View style={styles.badge}><Text style={styles.badgeText}>{t('ulama.lengkap')}</Text></View>
           )}
         </View>
         {!!item.name_ar && <Text style={[styles.itemTitleAr, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.name_ar}</Text>}
         <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.origin || '-'}</Text>
-        {!!hijriSpan && <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
-        {!!gregSpan && <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
+        {!!hijriSpan && <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{t('ulama.hijri', { n: hijriSpan })}</Text>}
+        {!!gregSpan && <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{t('ulama.masehi', { n: gregSpan })}</Text>}
       </TouchableOpacity>
     );
   };
@@ -56,15 +59,15 @@ export default function UlamaListScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <LinearGradient colors={pal.gradients.brandSoft} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.headerCard}>
-        <Text style={[styles.title, { color: pal.colors.text }]}>Ulama Islam</Text>
-        <Text style={[styles.subtitle, { color: pal.colors.muted }]}>Kumpulan data ulama dan karya-karyanya</Text>
+        <Text style={[styles.title, { color: pal.colors.text }]}>{t('ulama.judul')}</Text>
+        <Text style={[styles.subtitle, { color: pal.colors.muted }]}>{t('ulama.subtitle')}</Text>
         <ListSearch
           value={query}
           onChangeText={setQuery}
-          placeholder="Cari ulama (nama/asal/karya)"
+          placeholder={t('ulama.cari')}
           style={[styles.search, { margin: 0, marginBottom: 8, borderColor: pal.colors.primary }, isGrid && styles.searchWide]}
         />
-        <ListResultInfo style={{ paddingHorizontal: 0 }}>{`Hasil: ${filtered.length} dari ${ULAMA.length}`}</ListResultInfo>
+        <ListResultInfo style={{ paddingHorizontal: 0 }}>{t('ulama.hasil', { a: filtered.length, b: ULAMA.length })}</ListResultInfo>
       </LinearGradient>
       <View style={{ flex: 1 }}>
         <FlatList
@@ -73,7 +76,7 @@ export default function UlamaListScreen({ navigation }) {
           keyExtractor={(item, idx) => String(item.id ?? idx)}
           contentContainerStyle={[styles.list, isGrid && styles.listGrid]}
           renderItem={renderItem}
-          ListEmptyComponent={<View style={styles.center}><Text style={{ color: pal.colors.muted }}>Tidak ada hasil.</Text></View>}
+          ListEmptyComponent={<View style={styles.center}><Text style={{ color: pal.colors.muted }}>{t('ulama.tidakAdaHasil')}</Text></View>}
           initialNumToRender={20}
           windowSize={10}
           removeClippedSubviews={true}
@@ -84,7 +87,7 @@ export default function UlamaListScreen({ navigation }) {
           <ListPager
             onPrev={goPrev} onNext={goNext}
             canPrev={canPrev} canNext={canNext}
-            label={`Halaman ${pageIndex + 1} dari ${totalPages}`}
+            label={t('surah.halamanDari', { a: pageIndex + 1, b: totalPages })}
           />
         )}
       </View>

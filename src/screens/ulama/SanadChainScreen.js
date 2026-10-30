@@ -11,12 +11,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { buildTeacherChain, eraLabelForChain, getScholar, teachersOf, shortName } from '../../api/sanad';
 
 const MAX_DEPTH = 8;
 
 export default function SanadChainScreen({ navigation, route }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul header, chip generasi, hint, dan tombol mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const styles = makeStyles(pal);
   const startId = route?.params?.scholarId != null ? String(route.params.scholarId) : null;
@@ -46,9 +49,10 @@ export default function SanadChainScreen({ navigation, route }) {
 
   useLayoutEffect(() => {
     if (chain.length > 0) {
+      // Judul berformat "Sanad: <nama>" — nama ulama tetap apa adanya
       navigation.setOptions({ title: `Sanad: ${shortName(chain[0].scholar)}` });
     }
-  }, [chain, navigation]);
+  }, [chain, navigation, t]);
 
   const reroute = useCallback((at, ownerId, preferId) => {
     setPrefs((prev) => {
@@ -65,9 +69,9 @@ export default function SanadChainScreen({ navigation, route }) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
         <View style={styles.center}>
-          <Text style={[styles.centerText, { color: pal.colors.text }]}>Data ulama tidak ditemukan.</Text>
+          <Text style={[styles.centerText, { color: pal.colors.text }]}>{t('ulama.tidakDitemukan')}</Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
-            <Text style={[styles.backText, { color: pal.colors.primary }]}>Kembali</Text>
+            <Text style={[styles.backText, { color: pal.colors.primary }]}>{t('doa.kembali')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -108,15 +112,15 @@ export default function SanadChainScreen({ navigation, route }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle} numberOfLines={1}>
-                Rantai Sanad — {shortName(chain[0]?.scholar)}
+                {t('sanad.rantai', { n: shortName(chain[0]?.scholar) })}
               </Text>
               <Text style={styles.headerMeta}>
-                {chain.length} generasi{era ? ` • ${era}` : ''}
+                {t('sanad.generasi', { n: chain.length })}{era ? ` • ${era}` : ''}
               </Text>
             </View>
           </View>
           <Text style={styles.headerHint}>
-            Rantai guru dari ulama ini ke atas. Rute otomatis memilih guru paling awal; ketuk "Lewat" untuk mengubah jalur.
+            {t('sanad.hint')}
           </Text>
         </LinearGradient>
 
@@ -125,7 +129,7 @@ export default function SanadChainScreen({ navigation, route }) {
           const u = node.scholar;
           const year = u.death_hijri != null && u.death_hijri !== '' ? `w. ${u.death_hijri} H` : null;
           const isLast = i === chain.length - 1;
-          const genLabel = i === 0 ? 'Mulai' : `Gen ${i}`;
+          const genLabel = i === 0 ? t('sanad.mulai') : `Gen ${i}`;
           return (
             <View key={`${u.id}-${i}`}>
               {/* Kartu ulama */}
@@ -140,7 +144,7 @@ export default function SanadChainScreen({ navigation, route }) {
               >
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{i}</Text>
-                  <Text style={styles.avatarGen}>{i === 0 ? 'MULAI' : 'GURU'}</Text>
+                  <Text style={styles.avatarGen}>{i === 0 ? t('sanad.mulaiUpper') : t('sanad.guru')}</Text>
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.nodeName} numberOfLines={1}>
@@ -161,13 +165,13 @@ export default function SanadChainScreen({ navigation, route }) {
                     {node.viaOtherTeachers > 0 && (
                       <View style={[styles.metaChip, styles.metaChipAlt]}>
                         <Ionicons name="layers-outline" size={11} color={pal.colors.primaryDark} />
-                        <Text style={styles.metaChipText}>+{node.viaOtherTeachers} guru lain</Text>
+                        <Text style={styles.metaChipText}>{t('sanad.guruLain', { n: node.viaOtherTeachers })}</Text>
                       </View>
                     )}
                     {node.viaForced && (
                       <View style={[styles.metaChip, styles.metaChipForced]}>
                         <Ionicons name="git-network-outline" size={11} color="#1d4ed8" />
-                        <Text style={styles.metaChipTextForced}>rute pilihan</Text>
+                        <Text style={styles.metaChipTextForced}>{t('sanad.rutePilihan')}</Text>
                       </View>
                     )}
                   </View>
@@ -183,7 +187,7 @@ export default function SanadChainScreen({ navigation, route }) {
                 if (!others.length) return null;
                 return (
                   <View style={styles.altWrap}>
-                    <Text style={styles.altLabel}>Lewat:</Text>
+                    <Text style={styles.altLabel}>{t('sanad.lewat')}</Text>
                     {others.slice(0, 6).map((t) => (
                       <TouchableOpacity
                         key={t.id}
@@ -210,7 +214,7 @@ export default function SanadChainScreen({ navigation, route }) {
         {canDeepen && deepenCount < 3 && (
           <TouchableOpacity style={styles.deepenBtn} activeOpacity={0.8} onPress={deepen}>
             <Ionicons name="sparkles-outline" size={16} color="#ffffff" />
-            <Text style={styles.deepenText}>Perdalam rantai</Text>
+            <Text style={styles.deepenText}>{t('sanad.perdalam')}</Text>
           </TouchableOpacity>
         )}
 
@@ -222,7 +226,7 @@ export default function SanadChainScreen({ navigation, route }) {
         >
           <Ionicons name="person-circle-outline" size={14} color={pal.colors.primaryDark} />
           <Text style={styles.detailLinkText}>
-            Buka detail {shortName(chain[0]?.scholar)}
+            {t('sanad.bukaDetail', { n: shortName(chain[0]?.scholar) })}
           </Text>
         </TouchableOpacity>
 

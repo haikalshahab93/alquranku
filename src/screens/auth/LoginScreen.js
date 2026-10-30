@@ -5,6 +5,7 @@ import { syncNow } from '../../api/sync';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
@@ -14,6 +15,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul, placeholder, tombol, dan pesan error mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,13 +62,13 @@ export default function LoginScreen({ navigation }) {
           const accessToken = response.authentication?.accessToken;
           const idToken = response.authentication?.idToken;
           if (!accessToken) {
-            throw new Error('Tidak ada access token dari Google.');
+            throw new Error(t('login.errNoToken'));
           }
           const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
           if (!res.ok) {
-            throw new Error('Gagal mengambil data user dari Google.');
+            throw new Error(t('login.errProfile'));
           }
           const info = await res.json();
           const profile = {
@@ -89,7 +92,7 @@ export default function LoginScreen({ navigation }) {
           syncNow().catch(() => {});
           navigation.navigate('User');
         } catch (e) {
-          setError(e?.message || 'Gagal login Google');
+          setError(e?.message || t('login.errGoogle'));
         } finally {
           setLoading(false);
         }
@@ -102,17 +105,17 @@ export default function LoginScreen({ navigation }) {
   const submit = async () => {
     setError(null);
     if (!email || !password) {
-      setError('Email dan password wajib diisi');
+      setError(t('login.errWajib'));
       return;
     }
     setLoading(true);
     setTimeout(async () => {
       try {
         await AsyncStorage.setItem('loggedIn', '1');
-        await AsyncStorage.setItem('userProfile', JSON.stringify({ provider: 'manual', name: 'Pengguna', email }));
+        await AsyncStorage.setItem('userProfile', JSON.stringify({ provider: 'manual', name: t('login.pengguna'), email }));
         navigation.navigate('User');
       } catch (e) {
-        setError('Gagal menyimpan sesi');
+        setError(t('login.errSesi'));
       } finally {
         setLoading(false);
       }
@@ -128,28 +131,28 @@ export default function LoginScreen({ navigation }) {
     console.log('[GoogleAuth] env check', { isExpoGo, hasWeb, hasAndroid, hasIos, platform: Platform.OS, redirectUri: request?.redirectUri });
     
     if (Platform.OS === 'web' && !hasWeb) {
-      setError('Google Client ID (Web) belum dikonfigurasi. Set EXPO_PUBLIC_GOOGLE_CLIENT_ID lalu restart dev server.');
+      setError(t('login.errConfigWeb'));
       return;
     }
   
     if (Platform.OS === 'android') {
       if (isExpoGo && !hasWeb) {
-        setError('Google Client ID (Expo/Web) belum dikonfigurasi. Set EXPO_PUBLIC_GOOGLE_CLIENT_ID dan tambahkan redirect https://auth.expo.io/@haikal2502/alquranku di Google Cloud.');
+        setError(t('login.errConfigExpo'));
         return;
       }
       if (!isExpoGo && !hasAndroid) {
-        setError('Google Client ID (Android) belum dikonfigurasi. Set EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID lalu build ulang.');
+        setError(t('login.errConfigAndroid'));
         return;
       }
     }
   
     if (Platform.OS === 'ios') {
       if (isExpoGo && !hasWeb) {
-        setError('Google Client ID (Expo/Web) belum dikonfigurasi. Set EXPO_PUBLIC_GOOGLE_CLIENT_ID dan tambahkan redirect https://auth.expo.io/@haikal2502/alquranku di Google Cloud.');
+        setError(t('login.errConfigExpo'));
         return;
       }
       if (!isExpoGo && !hasIos) {
-        setError('Google Client ID (iOS) belum dikonfigurasi. Set EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS lalu build ulang.');
+        setError(t('login.errConfigIos'));
         return;
       }
     }
@@ -165,14 +168,14 @@ export default function LoginScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
       <View style={[styles.card, { backgroundColor: pal.colors.surface }]}>
-        <Text style={[styles.title, { color: pal.colors.text }]}>Masuk</Text>
+        <Text style={[styles.title, { color: pal.colors.text }]}>{t('login.masuk')}</Text>
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         {/* social login buttons */}
         <View style={styles.socialRow}>
           <TouchableOpacity style={[styles.socialBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={googleLogin} disabled={loading || !request}>
             <FontAwesome5 name="google" size={16} color="#dc2626" style={{ marginRight: 8 }} />
-            <Text style={[styles.socialText, { color: pal.colors.text }]}>{loading ? 'Memuat...' : 'Google'}</Text>
+            <Text style={[styles.socialText, { color: pal.colors.text }]}>{loading ? t('login.memuat') : 'Google'}</Text>
           </TouchableOpacity>
           {/* Hapus sementara tombol Apple login */}
         </View>
@@ -180,7 +183,7 @@ export default function LoginScreen({ navigation }) {
         {/* divider */}
         <View style={styles.dividerRow}>
           <View style={[styles.dividerLine, { backgroundColor: pal.colors.surfaceBorder }]} />
-          <Text style={[styles.dividerText, { color: pal.colors.muted }]}>atau</Text>
+          <Text style={[styles.dividerText, { color: pal.colors.muted }]}>{t('login.atau')}</Text>
           <View style={[styles.dividerLine, { backgroundColor: pal.colors.surfaceBorder }]} />
         </View>
 
@@ -190,7 +193,7 @@ export default function LoginScreen({ navigation }) {
           <TextInput
             value={email}
             onChangeText={setEmail}
-            placeholder="Email"
+            placeholder="Email" // label email sama di kedua bahasa
             placeholderTextColor={pal.colors.muted}
             style={[styles.input, { color: pal.colors.text }]}
             autoCapitalize="none"
@@ -202,19 +205,19 @@ export default function LoginScreen({ navigation }) {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Password"
+            placeholder="Password" // label password sama di kedua bahasa
             placeholderTextColor={pal.colors.muted}
             style={[styles.input, { color: pal.colors.text }]}
             secureTextEntry={!showPassword}
           />
         </View>
         <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.showLink}>
-          <Text style={[styles.showText, { color: pal.colors.primary }]}>{showPassword ? 'Sembunyikan' : 'Tampilkan'} Password</Text>
+          <Text style={[styles.showText, { color: pal.colors.primary }]}>{showPassword ? t('login.sembunyikanPassword') : t('login.tampilkanPassword')}</Text>
         </TouchableOpacity>
 
         {/* submit */}
         <TouchableOpacity style={[styles.submitBtn, { backgroundColor: pal.colors.primary }, loading ? { backgroundColor: pal.colors.muted } : null]} onPress={submit} disabled={loading}>
-          <Text style={styles.submitText}>{loading ? 'Memuat...' : 'Masuk'}</Text>
+          <Text style={styles.submitText}>{loading ? t('login.memuat') : t('login.masuk')}</Text>
         </TouchableOpacity>
       </View>
     </View>

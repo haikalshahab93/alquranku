@@ -4,6 +4,7 @@ import Svg, { Path } from 'react-native-svg';
 import { getHaditsArbainSemua } from '../../api/hadits';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { ListScreen, ListTitleRow, ListSearch, ListResultInfo, ListStatus, ListPager, usePagedList } from '../../ui/ListScaffold';
 
 function normalizeArray(payload) {
@@ -56,6 +57,8 @@ function normalizeArray(payload) {
 
 export default function HaditsListScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul, tombol, pencarian, pager, dan pesan status mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
 
   const [loading, setLoading] = useState(true);
@@ -89,7 +92,7 @@ export default function HaditsListScreen({ navigation }) {
         }) : [];
         setItems(arrSorted);
       } catch (e) {
-        setError(e?.message || 'Gagal memuat hadits');
+        setError(e?.message || t('hadits.loadError'));
       } finally {
         setLoading(false);
       }
@@ -183,7 +186,7 @@ export default function HaditsListScreen({ navigation }) {
 
   const renderItem = ({ item, index }) => {
     const nomor = item?.no ?? item?.nomor ?? item?.number ?? (index + 1);
-    const title = item?.judul ?? item?.title ?? `Hadits ${nomor}`;
+    const title = item?.judul ?? item?.title ?? t('hadits.nomorHadits', { n: nomor });
     const perawi = item?.perawi ?? item?.rawi ?? item?.narrator ?? '';
     const globalIndex = showAll ? index : start + index;
     return (
@@ -197,7 +200,7 @@ export default function HaditsListScreen({ navigation }) {
           </Svg>
           <View style={{ flex: 1 }}>
             <Text style={[styles.itemTitle, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
-            {!!perawi && <Text style={[styles.itemSubtitle, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Perawi: {perawi}</Text>}
+            {!!perawi && <Text style={[styles.itemSubtitle, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{t('hadits.perawiLabel', { n: perawi })}</Text>}
           </View>
         </View>
       </TouchableOpacity>
@@ -207,19 +210,19 @@ export default function HaditsListScreen({ navigation }) {
   return (
     <ListScreen>
       <ListTitleRow
-        title="Arba’in Nawawi"
+        title={t('hadits.arbain')}
         right={
           <TouchableOpacity
             style={[styles.randomBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }, showAll && styles.activeBtn]}
             onPress={() => setShowAll((s) => !s)}
           >
-            <Text style={[styles.randomText, { color: pal.colors.primary }, showAll && styles.activeText]}>{showAll ? 'Tampilkan Halaman' : 'Tampilkan Semua'}</Text>
+            <Text style={[styles.randomText, { color: pal.colors.primary }, showAll && styles.activeText]}>{showAll ? t('hadits.showPages') : t('hadits.showAll')}</Text>
           </TouchableOpacity>
         }
       />
-      <ListSearch value={query} onChangeText={setQuery} placeholder="Cari hadits (judul/arab/indo/perawi)" />
-      <ListResultInfo>Total Hadits: {filtered.length}</ListResultInfo>
-      <ListStatus loading={loading} error={error} empty={filtered.length === 0} emptyText="Tidak ada hadits yang cocok.">
+      <ListSearch value={query} onChangeText={setQuery} placeholder={t('hadits.searchPlaceholder')} />
+      <ListResultInfo>{t('hadits.total', { n: filtered.length })}</ListResultInfo>
+      <ListStatus loading={loading} error={error} empty={filtered.length === 0} emptyText={t('hadits.noMatch')}>
         <View style={{ flex: 1 }}>
           {showAll ? (
              <ScrollView contentContainerStyle={styles.list}>
@@ -248,14 +251,14 @@ export default function HaditsListScreen({ navigation }) {
             <ListPager
               onPrev={goPrev} onNext={goNext}
               canPrev={safePage > 0} canNext={safePage < totalPages - 1}
-              label={`Halaman ${safePage + 1} / ${totalPages}`}
+              label={t('surah.halamanDari', { a: safePage + 1, b: totalPages })}
             />
           ) : (
             <ListPager
               onPrev={haditsPrev} onNext={haditsNext}
               canPrev={currentIndex > 0 && filtered.length > 0}
               canNext={currentIndex < filtered.length - 1 && filtered.length > 0}
-              label={`Hadits ${filtered.length ? getNomor(filtered[currentIndex], currentIndex) : '-'} / ${filtered.length || 0}`}
+              label={`${filtered.length ? t('hadits.nomorHadits', { n: getNomor(filtered[currentIndex], currentIndex) }) : t('hadits.nomorHadits', { n: '-' })} / ${filtered.length || 0}`}
             />
           )}
         </View>

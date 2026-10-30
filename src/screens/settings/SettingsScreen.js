@@ -1,41 +1,49 @@
-import React, {useEffect, useState, useRef} from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Platform, Linking } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, ScrollView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import { getAladhanHarianCoords, getAladhanHarianCity } from '../../api/aladhan';
 import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../../api/notifications';
 import { createAudioPlayer } from 'expo-audio';
-import { Ionicons } from '@expo/vector-icons';
 import { emitSettingsChanged } from '../../api/settingsEvents';
 import { markDirty } from '../../api/sync';
-import { getDarkMode, setDarkMode, getTextScale, setTextScale, MIN_TEXT_SCALE, MAX_TEXT_SCALE } from '../../api/appearance';
-import { getPalette, theme } from '../../ui';
+import { getDarkMode, getTextScale } from '../../api/appearance';
+import { getPalette } from '../../ui';
 import { getKaraokeReciters, getPreferredKaraokeReciter, setPreferredKaraokeReciter } from '../../api/quranAudio';
-import { bigGetAllKeys, bigRemoveItem, bigStats } from '../../api/bigStore';
-import { listOfflineAudio, deleteAllOfflineAudio, downloadAllSurahAudio } from '../../api/offlineAudio';
-import { useI18n, setLanguageSetting } from '../../api/i18n';
+import { bigStats } from '../../api/bigStore';
+import { listOfflineAudio, downloadAllSurahAudio } from '../../api/offlineAudio';
+import { useI18n } from '../../api/i18n';
+import { GroupHeader } from './components/primitives';
+import LanguageCard from './components/LanguageCard';
+import AppearanceCard from './components/AppearanceCard';
+import NotifCard from './components/NotifCard';
+import AndroidBatteryCard from './components/AndroidBatteryCard';
+import PrayerMethodCard from './components/PrayerMethodCard';
+import PreviewCard from './components/PreviewCard';
+import AdvancedCard from './components/AdvancedCard';
+import ReciterCard from './components/ReciterCard';
+import AudioDownloadCard from './components/AudioDownloadCard';
+import StorageCard from './components/StorageCard';
 
 // Sumber audio preview (dua-duanya dibundel lewat config plugin expo-notifications)
 const ADHAN_PREVIEW = require('../../../assets/sounds/adhan.mp3');
 const DEFAULT_PREVIEW = require('../../../assets/sounds/default_preview.mp3');
 
-// === Pilihan berbahasa manusiawi (nilai tersimpan tetap sama seperti sebelumnya) ===
-const METODE_OPSI = [
-  { value: '3', label: 'Kementerian Agama / MWL', sub: 'Paling umum dipakai (rekomendasi)' },
-  { value: '4', label: 'Makkah (Umm al-Qura)', sub: 'Arab Saudi' },
-  { value: '5', label: 'Mesir', sub: 'Egyptian General Authority' },
-  { value: '2', label: 'Amerika Utara (ISNA)', sub: 'USA & Kanada' },
-  { value: '1', label: 'Pakistan (Karachi)', sub: 'Asia Selatan' },
-];
-const MADZHAB_OPSI = [
-  { value: '0', label: 'Standard (Syafi\u2019i dll.)', sub: 'Ashar saat bayangan sama panjang' },
-  { value: '1', label: 'Hanafi', sub: 'Ashar lebih larut (2x panjang bayangan)' },
-];
-
+// ============================================================
+// Layar Setelan — sekarang hanya KERANGKA (state + logika aksi)
+// yang menyusun kartu-kartu dari ./components/. Tiap kartu bisa
+// diedit / dipindah tanpa menyentuh kartu lain.
+//
+// KELOMPOK 1: Tampilan & Bahasa  -> LanguageCard, AppearanceCard
+// KELOMPOK 2: Sholat & Pengingat -> NotifCard, AndroidBatteryCard,
+//                                   PrayerMethodCard, PreviewCard, AdvancedCard
+// KELOMPOK 3: Audio & Bacaan     -> ReciterCard, AudioDownloadCard
+// KELOMPOK 4: Penyimpanan        -> StorageCard
+// ============================================================
 export default function SettingsScreen() {
-  // === Bahasa aplikasi (dwibahasa ID/EN): pilihan bisa diganti live ===
-  const { setting: langSetting, t } = useI18n();
-  // === Tampilan: dark mode + ukuran font ===
+  const { t } = useI18n();
+
+  // === Tampilan: dark mode + ukuran font (dimiliki di sini agar semua
+  // kartu langsung ikut berganti palet saat mode gelap diaktifkan) ===
   const [darkMode, setDarkModeState] = useState(false);
   const [textScale, setTextScaleState] = useState(1);
   useEffect(() => {
@@ -46,6 +54,7 @@ export default function SettingsScreen() {
   }, []);
   const pal = getPalette(darkMode);
 
+  // === Sholat: metode/madzhab & setelan teknis ===
   const [method, setMethod] = useState('3');
   const [timezonestring, setTimezonestring] = useState('');
   const [tune, setTune] = useState('');
@@ -56,26 +65,35 @@ export default function SettingsScreen() {
   const [shafaq, setShafaq] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
-  // Notifikasi pengingat waktu sholat
+
+  // === Notifikasi pengingat waktu sholat ===
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [notifOffset, setNotifOffset] = useState(0); // menit sebelum waktu sholat
   const [notifSound, setNotifSound] = useState('default'); // 'default' | 'adhan' | 'getar' | 'silent'
-  // === Pilihan qari/reciter untuk Mode Karaoke (dipindah dari layar detail surah) ===
+
+  // === Pilihan qari/reciter untuk Mode Karaoke ===
   const [karaokeReciters, setKaraokeReciters] = useState([]);
   const [reciterId, setReciterId] = useState(7);
   const [reciterLoaded, setReciterLoaded] = useState(false);
   const [reciterError, setReciterError] = useState(null);
-  // === Statistik penyimpanan (audio offline + cache) ===
+
+  // === Statistik penyimpanan (audio offline + cache) — dimiliki di sini agar
+  // kartu Unduh Audio & kartu Penyimpanan selalu menampilkan angka yang sama ===
   const [storage, setStorage] = useState({ audioCount: 0, audioBytes: 0, cacheBytes: 0, cacheCount: 0, loading: true });
-  const [confirmClear, setConfirmClear] = useState(null); // 'cache' | 'audio' | null
-  // === Unduh semua audio karaoke per surah (dipindah dari layar Script) ===
+
+  // === Unduh semua audio karaoke per surah ===
   const [audioMetaList, setAudioMetaList] = useState([]); // [{ surah, size }] yang sudah terunduh
   const [audioBatch, setAudioBatch] = useState(null); // { done, total, failed } saat mengunduh
   const [audioBatchResult, setAudioBatchResult] = useState(null);
   const [audioShowList, setAudioShowList] = useState(false);
-  // Jumlah surah terunduh per qari: { [reciterId]: count } — untuk tanda di daftar qari
+  // Jumlah surah terunduh per qari: { [reciterId]: count }
   const [audioByReciter, setAudioByReciter] = useState({});
   const audioCancelRef = useRef(false); // batal unduh batch
+
+  // === Pratinjau jadwal (kartu "Cek") ===
+  const [preview, setPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
 
   // Pemain pratinjau suara dikelola manual (createAudioPlayer + release) supaya
   // tidak ada pemain lama yang menyisakan bunyi dobel / tak bisa dihentikan saat
@@ -113,10 +131,10 @@ export default function SettingsScreen() {
   useEffect(() => { stopPreview(); }, [notifSound]);
   // Bersihkan saat layar ditutup
   useEffect(() => { return () => { stopPreview(); }; }, []);
-  const [preview, setPreview] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState(null);
 
+  // ============================================================
+  // LOAD — muat semua setelan tersimpan saat layar dibuka
+  // ============================================================
   useEffect(() => {
     (async () => {
       try {
@@ -158,7 +176,7 @@ export default function SettingsScreen() {
           const stale = await getKaraokeReciters(true); // cache usang pun lebih baik daripada kosong
           setKaraokeReciters(stale || []);
         } catch {}
-        setReciterError('Daftar qari perlu internet. Sambungkan internet lalu buka lagi.');
+        setReciterError(t('settings.qariErr'));
       } finally {
         try {
           const pref = await getPreferredKaraokeReciter();
@@ -174,7 +192,9 @@ export default function SettingsScreen() {
     try { await setPreferredKaraokeReciter(id); } catch {}
   };
 
-  // === Muat statistik penyimpanan ===
+  // ============================================================
+  // PENYIMPANAN — statistik bersama (audio offline + cache)
+  // ============================================================
   const refreshStorageStats = async () => {
     try {
       const [audio, cache] = await Promise.all([
@@ -209,7 +229,7 @@ export default function SettingsScreen() {
   };
   useEffect(() => { refreshStorageStats(); }, []);
 
-  // === Unduh semua audio karaoke per surah — dipindah dari layar Script ===
+  // === Unduh semua audio karaoke per surah ===
   const startAudioBatchDownload = async () => {
     if (audioBatch) return;
     setAudioBatchResult(null);
@@ -230,26 +250,22 @@ export default function SettingsScreen() {
     }
   };
 
-  const fmtBatch = (r) => {
-    if (!r) return '';
-    if (r.cancelled) return `Dihentikan — ${r.downloaded} surah baru terunduh`;
-    if (r.failed) return `Selesai dengan ${r.failed} gagal — ketuk Unduh Semua lagi untuk melanjutkan`;
-    return `Selesai! ${r.downloaded} surah baru terunduh${r.skipped ? `, ${r.skipped} sudah ada` : ''} ✓`;
-  };
-
-  const fmtMB = (b) => (!b || b <= 0 ? '0 KB' : b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
-
-  const clearQuranCacheOnly = async () => {
-    try {
-      const keys = await bigGetAllKeys('cache:quran:');
-      for (const k of keys) await bigRemoveItem(k);
-    } catch {}
-    refreshStorageStats();
-  };
-
-  const clearAllAudio = async () => {
-    try { await deleteAllOfflineAudio(); } catch {}
-    refreshStorageStats();
+  // ============================================================
+  // SHOLAT — simpan / pratinjau / penjadwalan notifikasi
+  // ============================================================
+  // Baca penuh setelan sholat saat ini (dipakai penjadwalan & pratinjau).
+  const buildSholatOptions = () => {
+    const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : undefined; };
+    return {
+      method: toNum(method) ?? 3,
+      timezonestring: timezonestring || undefined,
+      tune: tune || undefined,
+      school: toNum(school),
+      midnightMode: toNum(midnightMode),
+      latitudeAdjustmentMethod: toNum(latitudeAdjustmentMethod),
+      calendarMethod: toNum(calendarMethod),
+      shafaq: (shafaq || '').trim() || undefined,
+    };
   };
 
   const saveAll = async () => {
@@ -257,11 +273,11 @@ export default function SettingsScreen() {
     if (tune) {
       const parts = tune.split(',').map(s => s.trim());
       if (parts.length !== 8 || parts.some(p => isNaN(parseInt(p)))) {
-        errors.push('Penyesuaian menit harus 8 angka dipisah koma.');
+        errors.push(t('settings.tuneErr'));
       }
     }
     if (errors.length) {
-      setSaveMsg({ ok: false, text: 'Periksa: ' + errors.join(' ') });
+      setSaveMsg({ ok: false, text: t('settings.periksa', { n: errors.join(' ') }) });
       return;
     }
     try {
@@ -277,9 +293,9 @@ export default function SettingsScreen() {
       await AsyncStorage.setItem('settings:sholat:lastUpdated', String(Date.now()));
       // Beri tahu layar lain (Home, dst.) tanpa polling — event langsung, hemat baterai
       emitSettingsChanged();
-      setSaveMsg({ ok: true, text: 'Tersimpan. Jadwal sholat akan menyesuaikan otomatis.' });
+      setSaveMsg({ ok: true, text: t('settings.saveOk') });
     } catch (e) {
-      setSaveMsg({ ok: false, text: 'Gagal menyimpan pengaturan.' });
+      setSaveMsg({ ok: false, text: t('settings.saveErr') });
     }
   };
 
@@ -299,19 +315,7 @@ export default function SettingsScreen() {
       return;
     }
     try {
-      const iso = new Date().toISOString().slice(0, 10);
-      const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : undefined; };
-      const options = {
-        method: toNum(method) ?? 3,
-        timezonestring: timezonestring || undefined,
-        tune: tune || undefined,
-        school: toNum(school),
-        midnightMode: toNum(midnightMode),
-        latitudeAdjustmentMethod: toNum(latitudeAdjustmentMethod),
-        calendarMethod: toNum(calendarMethod),
-        shafaq: (shafaq || '').trim() || undefined,
-      };
-      // Koordinat terakhir yang diketahui; jika belum ada, tarik locasi via IP
+      // Koordinat terakhir yang diketahui; jika belum ada, tarik lokasi via IP
       let lat = null, lon = null, city = null, country = null;
       try {
         const la = await AsyncStorage.getItem('last_lat');
@@ -341,46 +345,18 @@ export default function SettingsScreen() {
       // Bila offline, refresh akan memakai snapshot jadwal terakhir yang tersimpan.
       const result = await refreshPrayerReminderSchedule({
         lat, lon, city, country,
-        options,
+        options: buildSholatOptions(),
         offsetMinutes: offset,
         enabled: true,
         soundChoice: (['adhan', 'getar', 'silent'].includes(sound) ? sound : 'default'),
       });
       if (Platform.OS !== 'web') {
-        if (result?.reason === 'permission') alert('Izin notifikasi belum diberikan. Aktifkan izin notifikasi untuk aplikasi di pengaturan perangkat.');
-        else if (result?.reason === 'no-data') alert('Tidak bisa mengambil jadwal sholat. Cek koneksi internet lalu coba lagi.');
-        else alert(`Pengingat waktu sholat dijadwalkan (${result?.scheduled ?? 0} notifikasi).`);
+        if (result?.reason === 'permission') alert(t('settings.errIzinNotif'));
+        else if (result?.reason === 'no-data') alert(t('settings.errNoData'));
+        else alert(t('settings.suksesJadwal', { n: result?.scheduled ?? 0 }));
       }
     } catch (e) {
-      if (Platform.OS !== 'web') alert('Gagal menjadwalkan pengingat. Coba lagi.');
-    }
-  };
-
-  // Android: buka pengaturan "peng optimalan baterai" supaya aplikasi boleh
-  // dikecualikan — notifikasi/adzan jadi tepat waktu (tidak tertunda doze).
-  const openBatteryOptimization = async () => {
-    try {
-      await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
-    } catch (e) {
-      try { await Linking.openSettings(); } catch (e2) {}
-    }
-  };
-
-  // Android 12+: buka halaman "Alarm & pengingat" agar aplikasi diizinkan
-  // menjadwalkan ALARM TEPAT — tanpa ini notifikasi bisa muncul molor meski
-  // optimasi baterai sudah dikecualikan.
-  const openExactAlarmSettings = async () => {
-    try {
-      const pkg = Constants?.expoConfig?.android?.package || Constants?.manifest?.android?.package;
-      if (pkg) {
-        await Linking.sendIntent('android.settings.REQUEST_SCHEDULE_EXACT_ALARM', [
-          { key: 'android.intent.extra.PACKAGE_NAME', value: pkg },
-        ]);
-      } else {
-        await Linking.sendIntent('android.settings.REQUEST_SCHEDULE_EXACT_ALARM');
-      }
-    } catch (e) {
-      try { await Linking.openSettings(); } catch (e2) {}
+      if (Platform.OS !== 'web') alert(t('settings.errJadwal'));
     }
   };
 
@@ -402,10 +378,10 @@ export default function SettingsScreen() {
       if (tz) {
         setTimezonestring(tz);
       } else {
-        alert('Gagal mendeteksi zona waktu otomatis.');
+        alert(t('settings.errTz'));
       }
     } catch (e) {
-      alert('Gagal mendeteksi zona waktu otomatis.');
+      alert(t('settings.errTz'));
     }
   };
 
@@ -414,17 +390,6 @@ export default function SettingsScreen() {
     setPreviewError(null);
     try {
       const iso = new Date().toISOString().slice(0, 10);
-      const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : undefined; };
-      const options = {
-        method: toNum(method) ?? 3,
-        timezonestring: timezonestring || undefined,
-        tune: tune || undefined,
-        school: toNum(school),
-        midnightMode: toNum(midnightMode),
-        latitudeAdjustmentMethod: toNum(latitudeAdjustmentMethod),
-        calendarMethod: toNum(calendarMethod),
-        shafaq: (shafaq || '').trim() || undefined,
-      };
       let lat = null, lon = null;
       if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
         try {
@@ -438,7 +403,7 @@ export default function SettingsScreen() {
         } catch {}
       }
       if (lat != null && lon != null) {
-        const res = await getAladhanHarianCoords(lat, lon, iso, options);
+        const res = await getAladhanHarianCoords(lat, lon, iso, buildSholatOptions());
         setPreview(res?.data || null);
       } else {
         try {
@@ -446,475 +411,68 @@ export default function SettingsScreen() {
           const json = await resp.json();
           const city = json?.city || json?.region || json?.region_code || 'Jakarta';
           const country = json?.country_name || json?.country || 'Indonesia';
-          const res = await getAladhanHarianCity(city, country, iso, options);
+          const res = await getAladhanHarianCity(city, country, iso, buildSholatOptions());
           setPreview(res?.data || null);
         } catch (e) {
-          setPreviewError('Gagal mendeteksi lokasi untuk pratinjau.');
+          setPreviewError(t('settings.previewErr'));
         }
       }
     } catch (e) {
-      setPreviewError(e?.message || 'Gagal memuat pratinjau');
+      setPreviewError(e?.message || t('settings.previewLoadErr'));
     } finally {
       setPreviewLoading(false);
     }
   };
 
-  const OptionCard = ({ option, active, onPress }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{
-        width: '100%', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, marginBottom: 8,
-        borderWidth: 2, borderColor: active ? pal.colors.primary : pal.colors.surfaceBorder, backgroundColor: active ? pal.colors.primaryLight + '22' : pal.colors.surface,
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={{ flex: 1, fontWeight: '700', fontSize: 14, color: active ? pal.colors.primary : pal.colors.text }}>{option.label}</Text>
-        {active ? <Ionicons name="checkmark-circle" size={18} color="#7c3aed" /> : null}
-      </View>
-      {!!option.sub && <Text style={{ fontSize: 12, color: pal.colors.muted, marginTop: 2 }}>{option.sub}</Text>}
-    </TouchableOpacity>
-  );
-
-  const Chip = ({ label, active, onPress }) => (
-    <TouchableOpacity onPress={onPress} style={{
-      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1,
-      borderColor: active ? pal.colors.primary : pal.colors.surfaceBorder, backgroundColor: active ? pal.colors.primaryLight + '2e' : pal.colors.surface, marginRight: 8, marginBottom: 8
-    }}>
-      <Text style={{ fontSize: 12, fontWeight: '700', color: active ? pal.colors.primary : pal.colors.text }}>{label}</Text>
-    </TouchableOpacity>
-  );
-
-  const InputRow = ({label, value, onChangeText, placeholder, help}) => (
-    <View style={{marginBottom: 14}}>
-      <Text style={{fontWeight: 'bold', marginBottom: 6, color: pal.colors.text}}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        style={{borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 8, padding: 10, color: pal.colors.text, backgroundColor: pal.colors.surface}}
-      />
-      {!!help && <Text style={{ color: '#64748b', fontSize: 12, marginTop: 6 }}>{help}</Text>}
-    </View>
-  );
-
+  // ============================================================
+  // RENDER — kerangka tipis: header kelompok + kartu-kartu
+  // ============================================================
   return (
-    <ScrollView contentContainerStyle={{padding: 16, backgroundColor: pal.colors.bg}}>
+    <ScrollView contentContainerStyle={{ padding: 16, backgroundColor: pal.colors.bg }}>
 
-      {/* ============ 0. TAMPILAN (dark mode + ukuran font) ============ */}
-      {/* === Bahasa aplikasi: Ikuti HP / Indonesia / English === */}
-      <View style={{ marginBottom: 18 }}>
-        <Text style={{ fontSize: 18, fontWeight: 'bold', color: pal.colors.text }}>{t('settings.language')}</Text>
-        <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>{t('settings.langDesc')}</Text>
-        <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-            <Chip label={t('settings.langSystem')} active={langSetting === 'system'} onPress={() => { setLanguageSetting('system'); }} />
-            <Chip label={t('settings.langId')} active={langSetting === 'id'} onPress={() => { setLanguageSetting('id'); }} />
-            <Chip label={t('settings.langEn')} active={langSetting === 'en'} onPress={() => { setLanguageSetting('en'); }} />
-          </View>
-        </View>
-      </View>
-      <Text style={{fontSize: 18, fontWeight: 'bold', color: pal.colors.text}}>Tampilan</Text>
-      <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>Tema dan kenyamanan membaca.</Text>
-      <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginBottom: 18 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={{ fontWeight: 'bold', color: pal.colors.primaryLight }}>Mode gelap</Text>
-            <Text style={{ color: pal.colors.muted, fontSize: 12, marginTop: 2 }}>Nyaman untuk membaca di ruangan gelap / malam hari.</Text>
-          </View>
-          <Switch
-            value={darkMode}
-            onValueChange={async (v) => {
-              setDarkModeState(v);
-              await setDarkMode(v);
-            }}
-            trackColor={{ false: '#e5e7eb', true: '#8b5cf6' }}
-            thumbColor={darkMode ? '#ffffff' : '#f4f4f5'}
-          />
-        </View>
-        <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: pal.colors.surfaceBorder, paddingTop: 12 }}>
-          <Text style={{ fontWeight: 'bold', color: pal.colors.primaryLight }}>Ukuran font ayat & tafsir</Text>
-          <Text style={{ color: pal.colors.muted, fontSize: 12, marginTop: 2 }}>Berlaku untuk semua layar bacaan (Al-Qur'an, tafsir, doa, hadits).</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 }}>
-            {[
-              { label: 'Kecil', v: 0.9 },
-              { label: 'Normal', v: 1.0 },
-              { label: 'Sedang', v: 1.15 },
-              { label: 'Besar', v: 1.3 },
-              { label: 'Extra', v: 1.5 },
-            ].map((o) => (
-              <Chip
-                key={`scale-${o.v}`}
-                label={`${o.label} (${o.v}x)`}
-                active={Math.abs(textScale - o.v) < 0.05}
-                onPress={() => { setTextScaleState(o.v); setTextScale(o.v); }}
-              />
-            ))}
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-            <TouchableOpacity
-              style={{ backgroundColor: pal.colors.primaryLight + '2e', borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}
-              onPress={async () => { const next = await setTextScale(textScale - 0.1); setTextScaleState(next); }}
-              disabled={textScale <= MIN_TEXT_SCALE}
-              activeOpacity={0.7}
-            >
-              <Text style={{ color: pal.colors.primary, fontWeight: '800' }}>A−</Text>
-            </TouchableOpacity>
-            <Text style={{ marginHorizontal: 12, fontWeight: '700', color: pal.colors.text }}>{textScale.toFixed(1)}x</Text>
-            <TouchableOpacity
-              style={{ backgroundColor: pal.colors.primaryLight + '2e', borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}
-              onPress={async () => { const next = await setTextScale(textScale + 0.1); setTextScaleState(next); }}
-              disabled={textScale >= MAX_TEXT_SCALE}
-              activeOpacity={0.7}
-            >
-              <Text style={{ color: pal.colors.primary, fontWeight: '800' }}>A+</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+      {/** ==================== KELOMPOK 1: TAMPILAN & BAHASA ==================== **/}
+      <GroupHeader pal={pal} icon="settings-outline" label={t('settings.grupTampilan')} desc={t('settings.grupTampilanDesc')} />
+      <LanguageCard pal={pal} />
+      <AppearanceCard pal={pal} darkMode={darkMode} setDarkModeState={setDarkModeState} textScale={textScale} setTextScaleState={setTextScaleState} />
 
-      {/* ============ AUDIO OFFLINE — UNDUH SEMUA (dipindah dari layar Script) ============ */}
-      <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 2, color: pal.colors.text}}>Unduh Semua Audio</Text>
-      <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>Unduh bacaan karaoke seluruh surah sekaligus untuk dipakai offline ({storage.audioCount}/114 sudah terunduh • {fmtMB(storage.audioBytes)}).</Text>
-      <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-        <Text style={{ color: pal.colors.muted, fontSize: 12, marginBottom: 8 }}>
-          Qari terpilih:{' '}
-          <Text style={{ fontWeight: '800', color: pal.colors.primary }}>
-            {karaokeReciters.find((r) => r.id === reciterId)?.name || '—'}
-          </Text>
-          {` • ${audioByReciter[String(reciterId)] || 0}/114 surah terunduh untuk qari ini`}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={startAudioBatchDownload}
-            disabled={!!audioBatch}
-            activeOpacity={0.8}
-            style={{ backgroundColor: '#7c3aed', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, opacity: audioBatch ? 0.6 : 1 }}
-          >
-            <Text style={{ color: '#fff', fontWeight: '800' }}>
-              {audioBatch ? 'Mengunduh…' : storage.audioCount >= 114 ? 'Perbarui Semua' : 'Unduh Semua (114)'}
-            </Text>
-          </TouchableOpacity>
-          {audioBatch ? (
-            <TouchableOpacity onPress={() => { audioCancelRef.current = true; }} style={{ marginLeft: 10 }}>
-              <Text style={{ color: '#b91c1c', fontWeight: '800' }}>Stop</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => setAudioShowList((v) => !v)} style={{ marginLeft: 10 }}>
-              <Text style={{ color: pal.colors.primaryLight, fontWeight: '700' }}>
-                {audioShowList ? 'Sembunyikan daftar' : 'Lihat daftar surah'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {audioBatch && (
-          <View style={{ marginTop: 10 }}>
-            <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(124,58,237,0.15)', overflow: 'hidden' }}>
-              <View style={{ height: 6, borderRadius: 3, backgroundColor: '#8b5cf6', width: `${Math.round((audioBatch.done / Math.max(1, audioBatch.total)) * 100)}%` }} />
-            </View>
-            <Text style={{ color: pal.colors.muted, fontSize: 12, marginTop: 6 }}>
-              Mengunduh audio {audioBatch.done}/{audioBatch.total}{audioBatch.failed ? ` • ${audioBatch.failed} gagal` : ''} — lainnya bisa dilewati
-            </Text>
-          </View>
-        )}
-        {!audioBatch && audioBatchResult && (
-          <Text style={{ color: fmtBatch(audioBatchResult).includes('gagal') || fmtBatch(audioBatchResult).includes('Dihentikan') ? '#b91c1c' : '#15803d', fontWeight: '700', fontSize: 12, marginTop: 8 }}>
-            {fmtBatch(audioBatchResult)}
-          </Text>
-        )}
-        {audioShowList && !audioBatch && (
-          <View style={{ marginTop: 10 }}>
-            <Text style={{ color: pal.colors.muted, fontSize: 12, marginBottom: 6 }}>Daftar 114 surah untuk qari terpilih — ✓ artinya audio sudah terunduh:</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              {Array.from({ length: 114 }, (_, i) => i + 1).map((n) => {
-                const done = audioMetaList.some((m) => m.surah === n && String(m.reciterId) === String(reciterId));
-                return (
-                  <View
-                    key={`dl-${n}`}
-                    style={{ paddingHorizontal: 8, paddingVertical: 4, margin: 2, borderRadius: 8, borderWidth: 1, borderColor: done ? '#8b5cf6' : pal.colors.surfaceBorder, backgroundColor: done ? 'rgba(139,92,246,0.15)' : 'transparent' }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: done ? '#a78bfa' : pal.colors.muted }}>
-                      {done ? `✓ ${n}` : String(n)}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        )}
-      </View>
+      {/** ==================== KELOMPOK 2: SHOLAT & PENGINGAT ==================== **/}
+      <GroupHeader pal={pal} icon="notifications-outline" label={t('settings.grupSholat')} desc={t('settings.grupSholatDesc')} />
+      <NotifCard
+        pal={pal}
+        notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled}
+        notifOffset={notifOffset} setNotifOffset={setNotifOffset}
+        notifSound={notifSound} setNotifSound={setNotifSound}
+        onApply={applyNotificationSettings}
+        previewPlaying={previewPlaying} togglePreview={togglePreview}
+      />
+      {Platform.OS === 'android' && <AndroidBatteryCard pal={pal} />}
+      <PrayerMethodCard pal={pal} method={method} setMethod={setMethod} school={school} setSchool={setSchool} saveMsg={saveMsg} saveAll={saveAll} />
+      <PreviewCard pal={pal} preview={preview} previewLoading={previewLoading} previewError={previewError} doPreview={doPreview} />
+      <AdvancedCard
+        pal={pal}
+        showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
+        adv={{ timezonestring, tune, midnightMode, latitudeAdjustmentMethod, shafaq, calendarMethod }}
+        setAdv={{ timezonestring: setTimezonestring, tune: setTune, midnightMode: setMidnightMode, latitudeAdjustmentMethod: setLatitudeAdjustmentMethod, shafaq: setShafaq, calendarMethod: setCalendarMethod }}
+        detectTimezone={detectTimezone} resetDefaults={resetDefaults} saveAll={saveAll}
+      />
 
-      {/* ============ 1. NOTIFIKASI PENGINGAT SHOLAT ============ */}
-      <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 2, color: pal.colors.text}}>Pengingat Waktu Sholat</Text>
-      <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>Notifikasi otomatis setiap waktu sholat.</Text>
-      <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-            <Text style={{ fontWeight: 'bold', color: pal.colors.primary }}>Aktifkan pengingat</Text>
-            <Text style={{ color: pal.colors.muted, fontSize: 12, marginTop: 2 }}>Subuh, Dzuhur, Ashar, Maghrib, Isya</Text>
-          </View>
-          <Switch
-            value={notifEnabled}
-            onValueChange={(v) => {
-              setNotifEnabled(v);
-              applyNotificationSettings(v, notifOffset);
-            }}
-            trackColor={{ false: '#e5e7eb', true: '#8b5cf6' }}
-            thumbColor={notifEnabled ? '#ffffff' : '#f4f4f5'}
-          />
-        </View>
-        {notifEnabled && (
-          <View style={{ marginTop: 10 }}>
-            <Text style={{ fontWeight: 'bold', marginBottom: 6, color: pal.colors.text }}>Kapan diingatkan?</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              <Chip label="Tepat waktu" active={notifOffset === 0} onPress={() => { setNotifOffset(0); applyNotificationSettings(true, 0); }} />
-              <Chip label="5 menit sebelum" active={notifOffset === 5} onPress={() => { setNotifOffset(5); applyNotificationSettings(true, 5); }} />
-              <Chip label="10 menit sebelum" active={notifOffset === 10} onPress={() => { setNotifOffset(10); applyNotificationSettings(true, 10); }} />
-              <Chip label="15 menit sebelum" active={notifOffset === 15} onPress={() => { setNotifOffset(15); applyNotificationSettings(true, 15); }} />
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-              <Text style={{ fontWeight: 'bold', marginBottom: 0, color: pal.colors.text }}>Suara notifikasi</Text>
-              <TouchableOpacity
-                onPress={togglePreview}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 10, backgroundColor: pal.colors.primaryLight + '2e', borderColor: pal.colors.surfaceBorder, borderWidth: 1, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name={previewPlaying ? 'stop-circle-outline' : 'volume-high-outline'} size={12} color={pal.colors.primary} />
-                <Text style={{ color: pal.colors.primary, fontWeight: '700', fontSize: 11 }}>{previewPlaying ? 'Stop Suara' : 'Hidupkan Suara'}</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 }}>
-              <Chip label="Bunyi biasa" active={notifSound === 'default'} onPress={() => { setNotifSound('default'); applyNotificationSettings(true, notifOffset, 'default'); }} />
-              <Chip label="Suara adzan" active={notifSound === 'adhan'} onPress={() => { setNotifSound('adhan'); applyNotificationSettings(true, notifOffset, 'adhan'); }} />
-              <Chip label="Getar" active={notifSound === 'getar'} onPress={() => { setNotifSound('getar'); applyNotificationSettings(true, notifOffset, 'getar'); }} />
-              <Chip label="Sunyi" active={notifSound === 'silent'} onPress={() => { setNotifSound('silent'); applyNotificationSettings(true, notifOffset, 'silent'); }} />
-            </View>
-            <Text style={{ color: pal.colors.muted, fontSize: 11, marginTop: 6 }}>
-              Bunyi biasa = suara sistem • Getar = hanya bergetar • Sunyi = tanpa suara & tanpa getar. Di layar Jadwal Sholat, setiap waktu sholat bisa disetel sendiri lewat ikon suaranya.
-            </Text>
-          </View>
-        )}
-      </View>
+      {/** ==================== KELOMPOK 3: AUDIO & BACAAN ==================== **/}
+      <GroupHeader pal={pal} icon="musical-notes-outline" label={t('settings.grupAudio')} desc={t('settings.grupAudioDesc')} />
+      <ReciterCard pal={pal} karaokeReciters={karaokeReciters} reciterId={reciterId} reciterLoaded={reciterLoaded} reciterError={reciterError} audioByReciter={audioByReciter} pickReciter={pickReciter} />
+      <AudioDownloadCard
+        pal={pal}
+        storage={storage}
+        audioBatch={audioBatch} audioBatchResult={audioBatchResult}
+        audioCancelRef={audioCancelRef} startAudioBatchDownload={startAudioBatchDownload}
+        audioShowList={audioShowList} setAudioShowList={setAudioShowList}
+        audioMetaList={audioMetaList} reciterId={reciterId}
+        karaokeReciters={karaokeReciters} audioByReciter={audioByReciter}
+      />
 
-      {/* Android: kecualikan aplikasi dari hemat baterai + izinkan alarm tepat
-          agar notifikasi/adzan muncul tepat jam walau aplikasi ditutup */}
-      {Platform.OS === 'android' && (
-        <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-          <Text style={{ fontWeight: 'bold', color: pal.colors.primary }}>Agar adzan tepat waktu</Text>
-          <Text style={{ color: pal.colors.muted, fontSize: 12, marginTop: 2, marginBottom: 10 }}>
-            Notifikasi bisa terlambat kalau "hemat baterai" aktif atau izin "Alarm & pengingat" belum diberikan. Izinkan keduanya:
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              onPress={openBatteryOptimization}
-              style={{ backgroundColor: '#7c3aed', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, flex: 1, alignItems: 'center' }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Hemat Baterai</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={openExactAlarmSettings}
-              style={{ borderColor: '#7c3aed', borderWidth: 1, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, flex: 1, alignItems: 'center' }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: '#7c3aed', fontWeight: '700' }}>Alarm Tepat</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      {/** ==================== KELOMPOK 4: PENYIMPANAN ==================== **/}
+      <GroupHeader pal={pal} icon="server-outline" label={t('settings.storage')} desc={t('settings.penyimpananDesc')} />
+      <StorageCard pal={pal} storage={storage} onRefresh={refreshStorageStats} />
 
-      {/* ============ QARI UNTUK MODE KARAOKE ============ */}
-      <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 2, color: pal.colors.text}}>Qari Al-Qur'an</Text>
-      <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>Suara bacaan untuk Mode Karaoke di layar surat. Tanda di bawah tiap qari menunjukkan audio yang sudah tersimpan di HP (siap dipakai tanpa internet).</Text>
-      {reciterError ? <Text style={{ color: '#b45309', marginBottom: 8, fontWeight: '600' }}>{reciterError}</Text> : null}
-      {!reciterLoaded && karaokeReciters.length === 0 ? (
-        <Text style={{ color: pal.colors.muted, marginBottom: 8 }}>Memuat daftar qari…</Text>
-      ) : (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {karaokeReciters.map((r) => {
-            const count = audioByReciter[String(r.id)] || 0;
-            const complete = count >= 114;
-            const active = reciterId === r.id;
-            return (
-              <TouchableOpacity
-                key={`reciter-${r.id}`}
-                activeOpacity={0.7}
-                onPress={() => pickReciter(r.id)}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  marginRight: 6,
-                  marginBottom: 6,
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: active ? pal.colors.primary : pal.colors.surfaceBorder,
-                  backgroundColor: active ? pal.colors.primary + '22' : 'transparent',
-                }}
-              >
-                <View>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: active ? pal.colors.primary : pal.colors.text }}>
-                    {r.name + (r.style ? ` — ${r.style}` : '')}
-                  </Text>
-                  <Text style={{ fontSize: 10, fontWeight: '700', marginTop: 1, color: count > 0 ? '#16a34a' : pal.colors.muted }}>
-                    {count === 0
-                      ? '⬇ Belum diunduh'
-                      : complete
-                      ? '✓ Semua 114 surah'
-                      : `✓ ${count}/114 surah`}
-                  </Text>
-                </View>
-                <Ionicons
-                  name={complete ? 'checkmark-circle' : count > 0 ? 'cloud-done-outline' : 'cloud-download-outline'}
-                  size={15}
-                  color={count > 0 ? '#16a34a' : pal.colors.muted}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      )}
-
-      {/* ============ PENYIMPANAN ============ */}
-      <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 2, color: pal.colors.text}}>Penyimpanan</Text>
-      <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>Ruang yang dipakai audio bacaan & data offline di HP ini.</Text>
-      <View style={{ borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 14, marginBottom: 8 }}>
-        {storage.loading ? (
-          <Text style={{ color: pal.colors.muted }}>Menghitung…</Text>
-        ) : (
-          <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Ionicons name="musical-notes-outline" size={18} color="#7c3aed" />
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={{ fontWeight: 'bold', color: pal.colors.text }}>Audio offline</Text>
-                <Text style={{ color: pal.colors.muted, fontSize: 12 }}>{storage.audioCount} surah • {fmtMB(storage.audioBytes)}</Text>
-              </View>
-              {storage.audioCount > 0 && (
-                <TouchableOpacity
-                  onPress={() => (confirmClear === 'audio' ? (setConfirmClear(null), clearAllAudio()) : setConfirmClear('audio'))}
-                  style={{ backgroundColor: confirmClear === 'audio' ? '#dc2626' : '#fef2f2', borderWidth: 1, borderColor: confirmClear === 'audio' ? '#dc2626' : '#fecaca', borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 }}
-                >
-                  <Text style={{ color: confirmClear === 'audio' ? '#fff' : '#b91c1c', fontWeight: '700', fontSize: 12 }}>
-                    {confirmClear === 'audio' ? 'Yakin? Ketuk lagi' : 'Hapus'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-              <Ionicons name="cloud-download-outline" size={18} color={pal.colors.primary} />
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={{ fontWeight: 'bold', color: pal.colors.text }}>Cache Al-Qur'an</Text>
-                <Text style={{ color: pal.colors.muted, fontSize: 12 }}>{storage.cacheCount} data • {fmtMB(storage.cacheBytes)}</Text>
-              </View>
-              {storage.cacheCount > 0 && (
-                <TouchableOpacity
-                  onPress={() => (confirmClear === 'cache' ? (setConfirmClear(null), clearQuranCacheOnly()) : setConfirmClear('cache'))}
-                  style={{ backgroundColor: confirmClear === 'cache' ? '#dc2626' : '#fef2f2', borderWidth: 1, borderColor: confirmClear === 'cache' ? '#dc2626' : '#fecaca', borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 }}
-                >
-                  <Text style={{ color: confirmClear === 'cache' ? '#fff' : '#b91c1c', fontWeight: '700', fontSize: 12 }}>
-                    {confirmClear === 'cache' ? 'Yakin? Ketuk lagi' : 'Bersihkan'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <View style={{ borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10, flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="stats-chart-outline" size={16} color={pal.colors.text} />
-              <Text style={{ marginLeft: 10, fontWeight: '800', color: pal.colors.text }}>
-                Total: {fmtMB(storage.audioBytes + storage.cacheBytes)}
-              </Text>
-              <TouchableOpacity onPress={refreshStorageStats} style={{ marginLeft: 'auto' }}>
-                <Ionicons name="refresh" size={16} color="#7c3aed" />
-              </TouchableOpacity>
-            </View>
-            {confirmClear && (
-              <Text style={{ color: '#b45309', fontSize: 11, marginTop: 8, fontWeight: '600' }}>
-                Ketuk tombol sekali lagi untuk menghapus permanen.
-              </Text>
-            )}
-          </>
-        )}
-      </View>
-
-      {/* ============ 2. METODE PERHITUNGAN SHOLAT ============ */}
-      <Text style={{fontSize: 18, fontWeight: 'bold', marginBottom: 2, color: pal.colors.text}}>Perhitungan Jadwal Sholat</Text>
-      <Text style={{ color: pal.colors.muted, marginBottom: 10 }}>Jika waktu sholat di tempatmu terasa kurang pas, ubah pengaturan di sini.</Text>
-
-      <Text style={{ fontWeight: 'bold', marginBottom: 8, color: pal.colors.text }}>Standar yang diikuti</Text>
-      {METODE_OPSI.map((o) => (
-        <OptionCard key={o.value} option={o} active={method === o.value} onPress={() => setMethod(o.value)} />
-      ))}
-
-      <Text style={{ fontWeight: 'bold', marginTop: 12, marginBottom: 8, color: pal.colors.text }}>Madzhab (untuk waktu Ashar)</Text>
-      {MADZHAB_OPSI.map((o) => (
-        <OptionCard key={o.value} option={o} active={school === o.value} onPress={() => setSchool(o.value)} />
-      ))}
-
-      {saveMsg && (
-        <Text style={{ color: saveMsg.ok ? '#15803d' : '#b91c1c', fontWeight: '600', marginTop: 10 }}>{saveMsg.text}</Text>
-      )}
-      <TouchableOpacity onPress={saveAll} style={{ backgroundColor: '#7c3aed', padding: 14, borderRadius: 12, marginTop: 12, alignItems: 'center' }}>
-        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Simpan Pengaturan Sholat</Text>
-      </TouchableOpacity>
-
-      {/* ============ 3. PRATINJAU JADWAL ============ */}
-      <View style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginTop: 16, marginBottom: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ fontWeight: 'bold', color: pal.colors.primary, flex: 1, minWidth: 0 }}>Pratinjau jadwal hari ini</Text>
-          <TouchableOpacity onPress={doPreview} style={{ backgroundColor: '#3730a3', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, marginLeft: 12, flexShrink: 0 }}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Cek</Text>
-          </TouchableOpacity>
-        </View>
-        {previewLoading && <Text style={{ color: pal.colors.primary, marginTop: 8 }}>Memuat…</Text>}
-        {!!previewError && <Text style={{ color: '#b91c1c', marginTop: 8 }}>{previewError}</Text>}
-        {!!preview && (
-          <View style={{ marginTop: 8 }}>
-            <Text style={{ color: pal.colors.text, marginBottom: 6 }}>Lokasi: {preview?.lokasi}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              <View style={{ width: '50%', paddingRight: 8, marginBottom: 6 }}><Text style={{ color: pal.colors.text }}>Subuh: {preview?.jadwal?.subuh}</Text></View>
-              <View style={{ width: '50%', paddingLeft: 8, marginBottom: 6 }}><Text style={{ color: pal.colors.text }}>Dzuhur: {preview?.jadwal?.dzuhur}</Text></View>
-              <View style={{ width: '50%', paddingRight: 8, marginBottom: 6 }}><Text style={{ color: pal.colors.text }}>Ashar: {preview?.jadwal?.ashar}</Text></View>
-              <View style={{ width: '50%', paddingLeft: 8, marginBottom: 6 }}><Text style={{ color: pal.colors.text }}>Maghrib: {preview?.jadwal?.maghrib}</Text></View>
-              <View style={{ width: '50%', paddingRight: 8, marginBottom: 6 }}><Text style={{ color: pal.colors.text }}>Isya: {preview?.jadwal?.isya}</Text></View>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* ============ 4. PENGATURAN TEKNIS (tersembunyi) ============ */}
-      <TouchableOpacity
-        onPress={() => setShowAdvanced(s => !s)}
-        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder }}
-      >
-        <View style={{ flex: 1, paddingRight: 8 }}>
-          <Text style={{ fontWeight: 'bold', color: pal.colors.text }}>Pengaturan teknis</Text>
-          <Text style={{ color: pal.colors.muted, fontSize: 12, marginTop: 2 }}>Zona waktu, penyesuaian menit, dan parameter khusus. Kosongkan jika ragu.</Text>
-        </View>
-        <Ionicons name={showAdvanced ? 'chevron-up' : 'chevron-down'} size={18} color={pal.colors.muted} />
-      </TouchableOpacity>
-      {showAdvanced && (
-        <>
-          <View style={{ marginTop: 12 }}>
-            <InputRow label="Zona waktu (timezone)" value={timezonestring} onChangeText={setTimezonestring} placeholder="Contoh: Asia/Jakarta" help="Kosongkan untuk deteksi otomatis dari perangkat." />
-            <TouchableOpacity onPress={detectTimezone} style={{ alignSelf: 'flex-start', backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, marginBottom: 14 }}>
-              <Text style={{ color: pal.colors.primary, fontWeight: '600' }}>Deteksi otomatis zona waktu</Text>
-            </TouchableOpacity>
-            <InputRow label="Penyesuaian menit (tune)" value={tune} onChangeText={setTune} placeholder="Contoh: 0,0,0,0,0,0,0,0" help="Geser jadwal beberapa menit. Urutan: Imsak, Subuh, Terbit, Dzuhur, Ashar, Maghrib, Isya, Tengah malam — dipisah koma." />
-            <InputRow label="Mode tengah malam (midnightMode)" value={midnightMode} onChangeText={setMidnightMode} placeholder="0, 1, atau 2" help="0 = standar, 1 = Jafari, 2 = tengah malam sun ke-3 Isya. Biarkan kosong jika ragu." />
-            <InputRow label="Penyesuaian lintang tinggi (latitudeAdjustment)" value={latitudeAdjustmentMethod} onChangeText={setLatitudeAdjustmentMethod} placeholder="1, 2, atau 3" help="Hanya relevan di negara ber-musim ekstrem (mis. Eropa Utara)." />
-            <InputRow label="Shafaq" value={shafaq} onChangeText={setShafaq} placeholder="general, ahmer, atau abyad" help="Definisi senja untuk waktu Isya. Biarkan kosong jika ragu." />
-            <InputRow label="Metode kalender hijriah (calendarMethod)" value={calendarMethod} onChangeText={setCalendarMethod} placeholder="Opsional" help="Angka sesuai dokumentasi AlAdhan. Kosongkan jika ragu." />
-          </View>
-          <View style={{ flexDirection: 'row', marginBottom: 24 }}>
-            <TouchableOpacity onPress={resetDefaults} style={{ backgroundColor: pal.colors.surface, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: pal.colors.surfaceBorder, marginRight: 8 }}>
-              <Text style={{ color: pal.colors.text, textAlign: 'center', fontWeight: 'bold' }}>Kembalikan Awal</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={saveAll} style={{ backgroundColor: '#7c3aed', padding: 12, borderRadius: 8, flex: 1, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>Simpan</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
     </ScrollView>
   );
 }

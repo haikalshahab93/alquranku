@@ -2,25 +2,28 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 
 export default function HaditsMenuScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul dan deskripsi tiap koleksi mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
-      <Text style={[styles.title, { color: pal.colors.text }]}>Koleksi Hadits</Text>
+      <Text style={[styles.title, { color: pal.colors.text }]}>{t('hadits.koleksi')}</Text>
       <View style={styles.stack}>
         <TouchableOpacity style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => navigation.navigate('HaditsList')}>
-          <Text style={[styles.cardTitle, { color: pal.colors.text }]}>Arba’in Nawawi</Text>
-          <Text style={[styles.cardDesc, { color: pal.colors.muted }]}>42 Hadits pilihan Imam Nawawi</Text>
+          <Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('hadits.arbain')}</Text>
+          <Text style={[styles.cardDesc, { color: pal.colors.muted }]}>{t('hadits.arbainDesc')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => navigation.navigate('HaditsBmEntry')}>
-          <Text style={[styles.cardTitle, { color: pal.colors.text }]}>Bulughul Maram</Text>
-          <Text style={[styles.cardDesc, { color: pal.colors.muted }]}>Cari berdasarkan nomor hadits</Text>
+          <Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('hadits.bulughul')}</Text>
+          <Text style={[styles.cardDesc, { color: pal.colors.muted }]}>{t('hadits.bmDesc')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => navigation.navigate('HaditsPerawiList')}>
-          <Text style={[styles.cardTitle, { color: pal.colors.text }]}>Hadits 9 Perawi</Text>
-          <Text style={[styles.cardDesc, { color: pal.colors.muted }]}>Pilih perawi, lalu masukkan nomor hadits</Text>
+          <Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('hadits.perawiSembilan')}</Text>
+          <Text style={[styles.cardDesc, { color: pal.colors.muted }]}>{t('hadits.perawiDesc')}</Text>
         </TouchableOpacity>
       </View>
     </View>

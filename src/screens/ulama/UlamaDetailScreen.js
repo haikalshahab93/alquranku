@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 
 const ULAMA = require('../../data/ulama.json');
 // Peta id -> data ulama agar setiap rujukan id (guru/murid/[id]) bisa dibuka langsung
@@ -15,6 +16,8 @@ const RELATION_SKIP_KEYS = new Set(['teachers', 'teachers_inds', 'students', 'st
 export default function UlamaDetailScreen({ navigation, route }) {
   // Palet tema aktif (dark mode) dari pengaturan tampilan
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul grup, meta, dan tombol mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   // Params harus dibaca via hook-friendly pattern: jika params berubah (scholar lain),
   // seluruh konten di bawah bergantung pada `scholar` sehingga ikut berubah.
@@ -102,23 +105,23 @@ export default function UlamaDetailScreen({ navigation, route }) {
     };
 
     const groups = [];
-    const id = pickGroup('Identitas Lengkap', IDENTITY_KEYS);
+    const id = pickGroup(t('ulama.gIdentitas'), IDENTITY_KEYS);
     if (id) groups.push(id);
-    const place = pickGroup('Lokasi / Asal', PLACE_KEYS);
+    const place = pickGroup(t('ulama.gLokasi'), PLACE_KEYS);
     if (place) groups.push(place);
-    const dates = pickGroup('Tanggal (Hijri & Masehi)', DATE_KEYS);
+    const dates = pickGroup(t('ulama.gTanggal'), DATE_KEYS);
     if (dates) groups.push(dates);
-    const bio = pickGroup('Biografi / Deskripsi', BIO_KEYS);
+    const bio = pickGroup(t('ulama.gBiografi'), BIO_KEYS);
     if (bio) groups.push(bio);
-    const works = pickGroup('Karya / Publikasi', WORK_KEYS);
+    const works = pickGroup(t('ulama.gKarya'), WORK_KEYS);
     if (works) groups.push(works);
-    const teachers = pickBySubstr('Guru', TEACHER_SUBSTR);
+    const teachers = pickBySubstr(t('ulama.gGuru'), TEACHER_SUBSTR);
     if (teachers) groups.push(teachers);
-    const students = pickBySubstr('Murid', STUDENT_SUBSTR);
+    const students = pickBySubstr(t('ulama.gMurid'), STUDENT_SUBSTR);
     if (students) groups.push(students);
-    const klass = pickGroup('Klasifikasi (Madhhab/Sekolah)', CLASS_KEYS);
+    const klass = pickGroup(t('ulama.gKlasifikasi'), CLASS_KEYS);
     if (klass) groups.push(klass);
-    const links = pickBySubstr('Tautan / Referensi', LINK_SUBSTR);
+    const links = pickBySubstr(t('ulama.gTautan'), LINK_SUBSTR);
     if (links) groups.push(links);
 
     const used = new Set();
@@ -127,10 +130,10 @@ export default function UlamaDetailScreen({ navigation, route }) {
     rawKeys.forEach((k) => {
       if (!used.has(k) && !RELATION_SKIP_KEYS.has(k)) others.push({ key: k, value: raw[k] });
     });
-    if (others.length) groups.push({ title: 'Lainnya', items: others });
+    if (others.length) groups.push({ title: t('ulama.gLainnya'), items: others });
 
     return groups;
-  }, [rawKeys, scholar && scholar.id]);
+  }, [rawKeys, scholar && scholar.id, t]);
 
   // Buka detail ulama lain berdasarkan id (dipakai semua chip/tautan rujukan).
   // Selalu kirim scholarId agar layar tujuan me-remount dan menampilkan orang yang benar.
@@ -210,9 +213,9 @@ export default function UlamaDetailScreen({ navigation, route }) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: pal.colors.bg }}>
         <View style={styles.center}>
-          <Text style={{ color: pal.colors.text }}>Data ulama tidak ditemukan.</Text>
+          <Text style={{ color: pal.colors.text }}>{t('ulama.tidakDitemukan')}</Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backLink}>
-            <Text style={styles.backText}>Kembali</Text>
+            <Text style={styles.backText}>{t('doa.kembali')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -228,19 +231,19 @@ export default function UlamaDetailScreen({ navigation, route }) {
         <LinearGradient colors={pal.gradients.brandSoft} start={{x:0,y:0}} end={{x:1,y:1}} style={[styles.headerCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
           <Text style={[styles.title, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{scholar.name}</Text>
           {!!scholar.name_ar && <Text style={[styles.titleAr, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{scholar.name_ar}</Text>}
-          {!!scholar.origin && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Asal: {scholar.origin}</Text>}
-          {!!hijriSpan && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Hijri: {hijriSpan}</Text>}
-          {!!gregSpan && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">Masehi: {gregSpan}</Text>}
+          {!!scholar.origin && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{t('ulama.asal', { n: scholar.origin })}</Text>}
+          {!!hijriSpan && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{t('ulama.hijri', { n: hijriSpan })}</Text>}
+          {!!gregSpan && <Text style={[styles.meta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{t('ulama.masehi', { n: gregSpan })}</Text>}
         </LinearGradient>
         {!!scholar.bio && (
           <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-            <Text style={[styles.cardTitle, { color: pal.colors.text }]}>Biografi Singkat</Text>
+            <Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('ulama.bioSingkat')}</Text>
             <Text style={[styles.cardText, { color: pal.colors.text }]}>{scholar.bio}</Text>
           </View>
         )}
         {!!scholar.works && scholar.works.length > 0 && (
           <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-            <Text style={[styles.cardTitle, { color: pal.colors.text }]}>Karya</Text>
+            <Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('ulama.karya')}</Text>
             {scholar.works.map((w, i) => (
               <Text key={i} style={[styles.cardText, { color: pal.colors.text }]}>• {w}</Text>
             ))}
@@ -253,8 +256,8 @@ export default function UlamaDetailScreen({ navigation, route }) {
             <Ionicons name="git-network-outline" size={18} color={theme.colors.primaryDark} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.sanadBtnTitle, { color: pal.colors.text }]}>Lihat Rantai Sanad</Text>
-            <Text style={[styles.sanadBtnSub, { color: pal.colors.muted }]}>Telusuri guru dari ulama ini hingga ke atas</Text>
+            <Text style={[styles.sanadBtnTitle, { color: pal.colors.text }]}>{t('ulama.lihatSanad')}</Text>
+            <Text style={[styles.sanadBtnSub, { color: pal.colors.muted }]}>{t('ulama.lihatSanadDesc')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={theme.colors.primaryDark} />
         </TouchableOpacity>
@@ -265,7 +268,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
               <View key="teachers">
                 <View style={styles.relationHeaderRow}>
                   <Ionicons name="arrow-up-circle-outline" size={16} color={theme.colors.primaryDark} />
-                  <Text style={styles.cardTitle}>Guru ({relations.teachers.length})</Text>
+                  <Text style={styles.cardTitle}>{t('ulama.guru', { n: relations.teachers.length })}</Text>
                 </View>
                 <View style={styles.chipWrap}>
                   {relations.teachers.map((t) => (
@@ -281,7 +284,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
               <View key="students" style={relations.teachers.length > 0 && { marginTop: 12 }}>
                 <View style={styles.relationHeaderRow}>
                   <Ionicons name="arrow-down-circle-outline" size={16} color={theme.colors.primaryDark} />
-                  <Text style={styles.cardTitle}>Murid ({relations.students.length})</Text>
+                  <Text style={styles.cardTitle}>{t('ulama.murid', { n: relations.students.length })}</Text>
                 </View>
                 <View style={styles.chipWrap}>
                   {relations.students.map((s) => (
@@ -293,7 +296,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
                 </View>
               </View>
             )}
-            <Text style={styles.relationHint}>Ketuk nama untuk membuka detail ulama tersebut.</Text>
+            <Text style={styles.relationHint}>{t('ulama.relasiHint')}</Text>
           </View>
         )}
 
@@ -301,7 +304,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
 
         {rawKeys.length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Semua Atribut (Raw)</Text>
+            <Text style={styles.cardTitle}>{t('ulama.gRaw')}</Text>
             {rawKeys.map((k) => (
               <View key={k} style={styles.kvRow}>
                 <Text style={styles.kvKey}>{k}</Text>

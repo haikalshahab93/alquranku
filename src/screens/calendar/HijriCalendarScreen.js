@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Animat
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { mapMonthlyToDay } from '../../api/kalender';
 
 // Konversi Gregorian -> Julian Day Number (JDN)
@@ -49,7 +50,15 @@ const GREGORIAN_MONTH_NAMES_ID = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
 
+const GREGORIAN_MONTH_NAMES_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 const WEEKDAY_NAMES_ID = ['Ahad','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+const WEEKDAY_NAMES_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+// Pilih nama bulan/masing hari sesuai bahasa aktif (nama bulan Hijriah tetap apa adanya)
+const gregMonthNamesFor = (lang) => (lang === 'en' ? GREGORIAN_MONTH_NAMES_EN : GREGORIAN_MONTH_NAMES_ID);
+const weekdayNamesFor = (lang) => (lang === 'en' ? WEEKDAY_NAMES_EN : WEEKDAY_NAMES_ID);
 
 // Konversi JDN -> Gregorian (Fliegel-Van Flandern)
 function jdnToGregorian(jdn) {
@@ -78,7 +87,11 @@ function todayHijri() {
 
 export default function HijriCalendarScreen() {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul, label, tombol, dan nama bulan/masing hari mengikuti bahasa aktif.
+  const { lang, t } = useI18n();
   const pal = getPalette(darkMode);
+  const gregMonths = gregMonthNamesFor(lang);
+  const weekdays = weekdayNamesFor(lang);
   const today = useMemo(() => todayHijri(), []);
   const [viewYear, setViewYear] = useState(today.year);
   const [viewMonth, setViewMonth] = useState(today.month);
@@ -111,10 +124,10 @@ export default function HijriCalendarScreen() {
   ], [startDow, days]);
   const gEnd = useMemo(() => jdnToGregorian(jdnStart + length - 1), [jdnStart, length]);
   const gregRangeLabel = useMemo(() => {
-    const left = `${gStart.day} ${GREGORIAN_MONTH_NAMES_ID[gStart.month - 1]} ${gStart.year}`;
-    const right = `${gEnd.day} ${GREGORIAN_MONTH_NAMES_ID[gEnd.month - 1]} ${gEnd.year}`;
+    const left = `${gStart.day} ${gregMonths[gStart.month - 1]} ${gStart.year}`;
+    const right = `${gEnd.day} ${gregMonths[gEnd.month - 1]} ${gEnd.year}`;
     return `${left} – ${right}`;
-  }, [gStart, gEnd]);
+  }, [gStart, gEnd, gregMonths]);
   const isTodayInView = today.year === viewYear && today.month === viewMonth;
 
   // Pemetaan event sederhana (awal bulan, puasa sunah, hari besar)
@@ -137,7 +150,7 @@ export default function HijriCalendarScreen() {
 
   const gNow = new Date();
   const todayLabelFull = `${Math.max(1, Math.round(today.day))} ${MONTH_NAMES_ID[today.month - 1]} ${today.year} H`;
-  const todayGregorian = `${gNow.getDate()} ${GREGORIAN_MONTH_NAMES_ID[gNow.getMonth()]} ${gNow.getFullYear()}`;
+  const todayGregorian = `${gNow.getDate()} ${gregMonths[gNow.getMonth()]} ${gNow.getFullYear()}`;
 
   useEffect(() => {
     (async () => {
@@ -159,7 +172,7 @@ export default function HijriCalendarScreen() {
       // Tidak pakai API eksternal yang sering bermasalah.
       // Data selayaknya tetap bisa diisi nanti dari sumber lain bila ada.
     } catch (e) {
-      setApiError('Gagal memuat kalender bulan. Coba lagi nanti.');
+      setApiError(t('cal.err'));
     } finally {
       setApiLoading(false);
     }
@@ -218,32 +231,32 @@ export default function HijriCalendarScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: pal.colors.bg }]}>
-      <Text style={[styles.title, { color: pal.colors.text }]}>Kalender Hijriah</Text>
+      <Text style={[styles.title, { color: pal.colors.text }]}>{t('calendar.title')}</Text>
       <Text style={[styles.subtitle, { color: pal.colors.muted }]}>
-        Hari ini: {todayLabelFull} • Masehi: {todayGregorian}
+        {t('cal.hariIni', { n: todayLabelFull, m: todayGregorian })}
       </Text>
 
       <Text style={[styles.monthTitleCenter, { color: pal.colors.text }]}>{MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
-      <Text style={[styles.subtitle, { color: pal.colors.muted }]}>{`Rentang Masehi: ${gregRangeLabel}`}</Text>
-      {!!apiLoading && <Text style={[styles.apiInfo, { color: pal.colors.muted }]}>Memuat kalender bulan…</Text>}
+      <Text style={[styles.subtitle, { color: pal.colors.muted }]}>{t('cal.rentangMasehi', { n: gregRangeLabel })}</Text>
+      {!!apiLoading && <Text style={[styles.apiInfo, { color: pal.colors.muted }]}>{t('cal.memuat')}</Text>}
       {!!apiError && (
         <View style={{ padding: 8, borderWidth: 1, borderColor: '#fecaca', backgroundColor: '#fee2e2', borderRadius: 8, marginBottom: 8 }}>
           <Text style={styles.apiInfoErr}>{apiError}</Text>
           <TouchableOpacity style={[styles.btn, styles.btnGhost, { alignSelf: 'flex-start', marginTop: 6 }]} onPress={() => { fetchMonthly(viewYear, viewMonth, length); }}>
-            <Text style={styles.btnGhostText}>Coba lagi</Text>
+            <Text style={styles.btnGhostText}>{t('cal.cobaLagi')}</Text>
           </TouchableOpacity>
         </View>
       )}
       <View style={styles.navButtonsRow}>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={onPrev}><Text style={[styles.btnGhostText, { color: pal.colors.text }]}>← Sebelumnya</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnGhost, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={onNext}><Text style={[styles.btnGhostText, { color: pal.colors.text }]}>Berikutnya →</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={onPrev}><Text style={[styles.btnGhostText, { color: pal.colors.text }]}>← {t('page.prev')}</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, styles.btnGhost, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={onNext}><Text style={[styles.btnGhostText, { color: pal.colors.text }]}>{t('page.next')} →</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={onReset}>
-        <Text style={styles.btnText}>Kembali ke bulan ini</Text>
+        <Text style={styles.btnText}>{t('cal.kembaliBulanIni')}</Text>
       </TouchableOpacity>
 
       <View style={styles.weekHeader}>
-        {WEEKDAY_NAMES_ID.map((w) => (
+        {weekdays.map((w) => (
           <Text key={w} style={[styles.weekHeaderText, { color: pal.colors.muted }]}>{w}</Text>
         ))}
       </View>
@@ -261,7 +274,7 @@ export default function HijriCalendarScreen() {
           const gDateLocal = jdnToGregorian(jdn);
           const dow = new Date(gDateLocal.year, gDateLocal.month - 1, gDateLocal.day).getDay();
           const isFriday = dow === 5;
-          let gregLabel = `${gDateLocal.day} ${GREGORIAN_MONTH_NAMES_ID[gDateLocal.month - 1]}`;
+          let gregLabel = `${gDateLocal.day} ${gregMonths[gDateLocal.month - 1]}`;
           const hasMemo = !!memos[jdn];
           const isSelected = !!selected && selected.jdn === jdn;
           const ev = eventMap[day];
@@ -280,22 +293,22 @@ export default function HijriCalendarScreen() {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <View style={styles.memoDot} />
-        <Text style={{ color: '#64748b', fontSize: 12 }}>Memo</Text>
+        <Text style={{ color: '#64748b', fontSize: 12 }}>{t('cal.memo')}</Text>
         <View style={[styles.eventBadge, styles.badgeHoliday, { position: 'relative' }]} />
-        <Text style={{ color: '#64748b', fontSize: 12 }}>Hari Besar</Text>
+        <Text style={{ color: '#64748b', fontSize: 12 }}>{t('cal.hariBesar')}</Text>
         <View style={[styles.eventBadge, styles.badgeMonthStart, { position: 'relative' }]} />
-        <Text style={{ color: '#64748b', fontSize: 12 }}>Awal Bulan</Text>
+        <Text style={{ color: '#64748b', fontSize: 12 }}>{t('cal.awalBulan')}</Text>
         <View style={[styles.eventBadge, styles.badgeSunna, { position: 'relative' }]} />
-        <Text style={{ color: '#64748b', fontSize: 12 }}>Sunah</Text>
+        <Text style={{ color: '#64748b', fontSize: 12 }}>{t('cal.sunah')}</Text>
       </View>
 
       {selected ? (
         <View style={[styles.memoCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-          <Text style={[styles.memoTitle, { color: pal.colors.text }]}>Memo untuk {selected.day} {MONTH_NAMES_ID[viewMonth - 1]} {viewYear} H</Text>
-          <Text style={[styles.memoSubtitle, { color: pal.colors.muted }]}>Masehi: {selected.gDate.day} {GREGORIAN_MONTH_NAMES_ID[selected.gDate.month - 1]} {selected.gDate.year}</Text>
+          <Text style={[styles.memoTitle, { color: pal.colors.text }]}>{t('cal.memoUntuk', { n: `${selected.day} ${MONTH_NAMES_ID[viewMonth - 1]} ${viewYear} H` })}</Text>
+          <Text style={[styles.memoSubtitle, { color: pal.colors.muted }]}>{t('cal.masehi', { n: `${selected.gDate.day} ${gregMonths[selected.gDate.month - 1]} ${selected.gDate.year}` })}</Text>
           <TextInput
             style={[styles.memoInput, { backgroundColor: pal.colors.bg, color: pal.colors.text, borderColor: pal.colors.surfaceBorder }]}
-            placeholder="Tulis catatan/memo di sini..."
+            placeholder={t('cal.tulisMemo')}
             placeholderTextColor={pal.colors.muted}
             multiline
             value={memoText}
@@ -303,28 +316,28 @@ export default function HijriCalendarScreen() {
           />
           <View style={styles.memoActions}>
             <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => { setSelected(null); setMemoText(''); }} disabled={saving}>
-              <Text style={styles.btnGhostText}>Tutup</Text>
+              <Text style={styles.btnGhostText}>{t('common.close')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={async () => {
               try {
-                const txt = `${selected.day} ${MONTH_NAMES_ID[viewMonth - 1]} ${viewYear} H • ${selected.gDate.day} ${GREGORIAN_MONTH_NAMES_ID[selected.gDate.month - 1]} ${selected.gDate.year}`;
+                const txt = `${selected.day} ${MONTH_NAMES_ID[viewMonth - 1]} ${viewYear} H • ${selected.gDate.day} ${gregMonths[selected.gDate.month - 1]} ${selected.gDate.year}`;
                 await Share.share({ message: txt });
               } catch {}
             }} disabled={saving}>
-              <Text style={styles.btnGhostText}>Bagikan</Text>
+              <Text style={styles.btnGhostText}>{t('cal.bagikan')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={deleteMemo} disabled={saving || !memos[selected.jdn]}>
-              <Text style={styles.btnDangerText}>Hapus</Text>
+              <Text style={styles.btnDangerText}>{t('common.delete')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveMemo} disabled={saving}>
-              <Text style={styles.btnText}>{memos[selected.jdn] ? 'Simpan' : 'Tambahkan'}</Text>
+              <Text style={styles.btnText}>{memos[selected.jdn] ? t('common.save') : t('cal.tambahkan')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : null}
 
       <Text style={[styles.info, { color: pal.colors.muted }]}>
-        Catatan: Perhitungan ini menggunakan kalender Hijriah aritmetika (civil). Pada praktiknya, awal bulan dapat berbeda berdasarkan rukyat atau otoritas setempat.
+        {t('cal.catatan')}
       </Text>
     </ScrollView>
   );

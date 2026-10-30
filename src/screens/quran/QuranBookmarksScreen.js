@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { markDirty } from '../../api/sync';
 
 const BOOKMARK_KEY = 'quran_bookmarks';
@@ -11,6 +12,8 @@ const CURRENT_COLLECTION_KEY = 'quran_bookmarks_active_collection';
 
 export default function QuranBookmarksScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: header, label, dan pesan kosong mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const [collections, setCollections] = useState({});
   const [activeCollection, setActiveCollection] = useState('My Favorite');
@@ -53,7 +56,7 @@ export default function QuranBookmarksScreen({ navigation }) {
     try {
       const raw = await AsyncStorage.getItem(BOOKMARK_KEY);
       const parsed = raw ? JSON.parse(raw) : { collections: {} };
-      const baseName = 'New Collection';
+      const baseName = t('quran.newCollection');
       let name = baseName;
       let i = 1;
       while (parsed.collections[name]) { name = `${baseName} ${i++}`; }
@@ -109,8 +112,8 @@ export default function QuranBookmarksScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <View style={styles.itemRow}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.itemTitle, { color: pal.colors.text }]}>{item.namaSurah} • Ayat {item.ayahNumber}</Text>
-        <Text style={[styles.itemMeta, { color: pal.colors.muted }]}>Surah {item.nomorSurah}</Text>
+        <Text style={[styles.itemTitle, { color: pal.colors.text }]}>{item.namaSurah} • {t('quran.verse', { n: item.ayahNumber })}</Text>
+        <Text style={[styles.itemMeta, { color: pal.colors.muted }]}>{t('quran.surahN', { n: item.nomorSurah })}</Text>
       </View>
       <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('SurahDetail', { nomor: item.nomorSurah, targetAyah: item.ayahNumber })}>
         <Ionicons name="arrow-forward-circle-outline" size={22} color={pal.colors.primary} />
@@ -133,7 +136,7 @@ export default function QuranBookmarksScreen({ navigation }) {
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <Ionicons name="folder-outline" size={18} color={pal.colors.primary} style={{ marginRight: 8 }} />
         <Text style={[styles.collectionTitle, { color: pal.colors.text }]}>{name}</Text>
-        <Text style={[styles.collectionCount, { color: pal.colors.muted }]}> {Array.isArray(collections[name]) ? `${collections[name].length} items` : '0 items'}</Text>
+        <Text style={[styles.collectionCount, { color: pal.colors.muted }]}> {t('quran.itemCount', { n: Array.isArray(collections[name]) ? collections[name].length : 0 })}</Text>
       </View>
       <TouchableOpacity style={styles.iconBtn} onPress={() => removeCollection(name)}>
         <Ionicons name="ellipsis-vertical" size={16} color={pal.colors.primary} />
@@ -144,14 +147,14 @@ export default function QuranBookmarksScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
       <View style={styles.headerRow}>
-        <Text style={[styles.header, { color: pal.colors.primary }]}>Bookmarks</Text>
+        <Text style={[styles.header, { color: pal.colors.primary }]}>{t('quran.bookmarks')}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity style={[styles.headerIconBtn, { backgroundColor: pal.colors.primaryLight + '22', borderColor: pal.colors.surfaceBorder }]} onPress={addCollection}>
             <Ionicons name="add-circle-outline" size={22} color={pal.colors.primary} />
-            <Text style={[styles.headerIconText, { color: pal.colors.primary }]}>Add new collection</Text>
+            <Text style={[styles.headerIconText, { color: pal.colors.primary }]}>{t('quran.tambahKoleksi')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.clearBtn, { backgroundColor: pal.colors.primaryLight + '22' }]} onPress={clearAll}>
-            <Text style={[styles.clearText, { color: pal.colors.primary }]}>Clear all</Text>
+            <Text style={[styles.clearText, { color: pal.colors.primary }]}>{t('quran.clearAll')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -162,7 +165,7 @@ export default function QuranBookmarksScreen({ navigation }) {
         renderItem={renderCollection}
         ItemSeparatorComponent={() => <View style={[styles.sep, { backgroundColor: pal.colors.surfaceBorder }]} />}
         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 4 }}
-        ListEmptyComponent={<Text style={{ textAlign: 'center', color: pal.colors.muted, padding: 12 }}>Belum ada koleksi</Text>}
+        ListEmptyComponent={<Text style={{ textAlign: 'center', color: pal.colors.muted, padding: 12 }}>{t('quran.bukanadaKoleksi')}</Text>}
       />
 
       <Text style={[styles.groupHeader, { color: pal.colors.primary }]}>{activeCollection}</Text>
@@ -172,7 +175,7 @@ export default function QuranBookmarksScreen({ navigation }) {
         renderItem={renderItem}
         ItemSeparatorComponent={() => <View style={[styles.sep, { backgroundColor: pal.colors.surfaceBorder }]} />}
         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12 }}
-        ListEmptyComponent={<Text style={{ textAlign: 'center', color: pal.colors.muted }}>Belum ada bookmark</Text>}
+        ListEmptyComponent={<Text style={{ textAlign: 'center', color: pal.colors.muted }}>{t('quran.noBookmarks')}</Text>}
       />
     </View>
   );

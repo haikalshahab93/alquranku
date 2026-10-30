@@ -5,28 +5,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 
 const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul/desc slide dan tombol navigasi mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const scrollRef = useRef(null);
   const [index, setIndex] = useState(0);
 
   const slides = [
-    {
-      title: 'Baca Al-Qur’an Mudah',
-      desc: 'Nikmati tampilan ayat, terjemahan, dan tafsir dalam satu tempat.'
-    },
-    {
-      title: 'Kumpulan Doa & Hadits',
-      desc: 'Akses doa harian dan koleksi hadits secara cepat dan ringkas.'
-    },
-    {
-      title: 'Fitur Penunjang Ibadah',
-      desc: 'Kalender hijriah, jadwal sholat, dan lebih banyak lagi.'
-    },
+    { title: t('onboarding.s1Title'), desc: t('onboarding.s1Desc') },
+    { title: t('onboarding.s2Title'), desc: t('onboarding.s2Desc') },
+    { title: t('onboarding.s3Title'), desc: t('onboarding.s3Desc') },
   ];
 
   const goNext = () => {
@@ -83,7 +77,7 @@ export default function OnboardingScreen({ navigation }) {
       </ScrollView>
       <View style={[styles.controls, { borderColor: pal.colors.surfaceBorder }]}>
         <TouchableOpacity style={styles.skipBtn} onPress={skip}>
-          <Text style={[styles.skipText, { color: pal.colors.muted }]}>Lewati</Text>
+          <Text style={[styles.skipText, { color: pal.colors.muted }]}>{t('onboarding.lewati')}</Text>
         </TouchableOpacity>
         <View style={styles.dots}>
           {slides.map((_, i) => (
@@ -91,7 +85,7 @@ export default function OnboardingScreen({ navigation }) {
           ))}
         </View>
         <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.colors.primaryDark }]} onPress={goNext}>
-          <Text style={styles.nextText}>{index < slides.length - 1 ? 'Lanjut' : 'Mulai'}</Text>
+          <Text style={styles.nextText}>{index < slides.length - 1 ? t('onboarding.lanjut') : t('onboarding.mulai')}</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -63,6 +63,9 @@ export async function setLanguageSetting(value) {
 
 // Terjemahan satu kunci. Opsi vars untuk {nama} dsb.
 export function translate(lang, key, vars) {
+  // Simpan bahasa terakhir yang dipakai render agar modul non-hook
+  // (penyimpanan, notifikasi, dll) bisa memakai bahasa aktif via getLangNow().
+  if (lang === 'id' || lang === 'en') currentLang = lang;
   const entry = TEXTS[key];
   let out = (entry && (entry[lang] ?? entry.id)) ?? key;
   if (vars && typeof out === 'string') {
@@ -71,6 +74,17 @@ export function translate(lang, key, vars) {
     }
   }
   return out;
+}
+
+// Bahasa terkini yang terakhir dipakai render ('id' | 'en').
+// Untuk modul yang tak bisa memakai hook useI18n (bigStore, notifications).
+let currentLang = 'id';
+export function getLangNow() {
+  return currentLang;
+}
+// Terjemahan memakai bahasa terkini (tanpa hook).
+export function tNow(key, vars) {
+  return translate(currentLang, key, vars);
 }
 
 // Hook: { lang, setting, t } — layar ikut re-render saat bahasa diganti.

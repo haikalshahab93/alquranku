@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { getHaditsPerawiNomor } from '../../api/hadits'
 
 export default function HaditsPerawiEntryScreen({ route, navigation }) {
   const { slug, name } = route.params || {};
   const [nomor, setNomor] = useState('');
   const { darkMode } = useAppearance();
+  // Dwibahasa: deskripsi, placeholder, dan tombol mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
 
   const openByNumber = () => {
@@ -19,19 +22,19 @@ export default function HaditsPerawiEntryScreen({ route, navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
-      <Text style={[styles.title, { color: pal.colors.text }]}>{name || 'Perawi'}</Text>
-      <Text style={[styles.desc, { color: pal.colors.muted }]}>Masukkan nomor hadits untuk perawi ini, lalu ketuk Lihat.</Text>
+      <Text style={[styles.title, { color: pal.colors.text }]}>{name || t('hadits.perawi')}</Text>
+      <Text style={[styles.desc, { color: pal.colors.muted }]}>{t('hadits.perawiEntryDesc')}</Text>
       <TextInput
         value={nomor}
         onChangeText={setNomor}
         keyboardType="numeric"
-        placeholder="Nomor hadits"
+        placeholder={t('hadits.nomorPlaceholder')}
         placeholderTextColor={pal.colors.muted}
         style={[styles.input, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder, color: pal.colors.text }]}
       />
       <View style={styles.row}>
         <TouchableOpacity style={[styles.btn, { backgroundColor: pal.colors.primaryDark }]} onPress={openByNumber}>
-          <Text style={styles.btnText}>Lihat</Text>
+          <Text style={styles.btnText}>{t('hadits.lihat')}</Text>
         </TouchableOpacity>
       </View>
     </View>

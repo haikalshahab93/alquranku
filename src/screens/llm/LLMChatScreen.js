@@ -3,9 +3,12 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 
 import { chatLLM } from '../../api/llm';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 
 export default function LLMChatScreen() {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul, subtitle, placeholder, dan tombol mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const [messages, setMessages] = useState([
     { role: 'system', content: 'Anda adalah asisten untuk aplikasi ALQURANKU. Jawab singkat dan relevan.' },
@@ -24,7 +27,7 @@ export default function LLMChatScreen() {
       const reply = await chatLLM(newMessages);
       setMessages([...newMessages, { role: 'assistant', content: reply.content }]);
     } catch (err) {
-      setMessages([...newMessages, { role: 'assistant', content: `Terjadi kesalahan: ${err.message}` }]);
+      setMessages([...newMessages, { role: 'assistant', content: `${t('common.error')}: ${err.message}` }]);
     } finally {
       setLoading(false);
     }
@@ -32,8 +35,8 @@ export default function LLMChatScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
-      <Text style={[styles.title, { color: pal.colors.text }]}>Asisten LLM</Text>
-      <Text style={[styles.subtitle, { color: pal.colors.muted }]}>Diskusikan surah, tafsir, doa, dan hadits (demo)</Text>
+      <Text style={[styles.title, { color: pal.colors.text }]}>{t('llm.judul')}</Text>
+      <Text style={[styles.subtitle, { color: pal.colors.muted }]}>{t('llm.subtitle')}</Text>
       <ScrollView style={[styles.chat, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} contentContainerStyle={styles.chatInner}>
         {messages.filter(m => m.role !== 'system').map((m, idx) => (
           <View key={idx} style={[styles.bubble, m.role === 'user' ? { backgroundColor: theme.colors.primary } : { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder }]}>
@@ -42,7 +45,7 @@ export default function LLMChatScreen() {
         ))}
         {loading && (
           <View style={[styles.bubble, { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder }]}>
-            <Text style={[styles.bubbleText, { color: pal.colors.text }]}>Mengetik…</Text>
+            <Text style={[styles.bubbleText, { color: pal.colors.text }]}>{t('llm.mengetik')}</Text>
           </View>
         )}
       </ScrollView>
@@ -52,11 +55,11 @@ export default function LLMChatScreen() {
           style={[styles.input, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder, color: pal.colors.text }]}
           value={input}
           onChangeText={setInput}
-          placeholder="Tulis pertanyaan"
+          placeholder={t('llm.tulisPertanyaan')}
           placeholderTextColor={pal.colors.muted}
         />
         <TouchableOpacity style={[styles.sendBtn, { backgroundColor: theme.colors.primaryDark }]} onPress={sendMessage}>
-          <Text style={styles.sendText}>Kirim</Text>
+          <Text style={styles.sendText}>{t('llm.kirim')}</Text>
         </TouchableOpacity>
       </View>
     </View>

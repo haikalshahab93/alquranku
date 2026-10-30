@@ -38,7 +38,7 @@ export default function PageDetailScreen({ route, navigation }) {
   const styles = makeStyles(pal);
   // Dwibahasa: saat bahasa efektif = English, ambil terjemahan EN untuk
   // tiap surah yang muncul di halaman ini (satu halaman bisa multi surah).
-  const { lang } = useI18n();
+  const { lang, t } = useI18n();
   const [enTransBySurah, setEnTransBySurah] = useState({});
   useEffect(() => {
     if (lang !== 'en') return;
@@ -61,8 +61,8 @@ export default function PageDetailScreen({ route, navigation }) {
   const [displayMode, setDisplayMode] = useState('ayat');
 
   useEffect(() => {
-    navigation?.setOptions?.({ title: `Halaman ${page}` });
-  }, [page, navigation]);
+    navigation?.setOptions?.({ title: t('page.halamanN', { n: page }) });
+  }, [page, navigation, t]);
 
   useEffect(() => {
     AsyncStorage.getItem(MODE_KEY)
@@ -89,7 +89,7 @@ export default function PageDetailScreen({ route, navigation }) {
         setVerses(v);
       } catch (e) {
         if (!alive) return;
-        setError('Gagal memuat halaman. Periksa koneksi lalu coba lagi.');
+        setError(t('page.loadError'));
       } finally {
         if (alive) setLoading(false);
       }
@@ -165,11 +165,11 @@ export default function PageDetailScreen({ route, navigation }) {
         <View style={styles.pageHead}>
           <View style={styles.pageBadge}>
             <Text style={styles.pageBadgeNum}>{page}</Text>
-            <Text style={styles.pageBadgeLabel}>HALAMAN</Text>
+            <Text style={styles.pageBadgeLabel}>{t('page.badge')}</Text>
           </View>
           <View style={styles.pageHeadInfo}>
             <Text style={styles.pageMeta}>
-              {verses.length ? `${verses.length} ayat • ${verses[0].surahName}${verses.length > 1 && verses[verses.length - 1].surah !== verses[0].surah ? ` → ${verses[verses.length - 1].surahName}` : ''}` : 'Memuat…'}
+              {verses.length ? `${verses.length} ${lang === 'en' ? 'verses' : 'ayat'} • ${verses[0].surahName}${verses.length > 1 && verses[verses.length - 1].surah !== verses[0].surah ? ` → ${verses[verses.length - 1].surahName}` : ''}` : t('home.loading')}
             </Text>
             {/* Toggle mode tampil: per ayat vs mushaf (teks mengalir) */}
             <View style={styles.modeRow}>
@@ -180,7 +180,7 @@ export default function PageDetailScreen({ route, navigation }) {
                 >
                   <Ionicons name="list" size={13} color={displayMode !== 'mushaf' ? '#fff' : pal.colors.primary} />
                   <Text style={[styles.modeBtnText, displayMode !== 'mushaf' && styles.modeBtnTextActive]}>
-                    Per Ayat
+                    {t('page.perAyat')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -189,7 +189,7 @@ export default function PageDetailScreen({ route, navigation }) {
                 >
                   <Ionicons name="book" size={13} color={displayMode === 'mushaf' ? '#fff' : pal.colors.primary} />
                   <Text style={[styles.modeBtnText, displayMode === 'mushaf' && styles.modeBtnTextActive]}>
-                    Mushaf
+                    {t('page.mushaf')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -201,7 +201,7 @@ export default function PageDetailScreen({ route, navigation }) {
               <TouchableOpacity style={styles.fontBtn} onPress={() => saveTextScale(textScale + 0.1)}>
                 <Text style={styles.fontBtnText}>A+</Text>
               </TouchableOpacity>
-              <Text style={styles.fontInfo}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
+              <Text style={styles.fontInfo}>{t('page.ukuran', { x: textScale.toFixed(1) })}</Text>
             </View>
           </View>
         </View>

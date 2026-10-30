@@ -7,6 +7,7 @@ import {
 } from '../../api/hadits';
 import { theme, getPalette } from '../../ui';
 import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { Ionicons } from '@expo/vector-icons'
 
 function pickFields(payload) {
@@ -34,6 +35,8 @@ export default function HaditsDetailScreen({ route, navigation }) {
   const [perawiSlug, setPerawiSlug] = useState(slug || null);
   // Kontrol ukuran font (terpusat di pengaturan tampilan — sinkron dengan semua layar bacaan)
   const { darkMode, textScale } = useAppearance();
+  // Dwibahasa: judul header, label bagian, tombol navigasi, dan pesan error.
+  const { lang, t } = useI18n();
   const pal = getPalette(darkMode);
   const increaseTextScale = () => saveTextScale(textScale + 0.1);
   const decreaseTextScale = () => saveTextScale(textScale - 0.1);
@@ -41,12 +44,13 @@ export default function HaditsDetailScreen({ route, navigation }) {
   useEffect(() => {
     // Set judul halaman sesuai koleksi
     const titleMap = {
-      arbain: 'Detail Hadits - Arba’in',
-      bm: 'Detail Hadits - Bulughul Maram',
-      perawi: 'Detail Hadits - 9 Perawi',
+      arbain: t('hadits.detailArbain'),
+      bm: t('hadits.detailBm'),
+      perawi: t('hadits.detailPerawi'),
     };
-    navigation?.setOptions?.({ title: titleMap[collection] || 'Detail Hadits' });
-  }, [collection, navigation]);
+    navigation?.setOptions?.({ title: titleMap[collection] || t('hadits.detail') });
+    // lang diikutkan agar judul ikut berganti saat bahasa diubah
+  }, [collection, navigation, lang]);
 
   useEffect(() => {
     (async () => {
@@ -75,7 +79,7 @@ export default function HaditsDetailScreen({ route, navigation }) {
           if (reqSlug) setPerawiSlug(reqSlug);
         }
       } catch (e) {
-        setError(e?.message || 'Gagal memuat hadits');
+        setError(e?.message || t('hadits.loadError'));
       } finally {
         setLoading(false);
       }
@@ -102,7 +106,7 @@ export default function HaditsDetailScreen({ route, navigation }) {
         if (reqSlug) setPerawiSlug(reqSlug);
       }
     } catch (e) {
-      setError(e?.message || 'Gagal memuat hadits');
+      setError(e?.message || t('hadits.loadError'));
     } finally {
       setLoading(false);
     }
@@ -142,8 +146,8 @@ export default function HaditsDetailScreen({ route, navigation }) {
 
   const shareHadits = async () => {
     try {
-      const judul = data?.judul || `Hadits ${data?.nomor ?? ''}`;
-      const msg = `${judul}${data?.perawi ? `\nPerawi: ${data.perawi}` : ''}\n\n${data?.arab ?? ''}\n\n${data?.latin ?? ''}\n\n${data?.indo ?? ''}`;
+      const judul = data?.judul || t('hadits.nomorHadits', { n: data?.nomor ?? '' });
+      const msg = `${judul}${data?.perawi ? `\n${t('hadits.perawiLabel', { n: data.perawi })}` : ''}\n\n${data?.arab ?? ''}\n\n${data?.latin ?? ''}\n\n${data?.indo ?? ''}`;
       await Share.share({ message: msg });
     } catch (e) {
       // Share dibatalkan pengguna: tidak perlu ditampilkan sebagai error.
@@ -172,7 +176,7 @@ export default function HaditsDetailScreen({ route, navigation }) {
         <View style={styles.headerRow}>
           <View style={[styles.numberPill, { backgroundColor: pal.colors.primaryLight + '33', borderColor: pal.colors.primaryLight }]}>
             <Text style={[styles.numberPillText, { color: pal.colors.primary }]}>
-              Hadits {currentNomor ?? data?.nomor ?? '-'}
+              {t('hadits.nomorHadits', { n: currentNomor ?? data?.nomor ?? '-' })}
             </Text>
           </View>
           {!!(data?.perawi || perawiSlug) && (
@@ -198,7 +202,7 @@ export default function HaditsDetailScreen({ route, navigation }) {
 
         {!!data?.latin && (
           <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-            <Text style={[styles.sectionLabel, { color: pal.colors.muted }]}>Latin</Text>
+            <Text style={[styles.sectionLabel, { color: pal.colors.muted }]}>{t('hadits.latin')}</Text>
             <Text style={[styles.body, { color: pal.colors.text, fontSize: 15 * textScale }]}>
               {data.latin}
             </Text>
@@ -207,7 +211,7 @@ export default function HaditsDetailScreen({ route, navigation }) {
 
         {!!data?.indo && (
           <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-            <Text style={[styles.sectionLabel, { color: pal.colors.muted }]}>Terjemahan</Text>
+            <Text style={[styles.sectionLabel, { color: pal.colors.muted }]}>{t('hadits.terjemahan')}</Text>
             <Text style={[styles.body, { color: pal.colors.text, fontSize: 15 * textScale }]}>
               {data.indo}
             </Text>
@@ -215,20 +219,20 @@ export default function HaditsDetailScreen({ route, navigation }) {
         )}
 
         {!data?.arab && !data?.latin && !data?.indo && (
-          <Text style={[styles.body, { color: pal.colors.muted }]}>Isi hadits tidak tersedia.</Text>
+          <Text style={[styles.body, { color: pal.colors.muted }]}>{t('hadits.isiTidakTersedia')}</Text>
         )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
 
       <View style={[styles.actionRow, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-        <TouchableOpacity style={styles.iconBtn} onPress={decreaseTextScale} accessibilityLabel="Perkecil teks">
+        <TouchableOpacity style={styles.iconBtn} onPress={decreaseTextScale} accessibilityLabel={t('hadits.perkecilTeks')}>
           <Text style={[styles.fontBtnText, { color: pal.colors.text }]}>A-</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={increaseTextScale} accessibilityLabel="Perbesar teks">
+        <TouchableOpacity style={styles.iconBtn} onPress={increaseTextScale} accessibilityLabel={t('hadits.perbesarTeks')}>
           <Text style={[styles.fontBtnText, { color: pal.colors.text }]}>A+</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={shareHadits} accessibilityLabel="Bagikan hadits">
+        <TouchableOpacity style={styles.iconBtn} onPress={shareHadits} accessibilityLabel={t('hadits.bagikan')}>
           <Ionicons name="share-social-outline" size={20} color={pal.colors.text} />
         </TouchableOpacity>
 
@@ -238,21 +242,21 @@ export default function HaditsDetailScreen({ route, navigation }) {
           style={[styles.navBtn, prevDisabled && styles.navBtnDisabled]}
           onPress={goPrev}
           disabled={prevDisabled}
-          accessibilityLabel="Hadits sebelumnya"
+          accessibilityLabel={t('hadits.prev')}
         >
           <Ionicons name="chevron-back" size={16} color={prevDisabled ? pal.colors.muted : pal.colors.primary} />
           <Text style={[styles.navBtnText, { color: prevDisabled ? pal.colors.muted : pal.colors.primary }]}>
-            Sebelumnya
+            {t('page.prev')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.navBtn, nextDisabled && styles.navBtnDisabled]}
           onPress={goNext}
           disabled={nextDisabled}
-          accessibilityLabel="Hadits berikutnya"
+          accessibilityLabel={t('hadits.next')}
         >
           <Text style={[styles.navBtnText, { color: nextDisabled ? pal.colors.muted : pal.colors.primary }]}>
-            Berikutnya
+            {t('page.next')}
           </Text>
           <Ionicons name="chevron-forward" size={16} color={nextDisabled ? pal.colors.muted : pal.colors.primary} />
         </TouchableOpacity>

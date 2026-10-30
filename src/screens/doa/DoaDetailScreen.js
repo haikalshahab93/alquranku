@@ -3,6 +3,7 @@ import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity
 import { getDoaDetail } from '../../api/doa';
 import { theme, getPalette } from '../../ui';
 import { useAppearance, setTextScale as saveTextScale } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { isDoaFavorite, toggleDoaFavorite, setLastReadDoa } from '../../api/doa';
 
@@ -14,6 +15,8 @@ export default function DoaDetailScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   // textScale terpusat dari pengaturan tampilan (sinkron dengan semua layar bacaan)
   const { textScale, darkMode } = useAppearance();
+  // Dwibahasa: pesan status, tombol, dan label referensi mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const increaseTextScale = () => saveTextScale(textScale + 0.1);
   const decreaseTextScale = () => saveTextScale(textScale - 0.1);
@@ -23,7 +26,7 @@ export default function DoaDetailScreen({ navigation, route }) {
   const fetchDetail = useCallback(async () => {
     if (id == null) {
       setDetail(null);
-      setError('ID doa tidak valid.');
+      setError(t('doa.idTidakValid'));
       setLoading(false);
       return;
     }
@@ -34,10 +37,10 @@ export default function DoaDetailScreen({ navigation, route }) {
       const d = res?.data ?? null;
       setDetail(d);
       setFromCache(!!d?.__fromCache);
-      if (!d) setError(`Doa #${id} tidak ditemukan.`);
+      if (!d) setError(t('doa.detailTidakDitemukan', { n: id }));
     } catch (e) {
       setDetail(null);
-      setError(e?.message || 'Gagal memuat doa. Periksa koneksi internet lalu coba lagi.');
+      setError(e?.message || t('doa.muatGagalDetail'));
     } finally {
       setLoading(false);
     }
@@ -74,16 +77,16 @@ export default function DoaDetailScreen({ navigation, route }) {
         <Text style={[styles.errorText, { color: pal.colors.text }]}>{String(error)}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={fetchDetail} activeOpacity={0.8}>
           <Ionicons name="refresh" size={14} color="#ffffff" />
-          <Text style={styles.retryText}>Coba Lagi</Text>
+          <Text style={styles.retryText}>{t('doa.cobaLagi')}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.backLinkBtn}>
-          <Text style={[styles.backLinkText, { color: pal.colors.primary }]}>Kembali</Text>
+          <Text style={[styles.backLinkText, { color: pal.colors.primary }]}>{t('doa.kembali')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const title = detail?.nama ?? `Doa #${id}`;
+  const title = detail?.nama ?? t('doa.kontenPagar', { n: id });
   const arab = detail?.ar ?? '';
   const latin = detail?.tr ?? '';
   const ind = detail?.idn ?? '';
@@ -92,7 +95,7 @@ export default function DoaDetailScreen({ navigation, route }) {
 
   const shareDoa = async () => {
     try {
-      const msg = `${title}\n\n${arab}\n\n${latin}\n\n${ind}${tags ? `\n\nTags: ${tags}` : ''}`;
+      const msg = `${title}\n\n${arab}\n\n${latin}\n\n${ind}${tags ? `\n\n${t('doa.tagsShare', { n: tags })}` : ''}`;
       await Share.share({ message: msg });
     } catch {}
   };
@@ -102,11 +105,11 @@ export default function DoaDetailScreen({ navigation, route }) {
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: pal.colors.text }]}>{title}</Text>
         <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={fetchDetail}>
-          <Text style={[styles.refreshText, { color: pal.colors.primary }]}>Refresh</Text>
+          <Text style={[styles.refreshText, { color: pal.colors.primary }]}>{t('doa.refresh')}</Text>
         </TouchableOpacity>
       </View>
       {fromCache ? (
-        <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+        <View style={styles.cacheBadge}><Text style={styles.cacheText}>{t('surah.dataDariCache')}</Text></View>
       ) : null}
       {!!tags && <Text style={[styles.tags, { color: pal.colors.muted }]}>{tags}</Text>}
 
@@ -118,7 +121,7 @@ export default function DoaDetailScreen({ navigation, route }) {
         <TouchableOpacity style={[styles.fontBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={increaseTextScale}>
           <Text style={[styles.fontBtnText, { color: pal.colors.primary }]}>A+</Text>
         </TouchableOpacity>
-        <Text style={[styles.fontInfo, { color: pal.colors.muted }]}>{`Ukuran: ${textScale.toFixed(1)}x`}</Text>
+        <Text style={[styles.fontInfo, { color: pal.colors.muted }]}>{t('page.ukuran', { x: textScale.toFixed(1) })}</Text>
       </View>
 
       {/* Baris atas: nomor & aksi */}
@@ -141,7 +144,7 @@ export default function DoaDetailScreen({ navigation, route }) {
       {!!ind && <Text style={[styles.ind, { color: pal.colors.text, fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{ind}</Text>}
       {!!refText && (
         <View style={[styles.refBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-          <Text style={[styles.refLabel, { color: pal.colors.muted }]}>Tentang / Referensi:</Text>
+          <Text style={[styles.refLabel, { color: pal.colors.muted }]}>{t('doa.tentangRef')}</Text>
           <Text style={[styles.refText, { color: pal.colors.text }]}>{refText}</Text>
         </View>
       )}

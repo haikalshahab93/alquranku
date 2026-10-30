@@ -3,6 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions
 import { getHaditsPerawiList } from '../../api/hadits';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { ListScreen, ListTitleRow, ListSearch, ListResultInfo, ListStatus, ListPager, usePagedList } from '../../ui/ListScaffold';
 
 // Layar daftar perawi - memakai kerangka list standar (ListScaffold).
@@ -10,6 +11,8 @@ import { ListScreen, ListTitleRow, ListSearch, ListResultInfo, ListStatus, ListP
 
 export default function HaditsPerawiListScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul, pencarian, info total, dan pesan status mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,7 +36,7 @@ export default function HaditsPerawiListScreen({ navigation }) {
         const arr = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
         setItems(arr);
       } catch (e) {
-        setError(e?.message || 'Gagal memuat perawi');
+        setError(e?.message || t('hadits.loadPerawiError'));
       } finally {
         setLoading(false);
       }
@@ -68,10 +71,10 @@ export default function HaditsPerawiListScreen({ navigation }) {
 
   return (
     <ListScreen>
-      <ListTitleRow title="Hadits 9 Perawi" />
-      <ListSearch value={query} onChangeText={setQuery} placeholder="Cari perawi (nama/slug)" />
-      <ListResultInfo>Total Perawi: {filtered.length}</ListResultInfo>
-      <ListStatus loading={loading} error={error} empty={filtered.length === 0} emptyText="Perawi tidak ditemukan.">
+      <ListTitleRow title={t('hadits.perawiSembilan')} />
+      <ListSearch value={query} onChangeText={setQuery} placeholder={t('hadits.cariPerawi')} />
+      <ListResultInfo>{t('hadits.totalPerawi', { n: filtered.length })}</ListResultInfo>
+      <ListStatus loading={loading} error={error} empty={filtered.length === 0} emptyText={t('hadits.perawiTidakDitemukan')}>
         <View style={{ flex: 1 }}>
           <FlatList
             data={paged}
@@ -82,7 +85,7 @@ export default function HaditsPerawiListScreen({ navigation }) {
           <ListPager
             onPrev={goPrev} onNext={goNext}
             canPrev={canPrev} canNext={canNext}
-            label={`Halaman ${page + 1} / ${totalPages}`}
+            label={t('surah.halamanDari', { a: page + 1, b: totalPages })}
           />
         </View>
       </ListStatus>

@@ -4,11 +4,14 @@ import * as Location from 'expo-location';
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg';
 import { PurpleButton, OutlineLightButton, theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 import { getAladhanQibla } from '../../api/aladhan';
 import compassImg from '../../../assets/filename.png';
 
 export default function QiblaScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul, meta lokasi, tips, tombol, dan pesan error mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,17 +28,17 @@ export default function QiblaScreen({ navigation }) {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        throw new Error('Izin lokasi ditolak. Aktifkan izin lokasi untuk menentukan arah kiblat.');
+        throw new Error(t('qibla.errIzin'));
       }
       const pos = await Location.getCurrentPositionAsync({});
       const lat = pos?.coords?.latitude;
       const lon = pos?.coords?.longitude;
       if (typeof lat !== 'number' || typeof lon !== 'number') {
-        throw new Error('Tidak dapat memperoleh lokasi perangkat.');
+        throw new Error(t('qibla.errLokasi'));
       }
       setCoords({ latitude: lat, longitude: lon });
       const deg = await getAladhanQibla(lat, lon);
-      if (typeof deg !== 'number') throw new Error('Gagal memuat arah kiblat dari API.');
+      if (typeof deg !== 'number') throw new Error(t('qibla.errApi'));
       setQiblaDeg(deg);
     } catch (e) {
       setError(e?.message || String(e));
@@ -96,18 +99,18 @@ export default function QiblaScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
       <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
-        <Text style={[styles.title, { color: pal.colors.text }]}>Arah Kiblat</Text>
+        <Text style={[styles.title, { color: pal.colors.text }]}>{t('qibla.title')}</Text>
         {coords && (
           <Text style={[styles.subtitle, { color: pal.colors.muted }]}>
-            Lokasi: {coords.latitude.toFixed(5)}, {coords.longitude.toFixed(5)}
+            {t('qibla.lokasi', { lat: coords.latitude.toFixed(5), lon: coords.longitude.toFixed(5) })}
           </Text>
         )}
         {qiblaDeg != null && (
-          <Text style={[styles.meta, { color: pal.colors.text }]}>Sudut dari Utara: {Math.round(qiblaDeg)}°</Text>
+          <Text style={[styles.meta, { color: pal.colors.text }]}>{t('qibla.sudutUtara', { n: Math.round(qiblaDeg) })}</Text>
         )}
-        <Text style={[styles.subtitle, { color: pal.colors.muted }]}>Arah perangkat: {Math.round(manualMode ? manualHeadingDeg : headingDeg)}° {manualMode ? '(manual)' : headingSupported ? '(sensor)' : '(tidak didukung)'} </Text>
+        <Text style={[styles.subtitle, { color: pal.colors.muted }]}>{t('qibla.arahPerangkat', { n: Math.round(manualMode ? manualHeadingDeg : headingDeg) })} {manualMode ? t('qibla.manual') : headingSupported ? t('qibla.sensor') : t('qibla.tidakDidukung')} </Text>
         <View style={{ marginTop: 8, backgroundColor: pal.colors.bg, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 10 }}>
-          <Text style={{ color: pal.colors.muted }}>Tips kalibrasi: Gerakkan perangkat membentuk angka “8” di udara untuk menstabilkan kompas. Jauhkan dari benda logam atau magnet.</Text>
+          <Text style={{ color: pal.colors.muted }}>{t('qibla.kalibrasi')}</Text>
         </View>
 
         <View style={{ alignItems: 'center', marginTop: 12 }}>
@@ -116,7 +119,7 @@ export default function QiblaScreen({ navigation }) {
           ) : error ? (
             <View style={{ alignItems: 'center' }}>
               <Text style={[styles.error, { color: '#ef4444' }]}>{error}</Text>
-              <OutlineLightButton label="Coba Lagi" onPress={resolveQibla} style={{ marginTop: 8 }} />
+              <OutlineLightButton label={t('qibla.cobaLagi')} onPress={resolveQibla} style={{ marginTop: 8 }} />
             </View>
           ) : (
             <ImageBackground source={compassImg} style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }} imageStyle={{ resizeMode: 'contain' }}>
@@ -131,13 +134,13 @@ export default function QiblaScreen({ navigation }) {
         </View>
 
         <View style={{ marginTop: 10 }}>
-          <Text style={[styles.help, { color: pal.colors.muted }]}>Arahkan perangkat sehingga bagian atas menghadap utara, lalu ikuti garis ungu menuju Ka'bah.</Text>
+          <Text style={[styles.help, { color: pal.colors.muted }]}>{t('qibla.arahkan')}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', marginTop: 12 }}>
-          <PurpleButton label="Segarkan Lokasi" onPress={resolveQibla} style={{ marginRight: 8 }} />
-          <OutlineLightButton label="Buka Maps" onPress={openMaps} style={{ marginRight: 8 }} />
-          <OutlineLightButton label="Kembali" onPress={() => navigation.goBack()} />
+          <PurpleButton label={t('qibla.segarkanLokasi')} onPress={resolveQibla} style={{ marginRight: 8 }} />
+          <OutlineLightButton label={t('qibla.bukaMaps')} onPress={openMaps} style={{ marginRight: 8 }} />
+          <OutlineLightButton label={t('qibla.kembali')} onPress={() => navigation.goBack()} />
         </View>
       </View>
     </View>

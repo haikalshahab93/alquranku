@@ -82,7 +82,7 @@ class ScreenErrorBoundary extends React.Component {
     if (this.state.err) {
       return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#ffffff' }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8, color: '#7c3aed' }}>Terjadi kesalahan di layar ini</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8, color: '#7c3aed' }}>{this.props.t ? this.props.t('app.screenError') : 'Terjadi kesalahan di layar ini'}</Text>
           <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', marginBottom: 16 }}>
             {String((this.state.err && this.state.err.message) || this.state.err)}
           </Text>
@@ -90,10 +90,10 @@ class ScreenErrorBoundary extends React.Component {
             style={{ backgroundColor: '#7c3aed', paddingVertical: 10, paddingHorizontal: 22, borderRadius: 999 }}
             onPress={() => this.setState({ err: null })}
           >
-            <Text style={{ color: '#ffffff', fontWeight: '700' }}>Coba Lagi</Text>
+            <Text style={{ color: '#ffffff', fontWeight: '700' }}>{this.props.t ? this.props.t('app.tryAgain') : 'Coba Lagi'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={{ marginTop: 12 }} onPress={() => { this.setState({ err: null }); if (this.props.onGoHome) this.props.onGoHome(); }}>
-            <Text style={{ color: '#7c3aed', fontWeight: '600' }}>Kembali ke Home</Text>
+            <Text style={{ color: '#7c3aed', fontWeight: '600' }}>{this.props.t ? this.props.t('app.backHome') : 'Kembali ke Home'}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -221,7 +221,8 @@ export default function App() {
     return (
       <LinearGradient colors={theme.gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.splash}>
         <Image source={require('./assets/icon.png')} style={styles.splashLogo} resizeMode="contain" />
-        <Text style={styles.splashTitle}>ALQURANKU</Text>            <Text style={styles.splashSubtitle}>Pendamping baca Al-Qur'an harian</Text>
+        <Text style={styles.splashTitle}>ALQURANKU</Text>
+        <Text style={styles.splashSubtitle}>{t('app.tagline')}</Text>
       </LinearGradient>
     );
   }
@@ -261,9 +262,9 @@ export default function App() {
       // Sembunyikan layar Login sepenuhnya (bypass)
       ScreenEl = (
         <View style={styles.center}>
-          <Text>Layar Login dibypass. Gunakan Home.</Text>
+          <Text>{t('app.loginBypass')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backLink}>
-            <Text style={styles.backLinkText}>Ke Home</Text>
+            <Text style={styles.backLinkText}>{t('app.toHome')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -409,7 +410,7 @@ export default function App() {
         </SafeAreaView>
         <SafeAreaView edges={["bottom"]} style={[styles.content, { backgroundColor: pal.colors.bg }]}>
           <View style={{ flex: 1 }}>
-            <ScreenErrorBoundary onGoHome={() => setStack([{ name: 'Home', params: null }])}>
+            <ScreenErrorBoundary t={t} onGoHome={() => setStack([{ name: 'Home', params: null }])}>
               {ScreenEl}
             </ScreenErrorBoundary>
           </View>

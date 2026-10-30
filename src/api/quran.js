@@ -1,6 +1,11 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bigGetItem, bigSetItem, bigGetAllKeys, bigRemoveItem } from './bigStore';
+// Tafsir EN (Ibn Kathir/Al-Jalalayn via spa5k CDN) ikut di-preload saat
+// unduhan offline, memakai cache bigStore miliknya sendiri yang key-nya
+// diawali 'cache:quran:tafsir_en:' — otomatis ikut dibersihkan kalau
+// pengguna reset cache Quran.
+import { getSurahTafsirEn } from './quranEn';
 
 // EQuran v2 - Surah & Tafsir
 const EQURAN_V2_BASE = 'https://equran.id/api/v2';
@@ -117,6 +122,20 @@ async function writeOfflineManifest(obj) {
   } catch {}
 }
 
+/**
+ * Jumlah surah yang tafsir bahasa Inggrisnya juga sudah tersimpan offline
+ * (cache 'cache:quran:tafsir_en:{n}' dari getSurahTafsirEn). Murah: cukup
+ * menghitung kunci cache, tidak perlu membaca isinya.
+ */
+export async function getOfflineEnTafsirReadyCount() {
+  try {
+    const keys = await bigGetAllKeys('cache:quran:tafsir_en:');
+    return keys.length;
+  } catch {
+    return 0;
+  }
+}
+
 /** Jumlah surah yang sudah lengkap tersimpan untuk offline (detail+tafsir). */
 export async function getOfflineReadyCount() {
   try {
@@ -150,6 +169,9 @@ export async function preloadAllSurahData(onProgress) {
         let ok = true;
         try { await getSurahDetail(nomor); } catch { ok = false; }
         try { await getTafsir(nomor); } catch { ok = false; }
+        // Tafsir EN opsional: gagal jaringan di sini TIDAK menggagalkan
+        // status offline surah (tafsir ID tetap jamin offline-ready).
+        try { await getSurahTafsirEn(nomor); } catch { /* opsional */ }
         manifest[String(nomor)] = ok;
         // Simpan manifest tiap 10 surah agar tidak hilang jika dibatalkan
         if (done % 10 === 0) await writeOfflineManifest(manifest);

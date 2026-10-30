@@ -5,9 +5,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 
 export default function UserScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: header profil, chip, label detail, dan tombol mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const [profile, setProfile] = useState(null);
 
@@ -46,7 +49,7 @@ export default function UserScreen({ navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg }]}>
       <LinearGradient colors={pal.gradients.brandSoft} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-        <Text style={[styles.heroTitle, { color: pal.colors.primaryDark }]}>Profil</Text>
+        <Text style={[styles.heroTitle, { color: pal.colors.primaryDark }]}>{t('user.profil')}</Text>
         {profile && (
           <View style={styles.heroContent}>
             <Image source={{ uri: profile.picture }} style={styles.heroAvatar} />
@@ -60,7 +63,7 @@ export default function UserScreen({ navigation }) {
               {!!profile.emailVerified && (
                 <View style={[styles.chip, styles.chipVerified]}>
                   <FontAwesome5 name="check-circle" size={12} color="#16a34a" style={{ marginRight: 6 }} />
-                  <Text style={[styles.chipText, { color: pal.colors.text }]}>Terverifikasi</Text>
+                  <Text style={[styles.chipText, { color: pal.colors.text }]}>{t('user.terverifikasi')}</Text>
                 </View>
               )}
             </View>
@@ -70,7 +73,7 @@ export default function UserScreen({ navigation }) {
 
       {profile ? (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: pal.colors.muted }]}>Detail Akun</Text>
+          <Text style={[styles.sectionTitle, { color: pal.colors.muted }]}>{t('user.detailAkun')}</Text>
           <View style={[styles.infoItem, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
             <FontAwesome5 name="globe" size={14} color={pal.colors.muted} style={styles.infoIcon} />
             <Text style={[styles.infoLabel, { color: pal.colors.muted }]}>Locale</Text>
@@ -83,26 +86,26 @@ export default function UserScreen({ navigation }) {
           </View>
           <View style={[styles.infoItem, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
             <FontAwesome5 name="user" size={14} color={pal.colors.muted} style={styles.infoIcon} />
-            <Text style={[styles.infoLabel, { color: pal.colors.muted }]}>Nama depan</Text>
+            <Text style={[styles.infoLabel, { color: pal.colors.muted }]}>{t('user.namaDepan')}</Text>
             <Text style={[styles.infoValue, { color: pal.colors.text }]}>{profile.givenName || '-'}</Text>
           </View>
           <View style={[styles.infoItem, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
             <FontAwesome5 name="user" size={14} color={pal.colors.muted} style={styles.infoIcon} />
-            <Text style={[styles.infoLabel, { color: pal.colors.muted }]}>Nama belakang</Text>
+            <Text style={[styles.infoLabel, { color: pal.colors.muted }]}>{t('user.namaBelakang')}</Text>
             <Text style={[styles.infoValue, { color: pal.colors.text }]}>{profile.familyName || '-'}</Text>
           </View>
           <TouchableOpacity style={[styles.btn, styles.logoutBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={logout}>
             <FontAwesome5 name="sign-out-alt" size={14} color="#b91c1c" style={{ marginRight: 8 }} />
-            <Text style={[styles.btnText, { color: '#dc2626' }]}>Logout</Text>
+            <Text style={[styles.btnText, { color: '#dc2626' }]}>{t('user.logout')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.section}>
-          <View style={[styles.emptyCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}><Text style={[styles.emptyText, { color: pal.colors.muted }]}>Belum login</Text></View>
+          <View style={[styles.emptyCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}><Text style={[styles.emptyText, { color: pal.colors.muted }]}>{t('user.belumLogin')}</Text></View>
           {/* Bypass login: tombol mengarahkan kembali ke Home */}
           <TouchableOpacity style={[styles.btn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => navigation.navigate('Home')}>
             <FontAwesome5 name="home" size={14} color={pal.colors.primary} style={{ marginRight: 8 }} />
-            <Text style={[styles.btnText, { color: pal.colors.primary }]}>Kembali ke Home</Text>
+            <Text style={[styles.btnText, { color: pal.colors.primary }]}>{t('user.kembaliHome')}</Text>
           </TouchableOpacity>
         </View>
       )}

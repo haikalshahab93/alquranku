@@ -10,6 +10,8 @@ import { getAladhanHarianCity, getAladhanHarianCoords } from '../api/aladhan';
 import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../api/notifications';
 import { readLastSholatSnapshot } from '../api/aladhan';
 import { onSettingsChanged } from '../api/settingsEvents';
+import { useI18n } from '../api/i18n';
+import { getSurahTranslationEn } from '../api/quranEn';
 import * as Location from 'expo-location';
 
 function Card({ title, desc, onPress }) {
@@ -19,20 +21,34 @@ function Card({ title, desc, onPress }) {
 }
 
 // Warna aksen untuk setiap tile menu agar grid lebih hidup
+// (kunci = i18n key tile.* supaya label ikut dwibahasa)
 const TILE_COLORS = {
-  Surat: '#7c3aed',
-  Doa: '#0ea5e9',
-  Hadits: '#f59e0b',
-  Sholat: '#10b981',
-  Kiblat: '#ef4444',
-  Hijriyah: '#6366f1',
-  Ulama: '#ec4899',
-  Bookmark: '#14b8a6',
+  'tile.surat': '#7c3aed',
+  'tile.doa': '#0ea5e9',
+  'tile.hadits': '#f59e0b',
+  'tile.sholat': '#10b981',
+  'tile.kiblat': '#ef4444',
+  'tile.hijriyah': '#6366f1',
+  'tile.ulama': '#ec4899',
 };
+// Daftar tile menu Home: kunci i18n + layar tujuan
+const HOME_TILES = [
+  { key: 'tile.surat', icon: 'book-outline', screen: 'SurahList' },
+  { key: 'tile.doa', icon: 'hand-left-outline', screen: 'DoaList' },
+  { key: 'tile.hadits', icon: 'list-circle-outline', screen: 'HaditsMenu' },
+  { key: 'tile.sholat', icon: 'time-outline', screen: 'SholatJadwal' },
+  { key: 'tile.kiblat', icon: 'compass-outline', screen: 'Qibla' },
+  { key: 'tile.hijriyah', icon: 'calendar-outline', screen: 'HijriCalendar' },
+  { key: 'tile.ulama', icon: 'people-outline', screen: 'UlamaList' },
+];
 
 export default function HomeScreen({ navigation }) {
   const [logoSource, setLogoSource] = useState(require('../../assets/icon.png'));
   const [lastRead, setLastRead] = useState(null);
+  // Dwibahasa: saat bahasa efektif = English, sapaan/judul/label + isi ayat
+  // harian (terjemahan EN dari api.quran.com) ikut berubah otomatis.
+  const { lang, t } = useI18n();
+  const [dailyEn, setDailyEn] = useState(null);
 
   // === Tampilan (dark mode) ===
   const { darkMode } = useAppearance();
@@ -53,22 +69,35 @@ export default function HomeScreen({ navigation }) {
   const shareDailyAyah = useCallback(async () => {
     if (!dailyAyah) return;
     const ayLabel = `${dailyAyah.surahLatin} : ${dailyAyah.ayahNumber}`;
-    const msg = `Ayat Hari Ini • ${ayLabel}\n\n${dailyAyah.arab}\n\n${dailyAyah.latin}\n\n${dailyAyah.indo}\n\n— dibagikan dari Alquranku`;
+    const indo = (lang === 'en' && Array.isArray(dailyEn)
+      ? (dailyEn[dailyAyah.ayahNumber - 1] || dailyAyah.indo)
+      : dailyAyah.indo);
+    const msg = `"${t('daily.shareHeader', { ref: ayLabel })}"\n\n${dailyAyah.arab}\n\n${dailyAyah.latin}\n\n${indo}\n\n${t('daily.shareTag')}`;
     try {
       if (Platform.OS === 'web') {
         if (typeof navigator !== 'undefined' && navigator.share) {
-          await navigator.share({ title: 'Ayat Hari Ini', text: msg });
+          await navigator.share({ title: t('daily.ayatHariIni'), text: msg });
         } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
           await navigator.clipboard.writeText(msg);
-          alert('Teks ayat dikopi ke clipboard.');
+          alert(t('daily.copied'));
         } else {
           alert(msg);
         }
       } else {
-        await Share.share({ title: 'Ayat Hari Ini', message: msg });
+        await Share.share({ title: t('daily.ayatHariIni'), message: msg });
       }
     } catch {}
-  }, [dailyAyah]);
+  }, [dailyAyah, dailyEn, lang, t]);
+
+  // Terjemahan EN untuk ayat hari ini (api.quran.com) — hanya saat bahasa EN.
+  useEffect(() => {
+    if (lang !== 'en' || !dailyAyah?.surahNo) return;
+    let alive = true;
+    getSurahTranslationEn(dailyAyah.surahNo)
+      .then((texts) => { if (alive) setDailyEn(texts); })
+      .catch(() => { if (alive) setDailyEn(null); });
+    return () => { alive = false; };
+  }, [lang, dailyAyah?.surahNo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,30 +183,22 @@ export default function HomeScreen({ navigation }) {
   };
   // Hitung sapaan sesuai jam lokal perangkat
   useEffect(() => {
-    const update = () => {
+    // Sapaan disimpan sebagai kunci i18n, diterjemahkan saat render sehingga
+  // ganti bahasa langsung berubah tanpa menunggu interval berikutnya.
+  const update = () => {
       const h = new Date().getHours();
-      if (h >= 4 && h < 11) setGreeting('Selamat pagi');
-      else if (h >= 11 && h < 15) setGreeting('Selamat siang');
-      else if (h >= 15 && h < 18) setGreeting('Selamat sore');
-      else setGreeting('Selamat malam');
+      if (h >= 4 && h < 11) setGreeting('home.greetingPagi');
+      else if (h >= 11 && h < 15) setGreeting('home.greetingSiang');
+      else if (h >= 15 && h < 18) setGreeting('home.greetingSore');
+      else setGreeting('home.greetingMalam');
     };
     update();
     const id = setInterval(update, 60000);
     return () => clearInterval(id);
   }, []);
 
-  const labelForKey = (k) => {
-    switch (k) {
-      case 'imsak': return 'Imsak';
-      case 'subuh': return 'Subuh';
-      case 'terbit': return 'Terbit';
-      case 'dzuhur': return 'Dzuhur';
-      case 'ashar': return 'Ashar';
-      case 'maghrib': return 'Maghrib';
-      case 'isya': return 'Isya';
-      default: return k;
-    }
-  };
+  // Label waktu sholat dwibahasa: kunci 'prayer.<key>' di i18nDb.json.
+  const labelForKey = (k) => t(`prayer.${k}`);
   const computeStatusFromJadwal = (dateIso, jadwal) => {
     const ORDER = ['imsak', 'subuh', 'terbit', 'dzuhur', 'ashar', 'maghrib', 'isya'];
     const now = new Date();
@@ -200,27 +221,23 @@ export default function HomeScreen({ navigation }) {
     const upcoming = times.find((t) => t.at.getTime() > now.getTime());
     if (upcoming) {
       const diffMin = Math.round((upcoming.at.getTime() - now.getTime()) / 60000);
-      const label = labelForKey(upcoming.key);
-      return { nextKey: upcoming.key, headerText: `Menuju ${label} dalam ± ${diffMin} menit`, type: 'upcoming', diffMin };
+      return { nextKey: upcoming.key, type: 'upcoming', diffMin };
     }
     const last = times[times.length - 1];
     const diffMin = Math.round((now.getTime() - last.at.getTime()) / 60000);
-    const label = labelForKey(last.key);
-    return { headerText: `Waktu ${label} sudah lewat ± ${diffMin} menit yang lalu`, type: 'passed', diffMin, lastKey: last.key };
+    return { type: 'passed', diffMin, lastKey: last.key };
   };
   const computeStatusDisplay = (info) => {
     if (!info) return { main: '', sub: '' };
     if (info.type === 'upcoming') {
-      const label = labelForKey(info.nextKey);
-      return { main: `MENUJU ${label}`, sub: `dalam ± ${info.diffMin} menit` };
+      return { main: t('home.statusMengMenuju', { sholat: t(`prayer.${info.nextKey}`) }), sub: t('home.inMinutes', { m: info.diffMin }) };
     }
     if (info.type === 'passed') {
-      const label = labelForKey(info.lastKey || '');
-      return { main: `WAKTU ${label} SUDAH LEWAT`, sub: `± ${info.diffMin} menit yang lalu` };
+      return { main: t('home.statusSudahLewat', { sholat: t(`prayer.${info.lastKey}`) }), sub: t('home.agoMinutes', { m: info.diffMin }) };
     }
     return { main: '', sub: '' };
   };
-  const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const MONTH_NAMES = ['app.Jan_M1','app.Jan_M2','app.Jan_M3','app.Jan_M4','app.Jan_M5','app.Jan_M6','app.Jan_M7','app.Jan_M8','app.Jan_M9','app.Jan_M10','app.Jan_M11','app.Jan_M12'].map((k) => t(k));
   const formatMasehiDisplay = (iso) => {
     if (!iso) return '';
     const d = new Date(`${iso}T00:00:00`);
@@ -254,7 +271,7 @@ export default function HomeScreen({ navigation }) {
     const totalMs = next.at.getTime() - prev.at.getTime();
     const elapsedMs = now.getTime() - prev.at.getTime();
     const pct = Math.max(0, Math.min(100, Math.round((elapsedMs / totalMs) * 100)));
-    return { percent: pct, prevLabel: labelForKey(prev.key), nextLabel: labelForKey(next.key) };
+    return { percent: pct, prevKey: prev.key, nextKey: next.key };
   };
 
   const formatLocationLabel = () => {
@@ -341,7 +358,7 @@ export default function HomeScreen({ navigation }) {
         });
       } catch (e) {}
     } catch (e) {
-      setErrorPrayer(e?.message || 'Gagal memuat jadwal sholat');
+      setErrorPrayer(e?.message || t('home.loadScheduleError'));
     } finally {
       setLoadingPrayer(false);
     }
@@ -537,23 +554,24 @@ export default function HomeScreen({ navigation }) {
         if (tz) setLocalTz(tz);
         const now = new Date();
         try {
-          const fmt = new Intl.DateTimeFormat('id-ID', { timeZone: tz || undefined, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const loc = lang === 'en' ? 'en-GB' : 'id-ID';
+          const fmt = new Intl.DateTimeFormat(loc, { timeZone: tz || undefined, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
           setLocalTime(fmt.format(now));
         } catch (e) {
-          setLocalTime(now.toLocaleTimeString('id-ID', { hour12: false }));
+          setLocalTime(now.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'id-ID', { hour12: false }));
         }
       } catch {}
     };
     update();
     id = setInterval(update, 1000);
     return () => { try { if (id) clearInterval(id); } catch {} };
-  }, [tzString, prayerData]);
+  }, [tzString, prayerData, lang]);
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: pal.colors.bg }]} showsVerticalScrollIndicator={false}>
       <View style={styles.greetingRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.greeting, { color: pal.colors.text }]}>{greeting ? `${greeting} 👋` : 'Assalamualaikum 👋'}</Text>
-          <Text style={[styles.greetingSub, { color: pal.colors.muted }]}>Semoga harimu penuh berkah</Text>
+          <Text style={[styles.greeting, { color: pal.colors.text }]}>{greeting ? `${t(greeting)} 👋` : `Assalamualaikum 👋`}</Text>
+          <Text style={[styles.greetingSub, { color: pal.colors.muted }]}>{t('home.subGreeting')}</Text>
         </View>
         <Image
           source={logoSource}
@@ -566,7 +584,7 @@ export default function HomeScreen({ navigation }) {
       <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.prayerCard}>
         <View style={styles.prayerHeaderRow}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.prayerTitle}>Jadwal Sholat Hari Ini</Text>
+            <Text style={styles.prayerTitle}>{t('home.prayerTitle')}</Text>
             <Text style={styles.prayerLoc} numberOfLines={1}>{formatLocationLabel()}</Text>
             <Text style={styles.prayerDate}>{formatMasehiDisplay(prayerData?.data?.date || dateString)}{!!prayerData?.data?.hijri && ` • ${formatHijriDisplay(prayerData?.data?.hijri)}`}</Text>
           </View>
@@ -582,13 +600,13 @@ export default function HomeScreen({ navigation }) {
             const d = computeStatusDisplay(statusInfo);
             return (
               <>
-                <Text style={styles.prayerStatusMain} numberOfLines={1}>{d.main || 'JADWAL SHOLAT'}</Text>
+                <Text style={styles.prayerStatusMain} numberOfLines={1}>{d.main || t('home.noSchedule')}</Text>
                 {!!d.sub && <Text style={styles.prayerStatusSub}>{d.sub}</Text>}
               </>
             );
           })()}
         </View>
-        {loadingPrayer && (<Text style={styles.prayerLoading}>Memuat jadwal...</Text>)}
+        {loadingPrayer && (<Text style={styles.prayerLoading}>{t('home.loadingSchedule')}</Text>)}
         {errorPrayer && (<Text style={styles.prayerError}>{String(errorPrayer)}</Text>)}
         {!loadingPrayer && !errorPrayer && (
           <>
@@ -602,7 +620,7 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.prayerProgressBar}>
                     <View style={[styles.prayerProgressFill, { width: `${prog.percent}%` }]} />
                   </View>
-                  <Text style={styles.prayerProgressCaption}>{prog.prevLabel} → {prog.nextLabel}</Text>
+                  <Text style={styles.prayerProgressCaption}>{t(`prayer.${prog.prevKey}`)} → {t(`prayer.${prog.nextKey}`)}</Text>
                 </View>
               );
             })()}
@@ -618,18 +636,10 @@ export default function HomeScreen({ navigation }) {
                 let idx = times.findIndex((t) => t.at.getTime() > now.getTime());
                 if (idx === -1) idx = times.length - 1;
                 const activeKey = (times[idx] ? times[idx].key : null) || (statusInfo?.lastKey || null);
-                const items = [
-                  { label: 'Imsak', key: 'imsak' },
-                  { label: 'Subuh', key: 'subuh' },
-                  { label: 'Terbit', key: 'terbit' },
-                  { label: 'Dzuhur', key: 'dzuhur' },
-                  { label: 'Ashar', key: 'ashar' },
-                  { label: 'Maghrib', key: 'maghrib' },
-                  { label: 'Isya', key: 'isya' },
-                ];
-                return items.map(({ label, key }) => (
+                const items = ['imsak','subuh','terbit','dzuhur','ashar','maghrib','isya'];
+                return items.map((key) => (
                   <View key={key} style={[styles.prayerChip, activeKey === key && styles.prayerChipActive]}>
-                    <Text style={[styles.prayerChipLabel, activeKey === key && styles.prayerChipLabelActive]}>{label}</Text>
+                    <Text style={[styles.prayerChipLabel, activeKey === key && styles.prayerChipLabelActive]}>{t(`prayer.${key}`)}</Text>
                     <Text style={[styles.prayerChipVal, activeKey === key && styles.prayerChipValActive]}>{jadwal?.[key] || '-'}</Text>
                   </View>
                 ));
@@ -643,7 +653,7 @@ export default function HomeScreen({ navigation }) {
       <View style={[styles.dailyCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
           <Ionicons name="sparkles-outline" size={15} color={pal.colors.primary} />
-          <Text style={[styles.dailyLabel, { color: pal.colors.primaryLight }]}>Ayat Hari Ini</Text>
+          <Text style={[styles.dailyLabel, { color: pal.colors.primaryLight }]}>{t('daily.ayatHariIni')}</Text>
         </View>
         {dailyLoading && !dailyAyah ? (
           <ActivityIndicator size="small" color={pal.colors.primary} />
@@ -652,18 +662,18 @@ export default function HomeScreen({ navigation }) {
             <Text style={[styles.dailySurah, { color: pal.colors.text }]}>QS {dailyAyah.surahLatin} : {dailyAyah.ayahNumber}</Text>
             {!!dailyAyah.arab && <Text style={[styles.dailyArab, { color: pal.colors.text }]}>{dailyAyah.arab}</Text>}
             {!!dailyAyah.latin && <Text style={[styles.dailyLatin, { color: pal.colors.muted }]}>{dailyAyah.latin}</Text>}
-            {!!dailyAyah.indo && <Text style={[styles.dailyIndo, { color: pal.colors.text }]}>“{dailyAyah.indo}”</Text>}
+            {!!dailyAyah.indo && <Text style={[styles.dailyIndo, { color: pal.colors.text }]}>“{(lang === 'en' && Array.isArray(dailyEn) ? (dailyEn[dailyAyah.ayahNumber - 1] || dailyAyah.indo) : dailyAyah.indo)}”</Text>}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
               <TouchableOpacity
-                onPress={() => navigation.navigate('SurahDetail', { nomor: dailyAyah.surahNo, nama_latin: dailyAyah.surahLatin, namaLatin: dailyAyah.surahLatin })}
+                onPress={() => navigation.navigate('SurahDetail', { nomor: dailyAyah.surahNo, nama_latin: dailyAyah.surahLatin, namaLatin: dailyAyah.surahLatin, targetAyah: dailyAyah.ayahNumber })}
                 style={styles.dailyReadBtn}
                 activeOpacity={0.8}
               >
-                <Text style={styles.dailyReadText}>Baca Surah</Text>
+                <Text style={styles.dailyReadText}>{t('daily.bacaSurah')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={shareDailyAyah} style={[styles.dailyShareBtn, { borderColor: pal.colors.surfaceBorder }]} activeOpacity={0.8}>
                 <Ionicons name="share-social-outline" size={14} color={pal.colors.primaryLight} />
-                <Text style={[styles.dailyShareText, { color: pal.colors.primaryLight }]}>Bagikan</Text>
+                <Text style={[styles.dailyShareText, { color: pal.colors.primaryLight }]}>{t('daily.bagikan')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -671,32 +681,34 @@ export default function HomeScreen({ navigation }) {
       </View>
       {lastRead && (
         <LinearGradient colors={[theme.colors.primary, theme.colors.primaryDark]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.lastReadCard}>
-          <Text style={styles.lastReadLabel}>Terakhir dibaca</Text>
-          <Text style={styles.lastReadTitle}>{lastRead?.namaLatin || `Surah ${lastRead?.nomor}`}</Text>
+          <Text style={styles.lastReadLabel}>{t('home.lastRead')}</Text>
+          <Text style={styles.lastReadTitle}>{lastRead?.namaLatin || t('quran.surahN', { n: lastRead?.nomor })}</Text>
           {!!lastRead?.lastAyah && (
-            <Text style={styles.lastReadMeta}>Ayat {lastRead.lastAyah}</Text>
+            <Text style={styles.lastReadMeta}>{t('quran.verse', { n: lastRead.lastAyah })}</Text>
           )}
           <View style={{ flexDirection: 'row', marginTop: 10 }}>
             <PurpleButton
-              label="Lanjutkan"
+              label={t('home.lanjutkan')}
               onPress={() => navigation.navigate('SurahDetail', {
                 surah: { nomor: lastRead?.nomor, namaLatin: lastRead?.namaLatin },
                 lastAyah: lastRead?.lastAyah,
               })}
             />
-            <OutlineLightButton label="Reset" onPress={async () => { await AsyncStorage.removeItem('last_read'); setLastRead(null); }} />
+            <OutlineLightButton label={t('home.reset')} onPress={async () => { await AsyncStorage.removeItem('last_read'); setLastRead(null); }} />
           </View>
         </LinearGradient>
       )}
 
       <View style={styles.list}>
-        <FeatureTile title="Surat" icon="book-outline" iconColor={TILE_COLORS.Surat} onPress={() => navigation.navigate('SurahList')} />
-        <FeatureTile title="Doa" icon="hand-left-outline" iconColor={TILE_COLORS.Doa} onPress={() => navigation.navigate('DoaList')} />
-        <FeatureTile title="Hadits" icon="list-circle-outline" iconColor={TILE_COLORS.Hadits} onPress={() => navigation.navigate('HaditsMenu')} />
-        <FeatureTile title="Sholat" icon="time-outline" iconColor={TILE_COLORS.Sholat} onPress={() => navigation.navigate('SholatJadwal')} />
-        <FeatureTile title="Kiblat" icon="compass-outline" iconColor={TILE_COLORS.Kiblat} onPress={() => navigation.navigate('Qibla')} />
-        <FeatureTile title="Hijriyah" icon="calendar-outline" iconColor={TILE_COLORS.Hijriyah} onPress={() => navigation.navigate('HijriCalendar')} />
-        <FeatureTile title="Ulama" icon="people-outline" iconColor={TILE_COLORS.Ulama} onPress={() => navigation.navigate('UlamaList')} />
+        {HOME_TILES.map(({ key, icon, screen }) => (
+          <FeatureTile
+            key={key}
+            title={t(key)}
+            icon={icon}
+            iconColor={TILE_COLORS[key]}
+            onPress={() => navigation.navigate(screen)}
+          />
+        ))}
       </View>
 
       <View style={styles.footer}>

@@ -3,10 +3,21 @@ import { View, Text, ActivityIndicator, StyleSheet, ScrollView, TouchableOpacity
 import { getTafsir } from '../../api/quran';
 import { theme } from '../../ui';
 import { useTheme } from '../../ui';
+import { useI18n } from '../../api/i18n';
+import { TEXTS } from '../../api/i18nTexts';
+import { useSurahTafsirEn } from '../../api/quranEn';
 
 export default function TafsirScreen({ route }) {
   // Tema aktif (dark mode) + skala font terpusat
   const t = useTheme();
+  // Dwibahasa: judul, meta, dan label navigasi mengikuti pilihan bahasa.
+  // (variabel theme memakai nama `t`; untuk terjemahan dipakai alias `tr`)
+  const { lang, t: tr } = useI18n();
+  const placeLabel = (v) => {
+    if (!v) return '';
+    const entry = TEXTS[`surah.tempatTurun${v}`];
+    return (entry && (entry[lang] ?? entry.id)) || v;
+  };
   const pal = t;
   const ts = t.textScale || 1;
 
@@ -20,6 +31,10 @@ export default function TafsirScreen({ route }) {
   const [tafsirMap, setTafsirMap] = useState({});
   const [currentAyah, setCurrentAyah] = useState(1);
   const [fromCache, setFromCache] = useState(false);
+
+  // Tafsir EN (Ibn Kathir Abridged / Al-Jalalayn via spa5k CDN) hanya
+  // dimuat saat bahasa efektif = English; null = pakai tafsir ID.
+  const tafsirEn = useSurahTafsirEn(nomor, lang === 'en');
 
   const { height: windowHeight } = useWindowDimensions();
   const contentMaxHeight = Math.max(280, Math.floor(windowHeight * 0.6));
@@ -55,7 +70,7 @@ export default function TafsirScreen({ route }) {
           setCurrentAyah(1);
         }
       } catch (e) {
-        setError('Gagal memuat tafsir');
+        setError(tr('surah.loadTafsirError'));
       } finally {
         setLoading(false);
       }
@@ -88,38 +103,51 @@ export default function TafsirScreen({ route }) {
   const prevText = hasList ? tafsirMap[currentAyah - 1] : null;
   const nextText = hasList ? tafsirMap[currentAyah + 1] : null;
 
+  // Overlay EN: pakai teks EN bila tersedia untuk ayat itu (per-ayah),
+  // fallback per-ayat ke ID agar tidak pernah ada ayat kosong.
+  const withEn = (text, ayah) => {
+    if (lang !== 'en' || !Array.isArray(tafsirEn)) return text;
+    const en = tafsirEn[ayah - 1];
+    return en ? en : text;
+  };
+  const showEnBadge = lang === 'en' && Array.isArray(tafsirEn) && tafsirEn.length > 0;
+
   return (
     <View style={[styles.container, { backgroundColor: pal.colors.bg, flex: 1 }]}>
-      <Text style={[styles.title, { color: pal.colors.text }]}>Tafsir Surat {surahLatin} ({data?.nama})</Text>
-      <Text style={[styles.meta, { color: pal.colors.muted }]}>{data?.arti} • {jumlahAyat} ayat • {tempatTurun}</Text>
+      <Text style={[styles.title, { color: pal.colors.text }]}>{tr('surah.tafsirSurat', { surah: surahLatin, arab: data?.nama })}</Text>
+      <Text style={[styles.meta, { color: pal.colors.muted }]}>{data?.arti} • {tr('surah.ayatCount', { n: jumlahAyat })} • {placeLabel(tempatTurun)}</Text>
+
+      {showEnBadge ? (
+        <Text style={styles.enSource} numberOfLines={2}>{tr('surah.tafsirEnSource')}</Text>
+      ) : null}
 
       {fromCache ? (
-        <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+        <View style={styles.cacheBadge}><Text style={styles.cacheText}>{tr('surah.dataDariCache')}</Text></View>
       ) : null}
 
       {hasList ? (
         <View>
           <View style={styles.navRow}>
             <TouchableOpacity style={[styles.navBtn, { backgroundColor: pal.dark ? pal.colors.surface : '#f1f5f9', borderWidth: 1, borderColor: pal.dark ? pal.colors.surfaceBorder : 'transparent' }]} onPress={goPrev} disabled={currentAyah <= minAyah}>
-              <Text style={[styles.navText, currentAyah <= minAyah && styles.navTextDisabled]}>Sebelumnya</Text>
+              <Text style={[styles.navText, currentAyah <= minAyah && styles.navTextDisabled]}>{tr('page.prev')}</Text>
             </TouchableOpacity>
-            <Text style={[styles.ayatLabel, { color: pal.colors.text }]}>Ayat {currentAyah}</Text>
+            <Text style={[styles.ayatLabel, { color: pal.colors.text }]}>{tr('quran.verse', { n: currentAyah })}</Text>
             <TouchableOpacity style={[styles.navBtn, { backgroundColor: pal.dark ? pal.colors.surface : '#f1f5f9', borderWidth: 1, borderColor: pal.dark ? pal.colors.surfaceBorder : 'transparent' }]} onPress={goNext} disabled={currentAyah >= maxAyah}>
-              <Text style={[styles.navText, currentAyah >= maxAyah && styles.navTextDisabled]}>Berikutnya</Text>
+              <Text style={[styles.navText, currentAyah >= maxAyah && styles.navTextDisabled]}>{tr('page.next')}</Text>
             </TouchableOpacity>
           </View>          <View style={[styles.contentBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
             <ScrollView style={{ maxHeight: contentMaxHeight }}>
-              <Text style={[styles.content, { fontSize: 15 * ts, lineHeight: 22 * ts }, pal.dark && { color: pal.colors.text }]}>{currentText}</Text>
+              <Text style={[styles.content, { fontSize: 15 * ts, lineHeight: 22 * ts }, pal.dark && { color: pal.colors.text }]}>{withEn(currentText, currentAyah)}</Text>
               {prevText ? (
                 <View style={[styles.contextBox, pal.dark && { backgroundColor: '#241640', borderColor: pal.colors.surfaceBorder }]}>
-                  <Text style={[styles.contextLabel, { color: pal.colors.muted }]}>Sebelum</Text>
-                  <Text style={[styles.contextText, { color: pal.colors.muted }]}>{prevText}</Text>
+                  <Text style={[styles.contextLabel, { color: pal.colors.muted }]}>{tr('quran.prev')}</Text>
+                  <Text style={[styles.contextText, { color: pal.colors.muted }]}>{withEn(prevText, currentAyah - 1)}</Text>
                 </View>
               ) : null}
               {nextText ? (
                 <View style={[styles.contextBox, pal.dark && { backgroundColor: '#241640', borderColor: pal.colors.surfaceBorder }]}>
-                  <Text style={[styles.contextLabel, { color: pal.colors.muted }]}>Sesudah</Text>
-                  <Text style={[styles.contextText, { color: pal.colors.muted }]}>{nextText}</Text>
+                  <Text style={[styles.contextLabel, { color: pal.colors.muted }]}>{tr('quran.next')}</Text>
+                  <Text style={[styles.contextText, { color: pal.colors.muted }]}>{withEn(nextText, currentAyah + 1)}</Text>
                 </View>
               ) : null}
             </ScrollView>
@@ -156,4 +184,5 @@ const styles = StyleSheet.create({
   contextText: { color: '#374151' },
   cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginBottom: 8 },
   cacheText: { color: '#92400e', fontWeight: '700' },
+  enSource: { fontSize: 11, color: '#94a3b8', marginBottom: 8, fontStyle: 'italic' },
 });

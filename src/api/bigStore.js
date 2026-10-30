@@ -10,6 +10,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import { tNow } from './i18n';
 
 const BASE_DIR = `${FileSystem.documentDirectory}bigstore`;
 const LS_PREFIX = 'bigstore:'; // fallback web
@@ -91,7 +92,7 @@ export async function bigSetItem(key, value) {
   await ensureMigrated();
   if (!useFiles) {
     try { localStorage.setItem(LS_PREFIX + key, value); } catch (e) {
-      throw new Error('Penyimpanan penuh — hapus cache atau audio offline lalu coba lagi.');
+      throw new Error(tNow('store.fullWeb'));
     }
     return;
   }
@@ -104,7 +105,7 @@ export async function bigSetItem(key, value) {
   } catch (e) {
     const msg = String(e?.message || e || '');
     if (/no space|ENOSPC|disk full|1004/i.test(msg)) {
-      throw new Error('Penyimpanan HP penuh — hapus beberapa file atau audio offline lalu coba lagi.');
+      throw new Error(tNow('store.fullDisk'));
     }
     throw e;
   }

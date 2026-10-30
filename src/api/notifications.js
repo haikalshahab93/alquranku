@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAladhanBulananCoords, getAladhanBulananCity, readLastSholatSnapshot, getAladhanHarianCoords, getAladhanHarianCity } from './aladhan';
+import { tNow } from './i18n';
 
 // PENTING: expo-notifications HANYA dievaluasi di native. Di web, modul itu
 // mendaftarkan listener push token saat boot dan memicu warning
@@ -37,11 +38,13 @@ const ID_PREFIX = 'prayer-';
 // notifikasi). Notifikasi masuk channel sesuai modenya:
 // default = bunyi sistem, adhan = suara adzan, getar = hanya bergetar,
 // silent = tanpa suara & tanpa getar (muncul visual saja).
+// NAMA channel dwibahasa: dihitung saat channel dibuat ulang (tiap penjadwalan
+// dijalankan lewat ensureAndroidChannels), mengikuti bahasa aplikasi aktif.
 const CHANNELS = {
-  default: { id: 'prayer-default', name: 'Pengingat Waktu Sholat', sound: null, vibration: [0, 250, 250, 250] },
-  adhan: { id: 'prayer-adhan', name: 'Pengingat Sholat — Adzan', sound: 'adhan.mp3', vibration: [0, 250, 250, 250] },
-  getar: { id: 'prayer-getar', name: 'Pengingat Sholat — Getar', sound: null, vibration: [0, 400, 250, 400] },
-  silent: { id: 'prayer-silent', name: 'Pengingat Sholat — Sunyi', sound: null, vibration: null },
+  default: { id: 'prayer-default', nameKey: 'notif.channelDefault', sound: null, vibration: [0, 250, 250, 250] },
+  adhan: { id: 'prayer-adhan', nameKey: 'notif.channelAdhan', sound: 'adhan.mp3', vibration: [0, 250, 250, 250] },
+  getar: { id: 'prayer-getar', nameKey: 'notif.channelGetar', sound: null, vibration: [0, 400, 250, 400] },
+  silent: { id: 'prayer-silent', nameKey: 'notif.channelSilent', sound: null, vibration: null },
 };
 // Channel lama era sebelum per-waktu; dibuang agar tidak menumpuk
 const LEGACY_CHANNEL_ID = 'prayer-reminders';
@@ -64,7 +67,7 @@ export async function ensureAndroidChannels() {
     } catch {}
     try {
       await Notifications.setNotificationChannelAsync(c.id, {
-        name: c.name,
+        name: tNow(c.nameKey),
         importance: Notifications.AndroidImportance.HIGH,
         sound: c.sound || undefined,
         vibrationPattern: c.vibration || undefined,
@@ -78,11 +81,11 @@ export async function ensureAndroidChannels() {
 // Waktu sholat yang mendapat pengingat (Terbit & Imsak tidak termasuk)
 export const PRAYER_KEYS = ['subuh', 'dzuhur', 'ashar', 'maghrib', 'isya'];
 export const PRAYER_LABELS = {
-  subuh: 'Subuh',
-  dzuhur: 'Dzuhur',
-  ashar: 'Ashar',
-  maghrib: 'Maghrib',
-  isya: 'Isya',
+  subuh: () => tNow('prayer.subuh'),
+  dzuhur: () => tNow('prayer.dzuhur'),
+  ashar: () => tNow('prayer.ashar'),
+  maghrib: () => tNow('prayer.maghrib'),
+  isya: () => tNow('prayer.isya'),
 };
 
 // Handler agar notifikasi tampil saat aplikasi sedang dibuka (foreground)
@@ -99,10 +102,10 @@ Notifications.setNotificationHandler({
 // dibundel via plugin), 'getar' (hanya bergetar), 'silent' (sunyi — visual saja)
 export const VALID_SOUND_CHOICES = ['default', 'adhan', 'getar', 'silent'];
 export const SOUND_CHOICES = {
-  default: { label: 'Bunyi Default', channelSound: null, contentSound: null },
-  adhan: { label: 'Adzan', channelSound: 'adhan.mp3', contentSound: 'adhan.mp3' },
-  getar: { label: 'Getar', channelSound: null, contentSound: null },
-  silent: { label: 'Sunyi', channelSound: null, contentSound: null },
+  default: { labelKey: 'notif.lblDefault', channelSound: null, contentSound: null },
+  adhan: { labelKey: 'notif.lblAdhan', channelSound: 'adhan.mp3', contentSound: 'adhan.mp3' },
+  getar: { labelKey: 'notif.lblGetar', channelSound: null, contentSound: null },
+  silent: { labelKey: 'notif.lblSunyi', channelSound: null, contentSound: null },
 };
 
 // Nilai suara valid untuk normalisasi input (dipakai semua layar)
@@ -209,14 +212,14 @@ export function parsePrayerTime(t) {
 // Satukan isi notifikasi untuk satu waktu sholat (dipakai semua penjadwal).
 // offsetMinutes > 0 berarti pengingat "menjelang" (mis. 5 menit sebelum).
 export function buildReminderContent({ key, timeStr, offsetMinutes = 0 }) {
-  const label = PRAYER_LABELS[key] || key;
+  const label = (typeof PRAYER_LABELS[key] === 'function' ? PRAYER_LABELS[key]() : PRAYER_LABELS[key]) || key;
   const isEarly = (offsetMinutes || 0) > 0;
   const cleanTime = String(timeStr || '').replace(/\s*\(.*?\)\s*/g, '').trim();
   return {
-    title: isEarly ? `Menjelang ${label}` : `Waktu ${label}`,
+    title: isEarly ? tNow('notif.titleMenjelang', { sholat: label }) : tNow('notif.titleWaktu', { sholat: label }),
     body: isEarly
-      ? `${label} pukul ${cleanTime}. Tinggal ± ${offsetMinutes} menit lagi — mari bersiap.`
-      : `Sudah masuk waktu ${label} (pukul ${cleanTime}). Yuk salat!`,
+      ? tNow('notif.bodySebelum', { sholat: label, w: cleanTime, n: offsetMinutes })
+      : tNow('notif.bodyTepat', { sholat: label, w: cleanTime }),
   };
 }
 

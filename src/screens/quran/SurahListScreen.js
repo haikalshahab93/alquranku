@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getSuratList, getSuratDetail, preloadAllSurahData, getOfflineReadyCount, isOnline } from '../../api/quran';
+import { getSuratList, getSuratDetail, preloadAllSurahData, getOfflineReadyCount, getOfflineEnTafsirReadyCount, isOnline } from '../../api/quran';
 import { listOfflineAudio } from '../../api/offlineAudio';
 import { getPreferredKaraokeReciter } from '../../api/quranAudio';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, GradientCard, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
 import { useI18n } from '../../api/i18n';
+import { TEXTS } from '../../api/i18nTexts';
 import { useSurahTranslationEn } from '../../api/quranEn';
 import { surahsInJuz, juzStartLabel, juzsOfSurah, globalAyahStart, juzFromGlobalAyah, JUZ_STARTS } from '../../api/juz';
 import { getPagePairs, TOTAL_PAGES } from '../../api/mushafPages';
@@ -41,6 +42,15 @@ function EnAyahPreview({ surahNumber, idText, style }) {
 export default function SurahListScreen({ navigation, route }) {
   // Palet aktif (dark mode) — dari pengaturan tampilan terpusat
   const { darkMode } = useAppearance();
+  // Dwibahasa: label/tempat turun/pesan error mengikuti pilihan bahasa.
+  const { lang, t } = useI18n();
+  // Tempat turun dari data EQuran tertulis "Mekah"/"Madinah" (Indonesia);
+  // saat bahasa Inggris dipetakan ke Mecca/Medina, selain itu apa adanya.
+  const placeLabel = (v) => {
+    if (!v) return '';
+    const entry = TEXTS[`surah.tempatTurun${v}`];
+    return (entry && (entry[lang] ?? entry.id)) || v;
+  };
   const pal = getPalette(darkMode);
   const styles = makeStyles(pal);
   const [loading, setLoading] = useState(true);
@@ -67,6 +77,8 @@ export default function SurahListScreen({ navigation, route }) {
   const [fromCacheList, setFromCacheList] = useState(false);
   // === Siapkan Offline: unduh semua surah+tafsir ke cache lokal ===
   const [offlineReady, setOfflineReady] = useState(0);
+  // Jumlah surah yang tafsir EN-nya juga sudah tersimpan offline (0..114).
+  const [offlineEnReady, setOfflineEnReady] = useState(0);
   const [offlineDownloading, setOfflineDownloading] = useState(false);
   const [offlineProgress, setOfflineProgress] = useState(0); // 0..1
   // === Ringkasan audio offline (MP3 per surah untuk karaoke) ===
@@ -105,7 +117,7 @@ export default function SurahListScreen({ navigation, route }) {
       setFromCacheList(!!data?.__fromCache);
       setError(null);
     } catch (e) {
-      setError('Gagal memuat daftar surat');
+      setError(t('surah.loadListError'));
     } finally {
       setLoading(false);
     }
@@ -132,6 +144,11 @@ export default function SurahListScreen({ navigation, route }) {
       try {
         const n = await getOfflineReadyCount();
         setOfflineReady(n);
+      } catch {}
+      // Ikut segarkan: indikator tafsir EN tersimpan terhitung dari cache.
+      try {
+        const en = await getOfflineEnTafsirReadyCount();
+        setOfflineEnReady(en);
       } catch {}
     })();
   }, []);
@@ -162,11 +179,16 @@ export default function SurahListScreen({ navigation, route }) {
         setOfflineDone(true);
         const n = await getOfflineReadyCount();
         setOfflineReady(n);
+        // Segarkan juga hitungan tafsir EN yang ikut stabilnya unduhan.
+        try {
+          const en = await getOfflineEnTafsirReadyCount();
+          setOfflineEnReady(en);
+        } catch {}
       } else {
-        setOfflineErr('Gagal menyiapkan data offline. Periksa koneksi lalu coba lagi.');
+        setOfflineErr(t('surah.offlineErr'));
       }
     } catch (e) {
-      setOfflineErr('Gagal menyiapkan data offline. Periksa koneksi lalu coba lagi.');
+      setOfflineErr(t('surah.offlineErr'));
     } finally {
       setOfflineDownloading(false);
     }
@@ -242,8 +264,8 @@ export default function SurahListScreen({ navigation, route }) {
           <Text style={styles.itemNumber}>{item.page}</Text>
         </View>
         <View style={styles.itemTextBox}>
-          <Text style={[styles.itemLatin, { color: pal.colors.text }]} numberOfLines={1}>Halaman {item.page}</Text>
-          <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1}>{item.verseCount} ayat • Juz {item.juz}</Text>
+          <Text style={[styles.itemLatin, { color: pal.colors.text }]} numberOfLines={1}>{t('page.halamanN', { n: item.page })}</Text>
+          <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1}>{t('surah.ayatCount', { n: item.verseCount })} • Juz {item.juz}</Text>
         </View>
         <Ionicons name="book-outline" size={18} color={pal.colors.primary} />
       </View>
@@ -331,7 +353,7 @@ export default function SurahListScreen({ navigation, route }) {
         const defQari = (preferredQari && qKeys.includes(preferredQari)) ? preferredQari : (qKeys.includes('alafasy') ? 'alafasy' : (qKeys[0] || null));
         setSelectedQariMap((p) => ({ ...p, [nomor]: defQari }));
       } catch (e) {
-        setDetails((p) => ({ ...p, [nomor]: { error: 'Gagal memuat ringkasan surat' } }));
+        setDetails((p) => ({ ...p, [nomor]: { error: t('surah.loadRingkasError') } }));
       } finally {
         setLoadingDetail((p) => ({ ...p, [nomor]: false }));
       }
@@ -538,28 +560,28 @@ export default function SurahListScreen({ navigation, route }) {
           </View>
           <View style={styles.itemTextBox}>
             <Text style={[styles.itemLatin, { color: pal.colors.text }]} numberOfLines={1} ellipsizeMode="tail">{item.namaLatin || item.nama_latin}</Text>
-            <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.arti} • {(item.jumlahAyat || item.jumlah_ayat)} ayat • {(item.tempatTurun || item.tempat_turun)} • Juz {juzsOfSurah(item.nomor).join(', ') || '-'}</Text>
+            <Text style={[styles.itemMeta, { color: pal.colors.muted }]} numberOfLines={1} ellipsizeMode="tail">{item.arti} • {t('surah.ayatCount', { n: item.jumlahAyat || item.jumlah_ayat })} • {placeLabel(item.tempatTurun || item.tempat_turun)} • Juz {juzsOfSurah(item.nomor).join(', ') || '-'}</Text>
           </View>
           <Text style={[styles.itemArabic, { color: pal.colors.primaryLight }]}>{item.nama}</Text>
         </View>
         <View style={styles.itemActions}>
           <TouchableOpacity style={styles.infoToggle} onPress={() => toggleExpand(item.nomor)}>
             <Ionicons name={isExpanded ? 'chevron-up' : 'sparkles-outline'} size={12} color={pal.colors.primaryLight} />
-            <Text style={styles.infoToggleText}>{isExpanded ? 'Tutup ringkas' : 'Ringkas'}</Text>
+            <Text style={styles.infoToggleText}>{isExpanded ? t('surah.tutupRingkas') : t('surah.ringkas')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.infoToggle} onPress={() => toggleName(item.nomor)}>
             <Ionicons name="language-outline" size={12} color={pal.colors.primaryLight} />
-            <Text style={styles.infoToggleText}>{isNameExpanded ? 'Tutup nama' : 'Nama Arab'}</Text>
+            <Text style={styles.infoToggleText}>{isNameExpanded ? t('surah.tutupNama') : t('surah.namaArab')}</Text>
           </TouchableOpacity>
         </View>
         {fromCacheList ? (
-          <View style={styles.cacheBadge}><Text style={styles.cacheText}>Data dari Cache</Text></View>
+          <View style={styles.cacheBadge}><Text style={styles.cacheText}>{t('surah.dataDariCache')}</Text></View>
         ) : null}
         {isNameExpanded && (
           <View style={styles.nameBox}>
-            <Text style={styles.nameLabel}>Nama Arab</Text>
+            <Text style={styles.nameLabel}>{t('surah.namaArab')}</Text>
             <Text style={styles.nameArabic}>{item.nama}</Text>
-            <Text style={styles.nameLabel}>Nama Latin</Text>
+            <Text style={styles.nameLabel}>{t('surah.namaLatin')}</Text>
             <Text style={styles.nameLatin}>{item.namaLatin || item.nama_latin}</Text>
           </View>
         )}
@@ -568,21 +590,21 @@ export default function SurahListScreen({ navigation, route }) {
             <View style={styles.expandLoading}><ActivityIndicator size="small" /></View>
           ) : (
             <View style={styles.expandBox}>
-              <Text style={styles.expandTitle}>Ringkas Surat</Text>
+              <Text style={styles.expandTitle}>{t('surah.ringkasSurat')}</Text>
               {!!isDetailFromCache && (
-                <View style={styles.cacheBadge}><Text style={styles.cacheText}>Ringkas dari Cache</Text></View>
+                <View style={styles.cacheBadge}><Text style={styles.cacheText}>{t('surah.ringkasDariCache')}</Text></View>
               )}
               {!!description && (
                 <View style={styles.expandDescBox}>
-                  <Text style={styles.expandDescTitle}>Deskripsi</Text>
+                  <Text style={styles.expandDescTitle}>{t('surah.deskripsi')}</Text>
                   <Text style={styles.expandDesc}>{description}</Text>
                 </View>
               )}
               <View style={styles.divider} />
               <View style={styles.previewHeaderRow}>
-                <Text style={styles.expandTitle}>Preview Ayat 1</Text>
+                <Text style={styles.expandTitle}>{t('surah.previewAyat1')}</Text>
                 <TouchableOpacity style={[styles.actionBtn, styles.downloadBtn]} onPress={() => handleDownloadSurah(item.nomor)}>
-                  <Text style={styles.actionText}>Download Surat (Word)</Text>
+                  <Text style={styles.actionText}>{t('surah.downloadWord')}</Text>
                 </TouchableOpacity>
               </View>
               {firstAyah ? (
@@ -595,13 +617,12 @@ export default function SurahListScreen({ navigation, route }) {
                     style={styles.expandAyatTrans}
                   />
                 </>
-              ) : (
-                <Text style={styles.expandEmpty}>{details[item.nomor]?.error || 'Tidak ada preview tersedia.'}</Text>
+              ) : (                  <Text style={styles.expandEmpty}>{details[item.nomor]?.error || t('surah.tidakPreview')}</Text>
               )}
 
               <View style={styles.actionsRow}>
                 <TouchableOpacity style={[styles.actionBtn, styles.tafsirBtn]} onPress={() => navigation.navigate('Tafsir', { nomor: item.nomor })}>
-                  <Text style={styles.actionText}>Lihat Tafsir</Text>
+                  <Text style={styles.actionText}>{t('surah.lihatTafsir')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -660,8 +681,8 @@ export default function SurahListScreen({ navigation, route }) {
                     <Ionicons name="book-outline" size={16} color="#7c3aed" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.pageTabTitle}>Halaman Mushaf</Text>
-                    <Text style={styles.pageTabDesc}>{TOTAL_PAGES} halaman standar Madani — sesuai nomor halaman di mushaf cetak</Text>
+                    <Text style={styles.pageTabTitle}>{t('surah.halamanMushaf')}</Text>
+                    <Text style={styles.pageTabDesc}>{t('surah.halamanMushafDesc', { n: TOTAL_PAGES })}</Text>
                   </View>
                 </View>
               </View>
@@ -671,8 +692,7 @@ export default function SurahListScreen({ navigation, route }) {
             <>
             {!!lastRead && (
               <GradientCard
-                title={lastRead?.namaLatin ? `Last Read\n${lastRead?.namaLatin}` : 'Last Read'}
-                desc={lastRead?.lastAyah ? `Ayah No. ${lastRead.lastAyah}` : undefined}
+                title={lastRead?.namaLatin ? `Last Read\n${lastRead?.namaLatin}` : 'Last Read'}                  desc={lastRead?.lastAyah ? t('quran.verse', { n: lastRead.lastAyah }) : undefined}
                 style={{}}
                 showQuran
                 onPress={() => navigation.navigate('SurahDetail', {
@@ -691,7 +711,7 @@ export default function SurahListScreen({ navigation, route }) {
                   <Ionicons name="search" size={18} color="#ffffff" />
                 </View>
                 <TextInput
-                  placeholder="Cari surah — nomor, nama, arti..."
+                  placeholder={t('surah.cari')}
                   placeholderTextColor="#94a3b8"
                   value={query}
                   onChangeText={setQuery}
@@ -707,7 +727,7 @@ export default function SurahListScreen({ navigation, route }) {
             )}
             {activeTab === 'surah' && (
               <View style={styles.resultRow}>
-                <Text style={styles.resultText}>{filteredSurahs.length} surah ditemukan</Text>
+                <Text style={styles.resultText}>{t('surah.ayatDitemukan', { n: filteredSurahs.length })}</Text>
                 <TouchableOpacity style={styles.refreshBtn} onPress={fetchList} activeOpacity={0.7}>
                   <Ionicons name="refresh" size={13} color={theme.colors.primaryDark} />
                   <Text style={styles.refreshText}>Refresh</Text>
@@ -721,12 +741,12 @@ export default function SurahListScreen({ navigation, route }) {
                 <View style={styles.offlineRow}>
                   <View style={styles.offlineInfo}>
                     <Text style={styles.offlineTitle}>
-                      {offlineReady >= 114 ? 'Siap Offline ✓' : 'Siapkan untuk Offline'}
+                      {offlineReady >= 114 ? t('surah.offlineSiap') : t('surah.offlineSiapkan')}
                     </Text>
                     <Text style={styles.offlineSubtitle}>
                       {offlineReady >= 114
-                        ? 'Semua surah & tafsir tersimpan di perangkat'
-                        : `${offlineReady}/114 surah tersimpan • buka tanpa internet`}
+                        ? t('surah.offlineSemua')
+                        : t('surah.offlineProgress', { n: offlineReady })}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -741,7 +761,7 @@ export default function SurahListScreen({ navigation, route }) {
                       color="#ffffff"
                     />
                     <Text style={styles.offlineBtnText}>
-                      {offlineDownloading ? 'Mengunduh…' : offlineReady >= 114 ? 'Perbarui' : 'Unduh Semua'}
+                      {offlineDownloading ? t('surah.offlineMengunduh') : offlineReady >= 114 ? t('surah.offlinePerbarui') : t('surah.offlineUnduhSemua')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -750,8 +770,21 @@ export default function SurahListScreen({ navigation, route }) {
                     <View style={[styles.offlineProgressBar, { width: `${Math.round(offlineProgress * 100)}%` }]} />
                   </View>
                 )}
+                {/* Indikator tafsir EN ikut tersimpan offline (lapisan bonus).
+                    Warna ikut status: penuh 114 = hijau; belum = oranye. */}
+                <View style={styles.offlineEnRow}>
+                  <Ionicons
+                    name={offlineEnReady >= 114 ? 'language' : 'language-outline'}
+                    size={14}
+                    color={offlineEnReady >= 114 ? '#16a34a' : '#d97706'}
+                  />
+                  <Text style={styles.offlineEnText}>{t('surah.offlineEnProgress', { n: offlineEnReady })}</Text>
+                </View>
+                {offlineReady >= 114 && offlineEnReady < 114 && !offlineDownloading && (
+                  <Text style={styles.offlineEnHint}>{t('surah.offlineEnHint')}</Text>
+                )}
                 {offlineDone && !offlineDownloading && (
-                  <Text style={styles.offlineOk}>Semua data tersimpan — Quran bisa dibuka tanpa internet ✓</Text>
+                  <Text style={styles.offlineOk}>{t('surah.offlineDone')}</Text>
                 )}
                 {!!offlineErr && (
                   <Text style={styles.offlineErrText}>{offlineErr}</Text>
@@ -762,8 +795,8 @@ export default function SurahListScreen({ navigation, route }) {
                   <Ionicons name="musical-notes" size={14} color={pal.colors.primary} />
                   <Text style={styles.audioStatsText}>
                     {audioStats.count > 0
-                      ? `${audioStats.count} audio surah tersimpan • ${formatBytes(audioStats.totalBytes)}`
-                      : `Belum ada audio offline — unduh per qari di Pengaturan`}
+                      ? t('surah.audioTersimpan', { n: audioStats.count, size: formatBytes(audioStats.totalBytes) })
+                      : t('surah.audioBelumAda')}
                   </Text>
                 </View>
               </View>
@@ -776,13 +809,13 @@ export default function SurahListScreen({ navigation, route }) {
           <View>
             <View style={styles.pagerRow}>
               <TouchableOpacity style={[styles.pagerBtn, page <= 0 && styles.pagerBtnDisabled]} onPress={goPrev} disabled={page <= 0}>
-                <Text style={styles.pagerText}>Sebelumnya</Text>
+                <Text style={styles.pagerText}>{t('page.prev')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.pagerBtn, page >= totalPages - 1 && styles.pagerBtnDisabled]} onPress={goNext} disabled={page >= totalPages - 1}>
-                <Text style={styles.pagerText}>Berikutnya</Text>
+                <Text style={styles.pagerText}>{t('page.next')}</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.pageInfoRow}><Text style={styles.pageInfo}>Halaman {safePage + 1} dari {totalPages}</Text></View>
+            <View style={styles.pageInfoRow}><Text style={styles.pageInfo}>{t('surah.halamanDari', { a: safePage + 1, b: totalPages })}</Text></View>
           </View>
         )}
       />
@@ -813,6 +846,9 @@ const makeStyles = (pal) => StyleSheet.create({
   offlineBtnText: { color: '#ffffff', fontWeight: '800', fontSize: 12 },
   offlineProgressWrap: { height: 6, borderRadius: 3, backgroundColor: pal.colors.primaryLight + '2e', marginTop: 10, overflow: 'hidden' },
   offlineProgressBar: { height: 6, borderRadius: 3, backgroundColor: pal.colors.primary },
+  offlineEnRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  offlineEnText: { flex: 1, fontSize: 11, color: pal.colors.muted, fontWeight: '600' },
+  offlineEnHint: { fontSize: 10.5, color: '#92400e', marginTop: 4, fontStyle: 'italic' },
   audioStatsRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
     paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(124,58,237,0.12)',

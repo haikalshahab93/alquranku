@@ -24,6 +24,7 @@ import Svg, { Path } from 'react-native-svg';
 import { getDoaList, getDoaFavorites, getLastReadDoa } from '../../api/doa';
 import { theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance';
+import { useI18n } from '../../api/i18n';
 
 function normalizeArray(data) {
   if (Array.isArray(data)) return data;
@@ -33,6 +34,8 @@ function normalizeArray(data) {
 
 export default function DoaListScreen({ navigation }) {
   const { darkMode } = useAppearance();
+  // Dwibahasa: judul, tombol, pencarian, pager, dan pesan status mengikuti bahasa aktif.
+  const { t } = useI18n();
   const pal = getPalette(darkMode);
   const { height: windowHeight } = useWindowDimensions();
 
@@ -59,7 +62,7 @@ export default function DoaListScreen({ navigation }) {
       setItems(arr);
       setFromCacheList(Boolean(res?.__fromCache));
     } catch (e) {
-      setError(e?.message || 'Gagal memuat daftar doa.');
+      setError(e?.message || t('doa.loadListError'));
     } finally {
       setLoading(false);
     }
@@ -75,7 +78,7 @@ export default function DoaListScreen({ navigation }) {
       setFavorites(Array.isArray(favs) ? favs : []);
       setLastRead(lr ?? null);
     } catch (e) {
-      console.warn('Gagal memuat favorit atau riwayat doa:', e);
+      console.warn(t('doa.loadError'), e);
     }
   }, []);
 
@@ -178,7 +181,7 @@ export default function DoaListScreen({ navigation }) {
   const renderItem = useCallback(
     ({ item }) => {
       const id = item?.id;
-      const title = item?.nama || `Doa ${id}`;
+      const title = item?.nama || t('doa.konten', { n: id });
 
       const tags = Array.isArray(item?.tag)
         ? item.tag.join(', ')
@@ -199,7 +202,7 @@ export default function DoaListScreen({ navigation }) {
           ]}
           onPress={() => openDoa(id)}
           accessibilityRole="button"
-          accessibilityLabel={`Buka ${title}`}
+          accessibilityLabel={t('doa.buka', { n: title })}
         >
           <View style={styles.itemRow}>
             <Svg
@@ -267,7 +270,7 @@ export default function DoaListScreen({ navigation }) {
             { color: pal.colors.text },
           ]}
         >
-          Daftar Doa
+          {t('doa.daftar')}
         </Text>
 
         <View style={styles.headerActions}>
@@ -287,7 +290,7 @@ export default function DoaListScreen({ navigation }) {
                 { color: pal.colors.text },
               ]}
             >
-              Acak
+              {t('doa.acak')}
             </Text>
           </TouchableOpacity>
 
@@ -311,7 +314,7 @@ export default function DoaListScreen({ navigation }) {
                 { color: pal.colors.text },
               ]}
             >
-              Refresh
+              {t('doa.refresh')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -320,7 +323,7 @@ export default function DoaListScreen({ navigation }) {
       {fromCacheList && (
         <View style={styles.cacheBadge}>
           <Text style={styles.cacheText}>
-            Data dari Cache
+            {t('surah.dataDariCache')}
           </Text>
         </View>
       )}
@@ -328,7 +331,7 @@ export default function DoaListScreen({ navigation }) {
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Cari doa (nama/arab/latin/indo/tag)"
+        placeholder={t('doa.searchPlaceholder')}
         placeholderTextColor="#64748b"
         style={[
           styles.search,
@@ -338,7 +341,7 @@ export default function DoaListScreen({ navigation }) {
             color: pal.colors.text,
           },
         ]}
-        accessibilityLabel="Cari daftar doa"
+        accessibilityLabel={t('doa.cariA11y')}
         returnKeyType="search"
       />
 
@@ -354,7 +357,7 @@ export default function DoaListScreen({ navigation }) {
           onPress={() => openDoa(lastRead.id)}
         >
           <Text style={styles.lastReadTitle}>
-            Lanjutkan Doa Terakhir
+            {t('doa.lanjutTerakhir')}
           </Text>
 
           <Text
@@ -363,7 +366,7 @@ export default function DoaListScreen({ navigation }) {
               { color: pal.colors.text },
             ]}
           >
-            {lastRead.nama || `Doa #${lastRead.id}`}
+            {lastRead.nama || t('doa.kontenPagar', { n: lastRead.id })}
           </Text>
         </TouchableOpacity>
       )}
@@ -408,7 +411,7 @@ export default function DoaListScreen({ navigation }) {
                 { color: pal.colors.text },
               ]}
             >
-              Coba Lagi
+              {t('doa.cobaLagi')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -430,8 +433,8 @@ export default function DoaListScreen({ navigation }) {
       ]}
     >
       {query.trim()
-        ? 'Doa tidak ditemukan.'
-        : 'Belum ada data doa.'}
+        ? t('doa.tidakDitemukan')
+        : t('doa.belumAda')}
     </Text>
   }
   ListFooterComponent={
@@ -443,9 +446,9 @@ export default function DoaListScreen({ navigation }) {
             { color: pal.colors.muted },
           ]}
         >
-          Halaman {safePage + 1} dari {totalPages}
+          {t('surah.halamanDari', { a: safePage + 1, b: totalPages })}
           {' · '}
-          {filtered.length} doa
+          {t('doa.jumlahDua', { n: filtered.length })}
         </Text>
 
         <View style={styles.pagerRow}>
@@ -467,7 +470,7 @@ export default function DoaListScreen({ navigation }) {
                 { color: pal.colors.primary },
               ]}
             >
-              Sebelumnya
+              {t('page.prev')}
             </Text>
           </TouchableOpacity>
 
@@ -490,7 +493,7 @@ export default function DoaListScreen({ navigation }) {
                 { color: pal.colors.primary },
               ]}
             >
-              Berikutnya
+              {t('page.next')}
             </Text>
           </TouchableOpacity>
         </View>
