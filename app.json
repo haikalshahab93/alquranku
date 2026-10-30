@@ -3,7 +3,7 @@
     "name": "ALQURANKU",
     "slug": "alquranku",
     "scheme": "alquranku",
-    "version": "1.0.8",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,7 +20,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.alfarisy.infoalquran",      "versionCode": 10,
+      "package": "com.alfarisy.infoalquran",      "versionCode": 11,
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM"
       ]
