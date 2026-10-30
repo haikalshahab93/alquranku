@@ -101,7 +101,13 @@ cd android
 ./gradlew assembleRelease
 ```
 
-Hasil: `android/app/build/outputs/apk/release/app-release.apk` (APK universal, release-signed, ±127 MB).
+Hasil di `android/app/build/outputs/apk/release/`:
+- `app-universal-release.apk` — APK universal ±127 MB, aman untuk semua HP;
+- `app-arm64-v8a-release.apk` — **±66 MB**, paling relevan untuk HP modern;
+- `app-armeabi-v7a-release.apk` — ±60 MB, untuk HP lama.
+
+Versi (versionName/versionCode) dibaca otomatis oleh gradle dari `app.json` — naikan versinya di sana,
+bukan lagi di build.gradle. Detailnya: [docs/BUILD-CONFIG.md](docs/BUILD-CONFIG.md).
 
 ### Jalur 2 — EAS Build (akun Expo)
 
