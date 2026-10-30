@@ -229,11 +229,19 @@ export default function HomeScreen({ navigation }) {
   };
   const computeStatusDisplay = (info) => {
     if (!info) return { main: '', sub: '' };
+    // Durasi lebih enak dibaca dalam jam+menit: 65 → "1 jam 5 menit".
+    const fmtDur = (rawMin) => {
+      const n = Math.max(0, Math.round(rawMin));
+      const h = Math.floor(n / 60);
+      const min = n % 60;
+      if (h > 0) return min > 0 ? t('home.jamMenit', { h, m: min }) : t('home.jamSaja', { h });
+      return t('home.menitSaja', { m: min });
+    };
     if (info.type === 'upcoming') {
-      return { main: t('home.statusMengMenuju', { sholat: t(`prayer.${info.nextKey}`) }), sub: t('home.inMinutes', { m: info.diffMin }) };
+      return { main: t('home.statusMengMenuju', { sholat: t(`prayer.${info.nextKey}`) }), sub: t('home.inMinutes', { v: fmtDur(info.diffMin) }) };
     }
     if (info.type === 'passed') {
-      return { main: t('home.statusSudahLewat', { sholat: t(`prayer.${info.lastKey}`) }), sub: t('home.agoMinutes', { m: info.diffMin }) };
+      return { main: t('home.statusSudahLewat', { sholat: t(`prayer.${info.lastKey}`) }), sub: t('home.agoMinutes', { v: fmtDur(info.diffMin) }) };
     }
     return { main: '', sub: '' };
   };
