@@ -229,7 +229,7 @@
   "settings.maghrib": { "id": "Maghrib", "en": "Maghrib" },
   "settings.isya": { "id": "Isya", "en": "Isha" },
   "settings.errIzinNotif": { "id": "Izin notifikasi belum diberikan. Aktifkan izin notifikasi untuk aplikasi di pengaturan perangkat.", "en": "Notification permission not granted. Enable notifications for the app in device settings." },
-  "settings.errNoData": { "id": "Tidak bisa mengambil jadwal sholat. Cek koneksi internet lalu coba lagi.", "en": "Couldn't fetch the prayer schedule. Check your internet connection and try again." },
+  "settings.errNoData": { "id": "Belum bisa mengambil jadwal (butuh internet sekali untuk menyimpannya). Tes pop-up tidak terpengaruh — setelah jadwal tersimpan, jaringan mati pun pengingat tetap berbunyi.", "en": "Couldn't fetch the schedule (one online load is needed to store it). The pop-up test is unaffected — once the schedule is saved, reminders keep working even offline." },
   "settings.suksesJadwal": { "id": "Pengingat waktu sholat dijadwalkan ({n} notifikasi).", "en": "Prayer reminders scheduled ({n} notifications)." },
   "settings.errJadwal": { "id": "Gagal menjadwalkan pengingat. Coba lagi.", "en": "Failed to schedule reminders. Try again." },
   "settings.errTz": { "id": "Gagal mendeteksi zona waktu otomatis.", "en": "Failed to auto-detect the time zone." },

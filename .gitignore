@@ -48,3 +48,8 @@ yarn-error.*
 # Preview/debug logs
 .freebuff/preview*.log*
 expo-dev.log
+
+# Log build lokal
+android-build-*.log
+eas-build*.log
+playstore/gradle-build.log

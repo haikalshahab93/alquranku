@@ -42,10 +42,13 @@ const ID_PREFIX = 'prayer-';
 // NAMA channel dwibahasa: dihitung saat channel dibuat ulang (tiap penjadwalan
 // dijalankan lewat ensureAndroidChannels), mengikuti bahasa aplikasi aktif.
 const CHANNELS = {
-  default: { id: 'prayer-default', nameKey: 'notif.channelDefault', sound: null, vibration: [0, 250, 250, 250] },
-  adhan: { id: 'prayer-adhan', nameKey: 'notif.channelAdhan', sound: 'adhan.mp3', vibration: [0, 250, 250, 250] },
-  getar: { id: 'prayer-getar', nameKey: 'notif.channelGetar', sound: null, vibration: [0, 400, 250, 400] },
-  silent: { id: 'prayer-silent', nameKey: 'notif.channelSilent', sound: null, vibration: null },
+  // ID memakai sufiks -v2: ID channel yang sama di OS Android punya cache
+  // internal; setelah rilis lama, buat-ulang dengan ID BARU memastikan konfig
+  // suara terkini benar-benar berlaku (channel lama tetap dibuang).
+  default: { id: 'prayer-default-v2', legacyIds: ['prayer-default'], nameKey: 'notif.channelDefault', sound: null, vibration: [0, 250, 250, 250] },
+  adhan: { id: 'prayer-adhan-v2', legacyIds: ['prayer-adhan'], nameKey: 'notif.channelAdhan', sound: 'adhan.mp3', vibration: [0, 250, 250, 250] },
+  getar: { id: 'prayer-getar-v2', legacyIds: ['prayer-getar'], nameKey: 'notif.channelGetar', sound: null, vibration: [0, 400, 250, 400] },
+  silent: { id: 'prayer-silent-v2', legacyIds: ['prayer-silent'], nameKey: 'notif.channelSilent', sound: null, vibration: null },
 };
 // Channel lama era sebelum per-waktu; dibuang agar tidak menumpuk
 const LEGACY_CHANNEL_ID = 'prayer-reminders';
@@ -58,10 +61,14 @@ const LEGACY_CHANNEL_ID = 'prayer-reminders';
 // sesuai konfigurasi terkini.
 export async function ensureAndroidChannels() {
   if (Platform.OS !== 'android') return;
-  try {
-    const legacy = await Notifications.getNotificationChannelAsync(LEGACY_CHANNEL_ID);
-    if (legacy) await Notifications.deleteNotificationChannelAsync(LEGACY_CHANNEL_ID);
-  } catch {}
+  // Buang channel legacy pra-per-waktu + SEMUA channel lama ber-ID v1.
+  const legacyIds = [LEGACY_CHANNEL_ID, ...Object.values(CHANNELS).flatMap((c) => c.legacyIds || [])];
+  for (const id of legacyIds) {
+    try {
+      const old = await Notifications.getNotificationChannelAsync(id);
+      if (old) await Notifications.deleteNotificationChannelAsync(id);
+    } catch {}
+  }
   for (const c of [CHANNELS.default, CHANNELS.adhan, CHANNELS.getar, CHANNELS.silent]) {
     try {
       await Notifications.deleteNotificationChannelAsync(c.id);
@@ -70,6 +77,8 @@ export async function ensureAndroidChannels() {
       await Notifications.setNotificationChannelAsync(c.id, {
         name: tNow(c.nameKey),
         importance: Notifications.AndroidImportance.HIGH,
+        // String sound = nama file dasar DENGAN ekstensi, sesuai konvensi res/raw
+        // (dibundel plugin expo-notifications). Untuk default cukup undefined.
         sound: c.sound || undefined,
         vibrationPattern: c.vibration || undefined,
         lightColor: '#8b5cf6',
@@ -98,6 +107,41 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+
+// FOREGROUND: notifikasi yang muncul saat aplikasi TERBUKA sering tidak memutar
+// suara channel di Android (perilaku yang dikeluarkan expo-notifikasi). Karena
+// itu, bila notifikasi diterima sementara JS berjalan, pompa suara sesuai
+// channel sendiri lewat expo-audio. Notifikasi saat app TIDAK berjalan terus
+// memakai suara channel — tidak ada jalur dobel.
+const FOREGROUND_SOUND_SOURCES = {
+  adhan: require('../../assets/sounds/adhan.mp3'),
+  default: require('../../assets/sounds/default_preview.mp3'),
+};
+let fgSoundPlayer = null;
+try {
+  if (Platform.OS === 'android') {
+    Notifications.addNotificationReceivedListener((notification) => {
+      try {
+        const channelId = notification?.request?.trigger?.channelId || '';
+        const entry = Object.entries(CHANNELS).find(([, c]) => c.id === channelId);
+        const eff = entry ? entry[0] : null;
+        if (eff === 'silent' || eff === 'getar' || !FOREGROUND_SOUND_SOURCES[eff]) return;
+        // Tutup pemain lama supaya tidak bunyi dobel bila dua notifikasi
+        // muncul berurutan.
+        if (fgSoundPlayer) {
+          try { fgSoundPlayer.pause(); } catch {}
+          try { fgSoundPlayer.release?.(); } catch {}
+          fgSoundPlayer = null;
+        }
+        const { createAudioPlayer } = require('expo-audio');
+        const player = createAudioPlayer(FOREGROUND_SOUND_SOURCES[eff]);
+        fgSoundPlayer = player;
+        try { player.addListener('playToEnd', () => fgSoundPlayer = null); } catch {}
+        player.play();
+      } catch {}
+    });
+  }
+} catch {}
 
 // Pilihan mod notifikasi: 'default' (bunyi sistem), 'adhan' (suara adzan custom,
 // dibundel via plugin), 'getar' (hanya bergetar), 'silent' (sunyi — visual saja)
@@ -260,15 +304,18 @@ export function buildReminderContent({ key, timeStr, offsetMinutes = 0, date = n
 // Suara efektif ditentukan di luar (resolveEffectiveSound) lalu notifikasi
 // masuk channel Android yang cocok. 'off' → dilewati (return false).
 export async function schedulePrayerNotification({ identifier, key, timeStr, eff, offsetMinutes = 0, daily = false, hour, minute, when, }) {
-  if (!daily && !(when instanceof Date)) return false;
-  const content = buildReminderContent({ key, timeStr, offsetMinutes, date: when instanceof Date ? when : null });
+  if (!daily && !(when instanceof Date)) return false;    const content = buildReminderContent({ key, timeStr, offsetMinutes, date: when instanceof Date ? when : null });
+    // Android 8+: SUARA/notification channel yang berlaku — sound di content justru
+    // bisa mengunci jalur "suara default" internal dan membisukan channel custom
+    // (expo-notifications #15239). Karena itu di Android sound di-OMIT.
+    const iosSound = Platform.OS === 'ios' ? (SOUND_CHOICES[eff]?.contentSound || undefined) : undefined;
   try {
     const trigger = daily
       ? { type: 'daily', hour, minute, channelId: CHANNELS[eff]?.id || CHANNELS.default.id }
       : { type: 'date', date: when, channelId: CHANNELS[eff]?.id || CHANNELS.default.id };
     await Notifications.scheduleNotificationAsync({
       identifier,
-      content: { ...content, sound: SOUND_CHOICES[eff]?.contentSound || undefined, color: '#8b5cf6' },
+      content: { ...content, ...(iosSound ? { sound: iosSound } : {}), color: '#8b5cf6' },
       trigger,
     });
     return true;
