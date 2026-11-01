@@ -376,6 +376,9 @@ export default function SholatJadwalScreen() {
           soundChoice: (['adhan', 'getar', 'silent'].includes(soundRaw)
             ? soundRaw
             : (['adhan', 'getar', 'silent'].includes(notifSound) ? notifSound : 'default')),
+          // Jalur otomatis: tanpa dialog izin — permintaan izin Android 13+ hanya
+          // dari toggle pengingat di Pengaturan (dengan konteks).
+          prompt: false,
         });
       } catch {}
     })();

@@ -10,7 +10,8 @@ import { useI18n } from '../../../api/i18n';
 // ============================================================
 
 // Buka pengaturan "hemat baterai" supaya aplikasi boleh dikecualikan.
-const openBatteryOptimization = async () => {
+// Dilakukan export: dialog panduan izin di SettingsScreen memakai tombol yang sama.
+export const openBatteryOptimization = async () => {
   try {
     await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
   } catch (e) {
@@ -21,7 +22,7 @@ const openBatteryOptimization = async () => {
 // Buka halaman "Alarm & pengingat" agar aplikasi diizinkan menjadwalkan
 // ALARM TEPAT — tanpa ini notifikasi bisa muncul molor meski optimasi
 // baterai sudah dikecualikan.
-const openExactAlarmSettings = async () => {
+export const openExactAlarmSettings = async () => {
   try {
     const pkg = Constants?.expoConfig?.android?.package || Constants?.manifest?.android?.package;
     if (pkg) {

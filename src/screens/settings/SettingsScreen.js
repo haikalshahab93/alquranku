@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, ScrollView, Platform } from 'react-native';
+import { View, ScrollView, Platform, Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAladhanHarianCoords, getAladhanHarianCity } from '../../api/aladhan';
 import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../../api/notifications';
@@ -16,7 +16,7 @@ import { GroupHeader } from './components/primitives';
 import LanguageCard from './components/LanguageCard';
 import AppearanceCard from './components/AppearanceCard';
 import NotifCard from './components/NotifCard';
-import AndroidBatteryCard from './components/AndroidBatteryCard';
+import AndroidBatteryCard, { openExactAlarmSettings } from './components/AndroidBatteryCard';
 import PrayerMethodCard from './components/PrayerMethodCard';
 import PreviewCard from './components/PreviewCard';
 import AdvancedCard from './components/AdvancedCard';
@@ -351,7 +351,32 @@ export default function SettingsScreen() {
         soundChoice: (['adhan', 'getar', 'silent'].includes(sound) ? sound : 'default'),
       });
       if (Platform.OS !== 'web') {
-        if (result?.reason === 'permission') alert(t('settings.errIzinNotif'));
+        if (result?.reason === 'permission') {
+          // Android 13+: izin POST_NOTIFICATIONS ditolak/belum ada → pandu ke
+          // pengaturan sistem (bisa karena ditolak permanen: dialog izin sudah
+          // tidak boleh muncul lagi dari aplikasi).
+          Alert.alert(
+            t('settings.izinNotifTolakTitle'),
+            t('settings.izinNotifTolakBody'),
+            [
+              { text: t('quran.batal'), style: 'cancel' },
+              { text: t('settings.bukaPengaturan'), style: 'default', onPress: () => { try { Linking.openSettings(); } catch (e) {} } },
+            ],
+            { cancelable: true }
+          );
+        } else if (result?.reason === 'not-exact') {
+          // Alarm eksak belum diaktifkan (Android 12+) → arahkan ke kartu/halaman
+          // "Alarm Tepat" supaya pengingat muncul menit-tepat, bukan mundur.
+          Alert.alert(
+            t('settings.alarmTepatOffTitle'),
+            t('settings.alarmTepatOffBody'),
+            [
+              { text: t('quran.batal'), style: 'cancel' },
+              { text: t('settings.alarmTepat'), style: 'default', onPress: () => { openExactAlarmSettings?.(); } },
+            ],
+            { cancelable: true }
+          );
+        }
         else if (result?.reason === 'no-data') alert(t('settings.errNoData'));
         else alert(t('settings.suksesJadwal', { n: result?.scheduled ?? 0 }));
       }

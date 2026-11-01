@@ -362,6 +362,9 @@ export default function HomeScreen({ navigation }) {
           options,
           offsetMinutes: Number.isFinite(parseInt(offsetRaw, 10)) ? parseInt(offsetRaw, 10) : 0,
           enabled: enabledRaw !== '0', // default aktif
+          // Jalur otomatis: TIDAK memunculkan dialog izin (Android 13+ menuntut
+          // permintaan izin dari aksi pengguna di Pengaturan, bukan saat app dibuka).
+          prompt: false,
           soundChoice: ['adhan', 'getar', 'silent'].includes(soundRaw) ? soundRaw : 'default',
         });
       } catch (e) {}

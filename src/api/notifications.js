@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAladhanBulananCoords, getAladhanBulananCity, readLastSholatSnapshot, getAladhanHarianCoords, getAladhanHarianCity } from './aladhan';
 import { tNow } from './i18n';
+import { formatMutiaraBaris } from './kataBijakSholat';
 
 // PENTING: expo-notifications HANYA dievaluasi di native. Di web, modul itu
 // mendaftarkan listener push token saat boot dan memicu warning
@@ -146,16 +147,34 @@ export async function readPerKeySounds() {
   } catch { return {}; }
 }
 
-export async function ensureNotificationPermission() {
+// prompt === false  → jalur OTOMATIS (app dibuka / layar jadwal dirender).
+// Android 13+ (targetSdk 33+) menuntut izin POST_NOTIFICATIONS diminta runtime,
+// dan pola yang disetujui Play adalah munculkan dialog SAAT pengguna bereaksi
+// (toggle pengingat di Pengaturan) — bukan sejak aplikasi dibuka. Karena itu
+// jalur otomatis tidak pernah memunculkan dialog: bila izin belum granted,
+// cukup return false (penjadwalan dilewati diam-diam) tanpa dialog.
+export async function ensureNotificationPermission({ prompt = true } = {}) {
   try {
     const current = await Notifications.getPermissionsAsync();
     if (current?.granted) return true;
-    if (current?.canAskAgain) {
-      const req = await Notifications.requestPermissionsAsync();
-      return !!req?.granted;
-    }
-    return false;
+    if (!prompt) return false; // jalur otomatis: tanpa dialog
+    if (current?.canAskAgain === false) return false; // ditolak permanen → dipandu UI
+    const req = await Notifications.requestPermissionsAsync();
+    return !!req?.granted;
   } catch (e) {
+    return false;
+  }
+}
+
+// Apakah alarm EKSAK boleh dipakai (Android 12+: izin SCHEDULE_EXACT_ALARM).
+// Timer eksak membuat pengingat sholat muncul menit-tepat; tanpa izin ini
+// OS kemungkinan mundur ratusan juta beberapa menit (tergantung mode baterai).
+export async function canUseExactAlarms() {
+  if (Platform.OS !== 'android') return true; // iOS tidak pakai izin ini
+  try {
+    if (typeof Notifications.canScheduleExactAlarmsAsync !== 'function') return true; // API lama
+    return !!(await Notifications.canScheduleExactAlarmsAsync());
+  } catch {
     return false;
   }
 }
@@ -187,11 +206,13 @@ export async function cancelAllPrayerReminders() {
  * logika notifikasi lagi.
  * ============================================================ */
 
-// Langkah awal bersama: bersihkan jadwal lama, siapkan izin + channel Android.
-export async function prepareScheduling() {
+// Langkah dasar jadwal: bersihkan jadwal lama, siapkan izin + channel Android.
+// prompt dioper dari pemanggil: jalur otomatis = false (tidak pernah memunculkan
+// dialog izin), jalur dari aksi pengguna di Pengaturan = true.
+export async function prepareScheduling({ prompt = true } = {}) {
   await cancelAllPrayerReminders();
   try { await ensureAndroidChannels(); } catch {}
-  const granted = await ensureNotificationPermission();
+  const granted = await ensureNotificationPermission({ prompt });
   return granted;
 }
 
@@ -211,15 +232,24 @@ export function parsePrayerTime(t) {
 
 // Satukan isi notifikasi untuk satu waktu sholat (dipakai semua penjadwal).
 // offsetMinutes > 0 berarti pengingat "menjelang" (mis. 5 menit sebelum).
-export function buildReminderContent({ key, timeStr, offsetMinutes = 0 }) {
+// Tambah kata bijak hadits sesuai waktu sholat (rotasi harian dari kataBijakSholat).
+export function buildReminderContent({ key, timeStr, offsetMinutes = 0, date = null }) {
   const label = (typeof PRAYER_LABELS[key] === 'function' ? PRAYER_LABELS[key]() : PRAYER_LABELS[key]) || key;
   const isEarly = (offsetMinutes || 0) > 0;
   const cleanTime = String(timeStr || '').replace(/\s*\(.*?\)\s*/g, '').trim();
+  const dasar = isEarly
+    ? tNow('notif.bodySebelum', { sholat: label, w: cleanTime, n: offsetMinutes })
+    : tNow('notif.bodyTepat', { sholat: label, w: cleanTime });
+  // Hadits pengiring sesuai waktu sholat (berganti tiap hari); tetap
+  // ditampilkan pada pengingat "menjelang" agar tetap bermakna.
+  let body = dasar;
+  try {
+    const baris = formatMutiaraBaris(key, date || new Date());
+    if (baris) body = `${dasar}\n\n${baris}`;
+  } catch {}
   return {
     title: isEarly ? tNow('notif.titleMenjelang', { sholat: label }) : tNow('notif.titleWaktu', { sholat: label }),
-    body: isEarly
-      ? tNow('notif.bodySebelum', { sholat: label, w: cleanTime, n: offsetMinutes })
-      : tNow('notif.bodyTepat', { sholat: label, w: cleanTime }),
+    body,
   };
 }
 
@@ -231,7 +261,7 @@ export function buildReminderContent({ key, timeStr, offsetMinutes = 0 }) {
 // masuk channel Android yang cocok. 'off' → dilewati (return false).
 export async function schedulePrayerNotification({ identifier, key, timeStr, eff, offsetMinutes = 0, daily = false, hour, minute, when, }) {
   if (!daily && !(when instanceof Date)) return false;
-  const content = buildReminderContent({ key, timeStr, offsetMinutes });
+  const content = buildReminderContent({ key, timeStr, offsetMinutes, date: when instanceof Date ? when : null });
   try {
     const trigger = daily
       ? { type: 'daily', hour, minute, channelId: CHANNELS[eff]?.id || CHANNELS.default.id }
@@ -250,11 +280,11 @@ export async function schedulePrayerNotification({ identifier, key, timeStr, eff
 // Jadwalkan pengingat berulang harian untuk setiap waktu sholat (iOS &
 // fallback Android). offsetMinutes: berapa menit SEBELUM waktu sholat
 // notifikasi muncul (0 = tepat waktu).
-export async function schedulePrayerReminders({ jadwal, offsetMinutes = 0, enabled = true, soundChoice = 'default', perKeySounds = {} }) {
+export async function schedulePrayerReminders({ jadwal, offsetMinutes = 0, enabled = true, soundChoice = 'default', perKeySounds = {}, prompt = true }) {
   if (Platform.OS === 'web') return { scheduled: 0, reason: 'web' };
   if (!enabled) { await cancelAllPrayerReminders(); return { scheduled: 0, reason: 'disabled' }; }
 
-  const granted = await prepareScheduling();
+  const granted = await prepareScheduling({ prompt });
   if (!granted) return { scheduled: 0, reason: 'permission' };
 
   let count = 0;
@@ -299,11 +329,11 @@ export function localIso(d) {
 
 // Jadwalkan notifikasi EKSAK per hari (trigger "date"). days: [{ iso, jadwal }]
 // di mana jadwal sudah berformat kolom harian API (subuh/dzuhur/ashar/maghrib/isya).
-export async function schedulePrayerRemindersMultiDay({ days, offsetMinutes = 0, enabled = true, soundChoice = 'default', perKeySounds = {} }) {
+export async function schedulePrayerRemindersMultiDay({ days, offsetMinutes = 0, enabled = true, soundChoice = 'default', perKeySounds = {}, prompt = true }) {
   if (Platform.OS === 'web') return { scheduled: 0, reason: 'web' };
   if (!enabled) { await cancelAllPrayerReminders(); return { scheduled: 0, reason: 'disabled' }; }
 
-  const granted = await prepareScheduling();
+  const granted = await prepareScheduling({ prompt });
   if (!granted) return { scheduled: 0, reason: 'permission' };
 
   const nowMs = Date.now();
@@ -336,7 +366,7 @@ export async function schedulePrayerRemindersMultiDay({ days, offsetMinutes = 0,
 }
 
 /* ========= PERHARAHALAN OTOMATIS: pengingat dari jadwal bulanan ========== */
-export async function refreshPrayerReminderSchedule({ lat, lon, city, country, options = {}, offsetMinutes = 0, enabled = true, soundChoice = 'default', daysAhead = 40 }) {
+export async function refreshPrayerReminderSchedule({ lat, lon, city, country, options = {}, offsetMinutes = 0, enabled = true, soundChoice = 'default', daysAhead = 40, prompt = true }) {
   // Web: tidak ada notifikasi lokal API
   if (Platform.OS === 'web') return { scheduled: 0, reason: 'web' };
 
@@ -388,8 +418,16 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
         if (byIso[iso]) days.push(byIso[iso]);
       }
       if (days.length > 1) {
-        const r = await schedulePrayerRemindersMultiDay({ days, offsetMinutes, enabled, soundChoice, perKeySounds });
-        if (r?.scheduled > 0) return r;
+        // Alarm eksak butuh izin SCHEDULE_EXACT_ALARM (Android 12+). Bila belum
+        // diaktifkan: jalur otomatis jatuh ke schedule harian (masih berjalan,
+        // cukup toleransi menit tertentu), jalur dari pengguna (prompt) dilaporkan
+        // lewat reason 'not-exact' agar dipandu ke kartu "Alarm Tepat" di Pengaturan.
+        if (await canUseExactAlarms()) {
+          const r = await schedulePrayerRemindersMultiDay({ days, offsetMinutes, enabled, soundChoice, perKeySounds, prompt });
+          if (r?.scheduled > 0) return r;
+        } else if (prompt) {
+          return { scheduled: 0, reason: 'not-exact' };
+        }
       }
     }
 
@@ -405,7 +443,7 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
       try { todayJadwal = (await readLastSholatSnapshot())?.jadwal || null; } catch {}
     }
     if (!todayJadwal) return { scheduled: 0, reason: 'no-data' };
-    const day = await schedulePrayerReminders({ jadwal: todayJadwal, offsetMinutes, enabled, soundChoice, perKeySounds });
+    const day = await schedulePrayerReminders({ jadwal: todayJadwal, offsetMinutes, enabled, soundChoice, perKeySounds, prompt });
     return day;
   } catch (e) {
     // Fallback: pakai snapshot terakhir yang tersimpan
