@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Share } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Share, Modal, TextInput, TouchableWithoutFeedback } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getSuratDetail, getTafsir } from '../../api/quran';
 import { fetchChapterAudioData, findVerseTiming, wordPosAt, splitArabicWords, getPreferredKaraokeReciter } from '../../api/quranAudio';
@@ -120,11 +120,18 @@ export default function SurahDetailScreen({ route, navigation }) {
         const collections = parsed.collections || {};
         items = Array.isArray(collections[col]) ? collections[col] : [];
       }
+      // Ikon bookmark terisi bila ayat ada di koleksi MANA PUN (bukan hanya aktif),
+      // supaya simpan ke koleksi pilihan di picker langsung terlihat.
       const map = {};
-      (Array.isArray(items) ? items : []).forEach((b) => {
-        if (b && b.nomorSurah != null && b.ayahNumber != null) {
-          map[`${b.nomorSurah}-${b.ayahNumber}`] = true;
-        }
+      const source = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.collections)
+        ? parsed.collections
+        : { [col]: Array.isArray(items) ? items : [] };
+      Object.keys(source).forEach((c) => {
+        (Array.isArray(source[c]) ? source[c] : []).forEach((b) => {
+          if (b && b.nomorSurah != null && b.ayahNumber != null) {
+            map[`${b.nomorSurah}-${b.ayahNumber}`] = true;
+          }
+        });
       });
       setBookmarksMap(map);
     } catch {
@@ -160,6 +167,116 @@ export default function SurahDetailScreen({ route, navigation }) {
       await loadBookmarks();
     } catch {}
   };
+
+  // === Bookmark pilih koleksi (multi-pilih) ===
+  // Bila belum ada koleksi sama sekali -> buat otomatis "My Favorite" & simpan di sana.
+  // Bila sudah ada koleksi -> picker: tandai beberapa koleksi lalu Simpan (bisa > 1).
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerAyah, setPickerAyah] = useState(null);
+  const [pickerList, setPickerList] = useState([]); // [{ name, count }]
+  const [pickerSel, setPickerSel] = useState({}); // nama koleksi yang dicentang
+  const [pickerNewName, setPickerNewName] = useState('');
+
+  const readCollectionsData = async () => {
+    const raw = await AsyncStorage.getItem(BOOKMARK_KEY);
+    let data = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(data)) data = { collections: { [activeCollection]: data } };
+    if (!data || typeof data !== 'object') data = { collections: {} };
+    // PENTING: "collections" adalah OBJEK { nama: [ayat] }, bukan array. Cek harus
+    // plain-object — kalau pakai Array.isArray maka seluruh koleksi tersimpan tadi
+    // ikut di-reset setiap kali dibaca (ayat yang sudah dibookmark hilang satu per satu).
+    if (!data.collections || typeof data.collections !== 'object' || Array.isArray(data.collections)) data.collections = {};
+    return data;
+  };
+
+  const saveAyahToCollection = async (ayahNumber, col) => {
+    try {
+      const data = await readCollectionsData();
+      if (!Array.isArray(data.collections[col])) data.collections[col] = [];
+      const arr = data.collections[col];
+      if (arr.some((b) => b.nomorSurah === nomor && b.ayahNumber === ayahNumber)) return;
+      const metaNama = detail?.surat?.namaLatin || detail?.surat?.nama_latin || namaLatin || nama_latin || '';
+      arr.push({ nomorSurah: nomor, namaSurah: metaNama, ayahNumber, ts: Date.now(), collection: col });
+      await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(data));
+      markDirty('bookmarks');
+      await loadBookmarks();
+    } catch {}
+  };
+
+  const onBookmarkPress = async (ayahNumber) => {
+    try {
+      const data = await readCollectionsData();
+      const names = Object.keys(data.collections);
+      if (!names.length) {
+        // Tidak ada koleksi sama sekali -> buat default & simpan langsung
+        await saveAyahToCollection(ayahNumber, 'My Favorite');
+        return;
+      }
+      // Koleksi yang sudah memuat ayat ini dicentang otomatis
+      const sel = {};
+      names.forEach((n) => {
+        const arr = data.collections[n];
+        if (Array.isArray(arr) && arr.some((b) => b.nomorSurah === nomor && b.ayahNumber === ayahNumber)) sel[n] = true;
+      });
+      setPickerSel(sel);
+      setPickerList(names.map((n) => ({ name: n, count: Array.isArray(data.collections[n]) ? data.collections[n].length : 0 })));
+      setPickerAyah(ayahNumber);
+      setPickerNewName('');
+      setPickerVisible(true);
+    } catch {
+      await saveAyahToCollection(ayahNumber, 'My Favorite');
+    }
+  };
+
+  const togglePick = (name) => {
+    setPickerSel((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
+
+  // Simpan ayat ke SEMUA koleksi yang dicentang (bisa lebih dari satu)
+  const savePickerSelection = async () => {
+    const ayah = pickerAyah;
+    const selected = Object.keys(pickerSel).filter((n) => pickerSel[n]);
+    setPickerVisible(false);
+    for (const col of selected) {
+      await saveAyahToCollection(ayah, col);
+    }
+  };
+
+  // Hapus bookmark ayat ini dari SEMUA koleksi sekaligus
+  const removeBookmarkEverywhere = async () => {
+    const ayah = pickerAyah;
+    setPickerVisible(false);
+    if (ayah == null) return;
+    try {
+      const data = await readCollectionsData();
+      let changed = false;
+      Object.keys(data.collections).forEach((c) => {
+        const arr = data.collections[c];
+        if (!Array.isArray(arr)) return;
+        const next = arr.filter((b) => !(b.nomorSurah === nomor && b.ayahNumber === ayah));
+        if (next.length !== arr.length) { data.collections[c] = next; changed = true; }
+      });
+      if (changed) {
+        await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(data));
+        markDirty('bookmarks');
+        await loadBookmarks();
+      }
+    } catch {}
+  };
+
+  const createCollectionAndSave = async () => {
+    try {
+      const data = await readCollectionsData();
+      const baseName = String(pickerNewName || '').trim() || t('quran.newCollection');
+      let col = baseName;
+      let i = 2;
+      while (data.collections[col]) { col = `${baseName} ${i++}`; }
+      await saveAyahToCollection(pickerAyah, col);
+    } catch {}
+    setPickerVisible(false);
+  };
+
+
 
   const fetchDetail = async () => {
     try {
@@ -731,6 +848,12 @@ export default function SurahDetailScreen({ route, navigation }) {
             <Text style={[styles.numberPillText, { color: pal.colors.primary }]}>{ayahNumber}</Text>
           </View>
           <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}
+              onPress={() => onBookmarkPress(ayahNumber)}
+            >
+              <Ionicons name={isBookmarked(ayahNumber) ? 'bookmark' : 'bookmark-outline'} size={20} color={isBookmarked(ayahNumber) ? '#F59E0B' : pal.colors.primary} />
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => shareAyah(ayahNumber, arabText, latinText, indoText)}>
               <Ionicons name="share-social-outline" size={20} color={pal.colors.primary} />
             </TouchableOpacity>
@@ -920,6 +1043,21 @@ const styles = StyleSheet.create({
   themeMobile: { flex: 1, backgroundColor: pal.colors.bg },
   // Gaya untuk tampilan list ayat (di luar renderMushaf)
   ayatList: { padding: 16 },
+  // Picker koleksi bookmark
+  bmBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)', padding: 24 },
+  bmCard: { width: '100%', maxWidth: 420, borderRadius: 12, borderWidth: 1, padding: 14 },
+  bmTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  bmList: { maxHeight: 260 },
+  bmRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },
+  bmRowText: { flex: 1, fontSize: 15 },
+  bmRowCount: { fontSize: 12 },
+  bmNewRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1 },
+  bmInput: { flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, fontSize: 14 },
+  bmCreateBtn: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, marginLeft: 8 },
+  bmCreateText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  bmBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 },
+  bmActionBtn: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8, marginLeft: 8 },
+  bmActionText: { fontSize: 14, fontWeight: '600' },
 });
 const stylesMobile = StyleSheet.create({
   // Kartu tunggal mode Mushaf: seluruh surah sebagai teks Arab mengalir
@@ -1129,6 +1267,61 @@ const stylesMobile = StyleSheet.create({
         </TouchableOpacity>
       </View>
     )}
+
+      {/* Picker koleksi bookmark: multi-pilih beberapa koleksi + buat baru */}
+      <Modal visible={pickerVisible} transparent animationType="fade" onRequestClose={() => setPickerVisible(false)}>
+        <TouchableWithoutFeedback onPress={() => setPickerVisible(false)}>
+          <View style={styles.bmBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.bmCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+                <Text style={[styles.bmTitle, { color: pal.colors.text }]}>{t('quran.pilihKoleksi')}</Text>
+                <ScrollView style={styles.bmList} nestedScrollEnabled>
+                  {pickerList.map((c) => {
+                    const checked = !!pickerSel[c.name];
+                    return (
+                      <TouchableOpacity key={`pick-${c.name}`} style={[styles.bmRow, { borderBottomColor: pal.colors.surfaceBorder }] } onPress={() => togglePick(c.name)}>
+                        <Ionicons name="folder-outline" size={18} color={pal.colors.primary} style={{ marginRight: 10 }} />
+                        <Text style={[styles.bmRowText, { color: pal.colors.text }]}>{c.name}</Text>
+                        <Text style={[styles.bmRowCount, { color: pal.colors.muted }]}>{t('quran.itemCount', { n: c.count })}</Text>
+                        <Ionicons name={checked ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={checked ? '#4ade80' : pal.colors.muted} style={{ marginLeft: 8 }} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <View style={[styles.bmNewRow, { borderTopColor: pal.colors.surfaceBorder }]}>
+                  <TextInput
+                    style={[styles.bmInput, { color: pal.colors.text, borderColor: pal.colors.surfaceBorder, backgroundColor: pal.colors.bg }]}
+                    value={pickerNewName}
+                    onChangeText={setPickerNewName}
+                    placeholder={t('quran.namePlaceholder')}
+                    placeholderTextColor={pal.colors.muted}
+                    maxLength={60}
+                  />
+                  <TouchableOpacity style={[styles.bmCreateBtn, { backgroundColor: pal.colors.primary }]} onPress={createCollectionAndSave}>
+                    <Text style={styles.bmCreateText}>{t('quran.buat')}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.bmBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.bmActionBtn, { borderColor: '#EF4444' }, !isBookmarked(pickerAyah) && { opacity: 0.35 }]}  
+                    disabled={!isBookmarked(pickerAyah)}
+                    onPress={removeBookmarkEverywhere}
+                  >
+                    <Text style={[styles.bmActionText, { color: '#EF4444' }]}>{t('quran.hapus')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.bmActionBtn, { backgroundColor: pal.colors.primary, borderColor: pal.colors.primary }, !Object.keys(pickerSel).some((k) => pickerSel[k]) && { opacity: 0.35 }]}
+                    disabled={!Object.keys(pickerSel).some((k) => pickerSel[k])}
+                    onPress={savePickerSelection}
+                  >
+                    <Text style={[styles.bmActionText, { color: '#FFFFFF' }]}>{t('quran.simpan')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }

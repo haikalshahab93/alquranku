@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, TextInput, TouchableWithoutFeedback } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getPalette } from '../../ui';
@@ -17,6 +17,10 @@ export default function QuranBookmarksScreen({ navigation }) {
   const pal = getPalette(darkMode);
   const [collections, setCollections] = useState({});
   const [activeCollection, setActiveCollection] = useState('My Favorite');
+  // Menu titik 3 di baris koleksi: pilih Ubah Nama / Hapus — TIDAK langsung menghapus.
+  const [optionsCol, setOptionsCol] = useState(null); // nama koleksi yang buka menu
+  const [renameName, setRenameName] = useState(null); // koleksi yang sedang di-rename
+  const [renameValue, setRenameValue] = useState('');
 
   const migrateIfNeeded = async () => {
     const raw = await AsyncStorage.getItem(BOOKMARK_KEY);
@@ -93,6 +97,26 @@ export default function QuranBookmarksScreen({ navigation }) {
     } catch {}
   };
 
+  const renameCollection = async (oldName, rawNew) => {
+    try {
+      const newName = String(rawNew || '').trim();
+      if (!newName || newName === oldName) { setRenameName(null); return; }
+      const raw = await AsyncStorage.getItem(BOOKMARK_KEY);
+      const parsed = raw ? JSON.parse(raw) : { collections: {} };
+      if (!parsed.collections[oldName] || parsed.collections[newName]) { setRenameName(null); return; }
+      parsed.collections[newName] = parsed.collections[oldName];
+      delete parsed.collections[oldName];
+      await AsyncStorage.setItem(BOOKMARK_KEY, JSON.stringify(parsed));
+      markDirty('bookmarks');
+      if (activeCollection === oldName) {
+        await AsyncStorage.setItem(CURRENT_COLLECTION_KEY, newName);
+        markDirty('active_collection');
+      }
+      await load();
+    } catch {}
+    setRenameName(null);
+  };
+
   const removeItem = async (item) => {
     try {
       const raw = await AsyncStorage.getItem(BOOKMARK_KEY);
@@ -138,7 +162,7 @@ export default function QuranBookmarksScreen({ navigation }) {
         <Text style={[styles.collectionTitle, { color: pal.colors.text }]}>{name}</Text>
         <Text style={[styles.collectionCount, { color: pal.colors.muted }]}> {t('quran.itemCount', { n: Array.isArray(collections[name]) ? collections[name].length : 0 })}</Text>
       </View>
-      <TouchableOpacity style={styles.iconBtn} onPress={() => removeCollection(name)}>
+      <TouchableOpacity style={styles.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => setOptionsCol(name)}>
         <Ionicons name="ellipsis-vertical" size={16} color={pal.colors.primary} />
       </TouchableOpacity>
     </TouchableOpacity>
@@ -177,6 +201,61 @@ export default function QuranBookmarksScreen({ navigation }) {
         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 12 }}
         ListEmptyComponent={<Text style={{ textAlign: 'center', color: pal.colors.muted }}>{t('quran.noBookmarks')}</Text>}
       />
+
+      {/* Menu titik 3 per koleksi: Ubah Nama / Hapus / Batal */}
+      <Modal visible={!!optionsCol} transparent animationType="fade" onRequestClose={() => setOptionsCol(null)}>
+        <TouchableWithoutFeedback onPress={() => setOptionsCol(null)}>
+          <View style={styles.modalBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+                <Text style={[styles.modalTitle, { color: pal.colors.text }]} numberOfLines={1}>{t('quran.collectionOptions')}{optionsCol ? ` — ${optionsCol}` : ''}</Text>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { const name = optionsCol; setOptionsCol(null); setRenameName(name); setRenameValue(name); }}>
+                  <Ionicons name="pencil-outline" size={18} color={pal.colors.primary} style={{ marginRight: 10 }} />
+                  <Text style={[styles.menuText, { color: pal.colors.text }]}>{t('quran.renameCollection')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { const name = optionsCol; setOptionsCol(null); removeCollection(name); }}>
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" style={{ marginRight: 10 }} />
+                  <Text style={[styles.menuText, { color: '#EF4444' }]}>{t('quran.deleteCollection')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => setOptionsCol(null)}>
+                  <Ionicons name="close-outline" size={18} color={pal.colors.muted} style={{ marginRight: 10 }} />
+                  <Text style={[styles.menuText, { color: pal.colors.muted }]}>{t('quran.batal')}</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Modal Ubah Nama koleksi */}
+      <Modal visible={!!renameName} transparent animationType="fade" onRequestClose={() => setRenameName(null)}>
+        <TouchableWithoutFeedback onPress={() => setRenameName(null)}>
+          <View style={styles.modalBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+                <Text style={[styles.modalTitle, { color: pal.colors.text }]}>{t('quran.renameCollection')}</Text>
+                <TextInput
+                  style={[styles.nameInput, { color: pal.colors.text, borderColor: pal.colors.surfaceBorder, backgroundColor: pal.colors.bg }]}
+                  value={renameValue}
+                  onChangeText={setRenameValue}
+                  placeholder={t('quran.namePlaceholder')}
+                  placeholderTextColor={pal.colors.muted}
+                  maxLength={60}
+                  autoFocus
+                />
+                <View style={styles.modalBtnRow}>
+                  <TouchableOpacity style={[styles.modalBtn, { borderColor: pal.colors.surfaceBorder }]} onPress={() => setRenameName(null)}>
+                    <Text style={[styles.modalBtnText, { color: pal.colors.muted }]}>{t('quran.batal')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.modalBtn, { backgroundColor: pal.colors.primary, borderColor: pal.colors.primary }]} onPress={() => renameCollection(renameName, renameValue)}>
+                    <Text style={[styles.modalBtnText, { color: '#FFFFFF' }]}>{t('quran.simpan')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -198,4 +277,13 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 16, fontWeight: '600', color: '#111827' },
   itemMeta: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   iconBtn: { paddingHorizontal: 6, paddingVertical: 6 },
+  modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 420, borderRadius: 12, borderWidth: 1, padding: 14 },
+  modalTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },
+  menuText: { fontSize: 15 },
+  nameInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },
+  modalBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
+  modalBtn: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8, marginLeft: 8 },
+  modalBtnText: { fontSize: 14, fontWeight: '600' },
 });

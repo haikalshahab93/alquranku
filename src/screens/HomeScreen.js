@@ -453,23 +453,31 @@ export default function HomeScreen({ navigation }) {
     }
   }, [lat, lon, city, country]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const s = await AsyncStorage.getItem('last_read');
-        if (s) {
-          const obj = JSON.parse(s);
-          // Terima hanya format valid { nomor, namaLatin, lastAyah } — format lama
-          // yang tanpa nomor menyebabkan judul "Surah undefined".
-          if (Number.isFinite(Number(obj?.nomor))) {
-            setLastRead(obj);
-          }
-        }
-      } catch (e) {
-        // ignore
+  const loadLastRead = useCallback(async () => {
+    try {
+      const s = await AsyncStorage.getItem('last_read');
+      if (s) {
+        const obj = JSON.parse(s);
+        // Terima hanya format valid { nomor, namaLatin, lastAyah } — format lama
+        // yang tanpa nomor menyebabkan judul "Surah undefined".
+        setLastRead(Number.isFinite(Number(obj?.nomor)) ? obj : null);
+      } else {
+        setLastRead(null);
       }
-    })();
+    } catch (e) {
+      // ignore
+    }
   }, []);
+
+  useEffect(() => { loadLastRead(); }, [loadLastRead]);
+
+  // Muat ulang tiap kali layar Home dibuka kembali: kartu "Lanjutkan"
+  // selalu memakai posisi terakhir dibaca terbaru dari layar surat.
+  useEffect(() => {
+    let sub;
+    try { sub = navigation.addListener('focus', loadLastRead); } catch {}
+    return () => { try { sub?.(); } catch {} };
+  }, [navigation, loadLastRead]);
 
   useEffect(() => {
     let sub;
@@ -698,8 +706,11 @@ export default function HomeScreen({ navigation }) {
             <PurpleButton
               label={t('home.lanjutkan')}
               onPress={() => navigation.navigate('SurahDetail', {
-                surah: { nomor: lastRead?.nomor, namaLatin: lastRead?.namaLatin },
-                lastAyah: lastRead?.lastAyah,
+                // Layar SurahDetail membaca route.params.nomor/namaLatin langsung (bukan objek surah),
+                // dan nama param ayatnya adalah targetAyah (dipakai untuk auto-scroll + highlight).
+                nomor: lastRead?.nomor,
+                namaLatin: lastRead?.namaLatin,
+                targetAyah: lastRead?.lastAyah,
               })}
             />
             <OutlineLightButton label={t('home.reset')} onPress={async () => { await AsyncStorage.removeItem('last_read'); setLastRead(null); }} />
