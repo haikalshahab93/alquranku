@@ -45,7 +45,7 @@ Alquranku — Pendamping baca Al-Qur'an harian yang ringkas dan nyaman. Baca den
 
 🕌 PENDUKUNG IBADAH HARIAN
 • Jadwal sholat akurat sesuai lokasi, dengan metode perhitungan pilihan
-• Notifikasi pengingat waktu sholat dengan bunyi adzan, getar, atau senyap
+• Notifikasi pengingat waktu sholat dengan bunyi adzan, getar, atau senyap — lengkap dengan hadits pilihan yang sesuai waktunya (berganti setiap hari)
 • Opsi Alarm Tepat & panduan hemat baterai agar pengingat tetap berbunyi di HP Android
 • Arah kiblat dengan kompas
 • Kalender Hijriyah

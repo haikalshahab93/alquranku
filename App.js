@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Image, BackHandler, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Image, BackHandler, Platform, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_700Bold } from '@expo-google-fonts/inter';
 import { NotoNaskhArabic_400Regular } from '@expo-google-fonts/noto-naskh-arabic';
@@ -35,6 +35,8 @@ import { theme, themeDark } from './src/ui';
 import { useAppearance } from './src/api/appearance';
 import { useI18n } from './src/api/i18n';
 import { installSync } from './src/api/sync';
+import { askStartupPermissionsOnce, canUseExactAlarms } from './src/api/notifications';
+import { openExactAlarmSettings, requestIgnoreBatteryDialog } from './src/screens/settings/components/AndroidBatteryCard';
 
 // Navigasi bawah: 5 tab konsisten (tab Profil otomatis muncul saat login).
 // Label memakai kunci kamus i18n agar dwi-bahasa mengikuti bahasa terpilih.
@@ -203,6 +205,35 @@ export default function App() {
       } catch {}
     })();
   }, [stack]);
+
+  // IZIN AWAL APLIKASI (sekali per instal, native saja): begitu pengguna tiba
+  // di Home (termasuk tepat selesai onboarding), dialog izin Notifikasi
+  // (Android 13+/iOS) muncul otomatis. Bila izin diberikan, satu dialog
+  // pemandu "Alarm & pengingat" + "Hemat Baterai" ditawarkan — tanpa harus
+  // membuka Pengaturan manual. Jalan juga saat onboarding belum dilalui
+  // (instal lama) karena flag askStartupPermissionsOnce di dalam.
+  useEffect(() => {
+    if (!initialResolved || Platform.OS === 'web') return;
+    if (current.name !== 'Home') return;
+    askStartupPermissionsOnce({
+      showGuide: async () => {
+        try {
+          // Alarm tepat belum aktif → pandu; baterai ikut ditawarkan sekalian.
+          if (await canUseExactAlarms()) return;
+          Alert.alert(
+            t('settings.startupGuideTitle'),
+            t('settings.startupGuideBody'),
+            [
+              { text: t('quran.batal'), style: 'cancel' },
+              { text: t('settings.hematBaterai'), style: 'default', onPress: () => { try { requestIgnoreBatteryDialog(); } catch {} } },
+              { text: t('settings.alarmTepat'), style: 'default', onPress: () => { try { openExactAlarmSettings(); } catch {} } },
+            ],
+            { cancelable: true }
+          );
+        } catch {}
+      },
+    }).catch(() => {});
+  }, [initialResolved, current.name]);
 
   const [fontsLoaded] = useFonts({
     Inter: Inter_400Regular,

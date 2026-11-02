@@ -157,6 +157,8 @@
   "settings.adzanTepatDesc": { "id": "Notifikasi bisa terlambat kalau “hemat baterai” aktif atau izin “Alarm & pengingat” belum diberikan. Izinkan keduanya:", "en": "Notifications can be delayed if battery saving is on or the “Alarms & reminders” permission isn't granted. Allow both:" },
   "settings.hematBaterai": { "id": "Hemat Baterai", "en": "Battery Saver" },
   "settings.alarmTepat": { "id": "Alarm Tepat", "en": "Exact Alarms" },
+  "settings.startupGuideTitle": { "id": "Buat adzan bunyi tepat waktu", "en": "Keep the adzan on time" },
+  "settings.startupGuideBody": { "id": "Izin notifikasi sudah diberikan. Agar pengingat adzan selalu bunyi TEPAT WAKTU, izinkan \"Alarm & pengingat\" dan kecualikan Alquranku dari hemat baterai — tanpa perlu buka Pengaturan manual.", "en": "Notification permission granted. So prayer reminders always sound ON TIME, allow \"Alarms & reminders\" and exempt Alquranku from battery saving — no manual Settings needed." },
   "settings.izinNotifTolakTitle": { "id": "Izin notifikasi belum diberikan", "en": "Notification permission not granted" },
   "settings.izinNotifTolakBody": { "id": "Pengingat waktu sholat butuh izin Notifikasi. Buka Pengaturan sistem \u2192 Alquranku \u2192 izinkan Notifikasi, lalu coba lagi.", "en": "Prayer reminders need the Notification permission. Open system Settings \u2192 Alquranku \u2192 allow Notifications, then try again." },
   "settings.bukaPengaturan": { "id": "Buka Pengaturan", "en": "Open Settings" },

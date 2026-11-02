@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Linking } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import Constants from 'expo-constants';
 import { useI18n } from '../../../api/i18n';
 
@@ -8,6 +8,28 @@ import { useI18n } from '../../../api/i18n';
 // KARTU 2b — (khusus Android) Buat adzan tetap tepat waktu:
 // kecualikan aplikasi dari hemat baterai dan izinkan alarm tepat.
 // ============================================================
+
+// Nama paket app (dipakai dialog langsung "abaikan optimasi baterai")
+const APP_PACKAGE = Constants?.expoConfig?.android?.package || Constants?.manifest?.android?.package || 'com.alfarisy.infoalquran';
+
+// Dialog sistem LNGSUNG (bukan halaman pengaturan): "Izinkan Alquranku
+// mengabaikan pengoptimalan baterai?" — pengguna cukup tap Izinkan sekali.
+// Aplikasi pengingat alarm/adzan termasuk kategori yang diizinkan Play memakai
+// dialog ini. Fallback: buka halaman pengaturan hemat baterai.
+export const requestIgnoreBatteryDialog = async () => {
+  if (Platform.OS !== 'android') return false;
+  try {
+    const IntentLauncher = require('expo-intent-launcher');
+    await IntentLauncher.startActivityAsync(
+      IntentLauncher.Action.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+      { data: `package:${APP_PACKAGE}` }
+    );
+    return true;
+  } catch (e) {
+    try { await openBatteryOptimization(); } catch (e2) {}
+    return false;
+  }
+};
 
 // Buka pengaturan "hemat baterai" supaya aplikasi boleh dikecualikan.
 // Dilakukan export: dialog panduan izin di SettingsScreen memakai tombol yang sama.
@@ -19,12 +41,10 @@ export const openBatteryOptimization = async () => {
   }
 };
 
-// Buka halaman "Alarm & pengingat" agar aplikasi diizinkan menjadwalkan
-// ALARM TEPAT — tanpa ini notifikasi bisa muncul molor meski optimasi
-// baterai sudah dikecualikan.
+// Nama paket untuk halaman "Alarm & pengingat"
 export const openExactAlarmSettings = async () => {
   try {
-    const pkg = Constants?.expoConfig?.android?.package || Constants?.manifest?.android?.package;
+    const pkg = APP_PACKAGE;
     if (pkg) {
       await Linking.sendIntent('android.settings.REQUEST_SCHEDULE_EXACT_ALARM', [
         { key: 'android.intent.extra.PACKAGE_NAME', value: pkg },
@@ -47,7 +67,7 @@ export default function AndroidBatteryCard({ pal }) {
       </Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <TouchableOpacity
-          onPress={openBatteryOptimization}
+          onPress={requestIgnoreBatteryDialog}
           style={{ backgroundColor: '#7c3aed', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, flex: 1, alignItems: 'center' }}
           activeOpacity={0.8}
         >

@@ -1,0 +1,30 @@
+Bersiap rilis v1.1.1 — catatan rilis siap copy-paste ke Play Console.
+(Jangan gunakan heading di kotak "What's new" — mulai dari baris "Update ini ...")
+
+---
+
+Versi 1.1.1
+
+Update ini memperbaiki kualitas pengingat waktu sholat.
+
+• Pengingat waktu sholat kini menyertakan hadits pilihan yang sesuai dengan waktunya (subuh, dzuhur, ashar, maghrib, isya) — berganti setiap hari.
+• Suara adzan pada pengingat kini lebih dapat diandalkan di Android (termasuk saat aplikasi terbuka).
+• Perbaikan alur izin notifikasi Android 13+ sesuai pedoman Play: izin diminta dengan konteks saat pengingat diaktifkan, bukan saat aplikasi dibuka.
+• Panduan lebih baik bila izin ditolak: tombol langsung ke Pengaturan dan halaman Alarm Tepat.
+• Perbaikan pesan error saat jadwal gagal dimuat, beserta arahan langkah berikutnya.
+
+Al-Qur'an, terjemahan, tafsir, audio, doa, hadits, jadwal sholat, kiblat, kalender Hijriyah, dan bookmark tetap tersedia seperti sebelumnya.
+
+---
+
+English reference notes
+
+Versi 1.1.1 improves prayer-time reminders.
+
+• Prayer-time reminders now include a rotating daily hadith matched to the time (Fajr, Dhuhr, Asr, Maghrib, Isha).
+• More reliable adhan sound for notifications on Android, including while the app is open.
+• Android 13+ notification permission flow aligned with Play guidelines: permission is requested in context when the reminder is enabled, not at app launch.
+• Better guidance when permission is denied: buttons straight to system Settings and the Exact Alarm page.
+• Clearer error message when the schedule fails to load.
+
+Existing features remain unchanged: Qur'an, translation, tafsir, audio, duas, hadits, prayer times, qibla, Hijri calendar, and bookmarks.

@@ -210,6 +210,31 @@ export async function ensureNotificationPermission({ prompt = true } = {}) {
   }
 }
 
+// ===== Izin AWAL APLIKASI (sekali per instal) =====
+// Mengikuti permintaan UX: dialog izin notifikasi dimunculkan otomatis pada
+// awal pemakaian (setelah onboarding, di Home) — pengguna cukup tap "Izinkan",
+// tanpa harus masuk Pengaturan. Bila sudah granted sebelumnya, dialog tidak
+// muncul lagi. Android 13+ (POST_NOTIFICATIONS) & iOS memakai API yang sama.
+// Flag AsyncStorage menjamin dialog hanya muncul SEKALI per instalasi.
+// showGuide: callback Android dari App.js yang memandu "Alarm Tepat" +
+// "Hemat Baterai" lewat dialog sistem (tanpa pengaturan manual).
+export async function askStartupPermissionsOnce({ showGuide } = {}) {
+  if (Platform.OS === 'web') return;
+  try {
+    if ((await AsyncStorage.getItem('perm:startup-asked')) === '1') return;
+  } catch {}
+  // Tandai dulu agar tidak bertanya berulang bila dialog terganggu.
+  try { await AsyncStorage.setItem('perm:startup-asked', '1'); } catch {}
+  try {
+    const granted = await ensureNotificationPermission({ prompt: true });
+    if (granted && typeof showGuide === 'function') {
+      // Beri jeda kecil: biarkan Home selesai render sebelum dialog pemandu.
+      await new Promise((r) => setTimeout(r, 900));
+      await showGuide();
+    }
+  } catch {}
+}
+
 // Apakah alarm EKSAK boleh dipakai (Android 12+: izin SCHEDULE_EXACT_ALARM).
 // Timer eksak membuat pengingat sholat muncul menit-tepat; tanpa izin ini
 // OS kemungkinan mundur ratusan juta beberapa menit (tergantung mode baterai).
