@@ -34,7 +34,9 @@ async function readRecitersCache(allowStale = false) {
     const raw = await bigGetItem(RECITERS_CACHE_KEY);
     if (!raw) return null;
     const obj = JSON.parse(raw);
-    if (!obj || typeof obj.ts !== 'number' || !Array.isArray(obj.list)) return null;
+    // Daftar kosong = tidak sah (jebol cache saat API sempat gagal/kosong):
+    // dianggap miss supaya fetch ulang, bukan terjebak muncul "#id" tanpa nama.
+    if (!obj || typeof obj.ts !== 'number' || !Array.isArray(obj.list) || obj.list.length === 0) return null;
     const expired = Date.now() - obj.ts > RECITERS_TTL_MS;
     if (expired && !allowStale) return null;
     return obj.list;

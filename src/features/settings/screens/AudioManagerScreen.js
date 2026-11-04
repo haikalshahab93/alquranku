@@ -58,14 +58,19 @@ export default function AudioManagerScreen({ navigation }) {
         const rid = await getPreferredKaraokeReciter();
         if (!alive) return;
         setReciterId(rid);
-        const staleReciters = await getKaraokeReciters(true).catch(() => []);
+        // Cache dulu; bila kosong (cache rusak/kosong), coba fetch fresh sekali.
+        let recitersList = await getKaraokeReciters(true).catch(() => []);
+        if (!Array.isArray(recitersList) || recitersList.length === 0) {
+          recitersList = await getKaraokeReciters(false).catch(() => []);
+        }
         const [list, surahList] = await Promise.all([
           listOfflineAudio(),
           getSuratList().catch(() => null),
         ]);
         if (!alive) return;
-        setReciters(staleReciters);
-        const r = (reciters || []).find((x) => String(x.id) === String(rid));
+        setReciters(recitersList);
+        // PENTING: cari di recitersList (hasil fetch), bukan state `reciters` lama
+        const r = (Array.isArray(recitersList) ? recitersList : []).find((x) => String(x.id) === String(rid));
         setReciterName(r?.name || '');
         const map = {};
         for (const m of list) {
