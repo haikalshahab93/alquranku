@@ -20,6 +20,7 @@ import PageDetailScreen from './src/features/quran/screens/PageDetailScreen.js';
 import TafsirScreen from './src/features/quran/screens/TafsirScreen.js';
 import LLMChatScreen from './src/features/asisten/screens/LLMChatScreen.js';
 import SettingsScreen from './src/features/settings/screens/SettingsScreen.js';
+import AudioManagerScreen from './src/features/settings/screens/AudioManagerScreen.js';
 import OnboardingScreen from './src/features/onboarding/OnboardingScreen.js';
 import LoginScreen from './src/features/auth/LoginScreen.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -59,7 +60,7 @@ function parseInitialStack() {
     const h = (window.location.hash || '').replace(/^#\/?/, '');
     if (!h) return null;
     const [name, qs] = h.split('?');
-    const allowed = ['Home','SurahList','SurahDetail','PageDetail','Tafsir','DoaList','DoaDetail','HaditsMenu','HaditsList','HaditsDetail','HaditsPerawiList','SholatJadwal','HijriCalendar','UlamaList','UlamaDetail','SanadChain','Qibla','Settings','QuranBookmarks','User'];
+    const allowed = ['Home','SurahList','SurahDetail','PageDetail','Tafsir','DoaList','DoaDetail','HaditsMenu','HaditsList','HaditsDetail','HaditsPerawiList','SholatJadwal','HijriCalendar','UlamaList','UlamaDetail','SanadChain','Qibla','Settings','AudioManager','QuranBookmarks','User'];
     if (!allowed.includes(name)) return null;
     const params = {};
     if (qs) { for (const [k, v] of new URLSearchParams(qs)) params[k] = v; }
@@ -174,7 +175,7 @@ export default function App() {
       const h = (window.location.hash || '').replace(/^#\/?/, '');
       if (!h) return;
       const [name, qs] = h.split('?');
-      const allowed = ['Home','SurahList','SurahDetail','PageDetail','Tafsir','DoaList','DoaDetail','HaditsMenu','HaditsList','HaditsDetail','HaditsPerawiList','SholatJadwal','HijriCalendar','UlamaList','UlamaDetail','SanadChain','Qibla','Settings','QuranBookmarks','User'];
+      const allowed = ['Home','SurahList','SurahDetail','PageDetail','Tafsir','DoaList','DoaDetail','HaditsMenu','HaditsList','HaditsDetail','HaditsPerawiList','SholatJadwal','HijriCalendar','UlamaList','UlamaDetail','SanadChain','Qibla','Settings','AudioManager','QuranBookmarks','User'];
       if (!allowed.includes(name)) return;
       const params = {};
       if (qs) { for (const [k, v] of new URLSearchParams(qs)) params[k] = v; }
@@ -384,6 +385,9 @@ export default function App() {
       break;
     case 'Settings':
       ScreenEl = <SettingsScreen navigation={navigation} />;
+      break;
+    case 'AudioManager':
+      ScreenEl = <AudioManagerScreen navigation={navigation} />;
       break;
     case 'QuranBookmarks':
       ScreenEl = <QuranBookmarksScreen navigation={navigation} />;

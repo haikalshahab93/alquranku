@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, ScrollView, Platform, Alert, Linking } from 'react-native';
+import { View, ScrollView, Platform, Alert, Linking, Text, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAladhanHarianCoords, getAladhanHarianCity } from '../../../api/aladhan.js';
 import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../../../api/notifications.js';
@@ -10,6 +11,7 @@ import { getDarkMode, getTextScale } from '../../../api/appearance.js';
 import { getPalette } from '../../../ui';
 import { getKaraokeReciters, getPreferredKaraokeReciter, setPreferredKaraokeReciter } from '../../../api/quranAudio.js';
 import { bigStats } from '../../../api/bigStore.js';
+import { fmtMB } from '../organisms/primitives.js';
 import { listOfflineAudio, downloadAllSurahAudio } from '../../../api/offlineAudio.js';
 import { useI18n } from '../../../api/i18n.js';
 import { GroupHeader } from '../organisms/primitives.js';
@@ -24,6 +26,7 @@ import AdvancedCard from '../organisms/AdvancedCard.js';
 import ReciterCard from '../organisms/ReciterCard.js';
 import AudioDownloadCard from '../organisms/AudioDownloadCard.js';
 import StorageCard from '../organisms/StorageCard.js';
+import ContactCard from '../organisms/ContactCard.js';
 
 // Sumber audio preview (dua-duanya dibundel lewat config plugin expo-notifications)
 const ADHAN_PREVIEW = require('../../../../assets/sounds/adhan.mp3');
@@ -485,6 +488,18 @@ export default function SettingsScreen() {
       {/** ==================== KELOMPOK 3: AUDIO & BACAAN ==================== **/}
       <GroupHeader pal={pal} icon="musical-notes-outline" label={t('settings.grupAudio')} desc={t('settings.grupAudioDesc')} />
       <ReciterCard pal={pal} karaokeReciters={karaokeReciters} reciterId={reciterId} reciterLoaded={reciterLoaded} reciterError={reciterError} audioByReciter={audioByReciter} pickReciter={pickReciter} />
+      <TouchableOpacity
+        onPress={() => { try { navigation?.navigate?.('AudioManager'); } catch (e) {} }}
+        activeOpacity={0.7}
+        style={{ backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder, borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: pal.colors.text }}>{t('audioManager.title')}</Text>
+          <Text style={{ color: pal.colors.muted, marginTop: 2 }}>{t('audioManager.desc')}</Text>
+          <Text style={{ color: pal.colors.muted, marginTop: 2, fontSize: 12 }}>{t('settings.unduhAudioDesc', { a: storage.audioCount, b: fmtMB(storage.audioBytes) })}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={pal.colors.muted} />
+      </TouchableOpacity>
       <AudioDownloadCard
         pal={pal}
         storage={storage}
@@ -502,6 +517,7 @@ export default function SettingsScreen() {
       {/** ==================== KELOMPOK 5: TENTANG ==================== **/}
       <GroupHeader pal={pal} icon="information-circle-outline" label={t('settings.about')} desc={t('settings.aboutDesc')} />
       <AboutCard pal={pal} />
+      <ContactCard pal={pal} />
 
     </ScrollView>
   );

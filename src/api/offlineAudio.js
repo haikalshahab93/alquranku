@@ -42,7 +42,7 @@ export async function isAudioSavedOffline(surah, reciterId) {
  * Unduh MP3 surah + simpan timing kata. onProgress dipanggil dengan angka 0..1.
  * Mengembalikan metadata yang tersimpan.
  */
-async function downloadSurahAudio(surah, reciterId, onProgress) {
+export async function downloadSurahAudio(surah, reciterId, onProgress) {
   if (Platform.OS === 'web' || !FileSystem.documentDirectory) {
     throw new Error(WEB_UNSUPPORTED);
   }
@@ -76,7 +76,7 @@ async function downloadSurahAudio(surah, reciterId, onProgress) {
 }
 
 /** Hapus audio offline satu surah. */
-async function deleteSurahAudio(surah, reciterId) {
+export async function deleteSurahAudio(surah, reciterId) {
   try {
     const raw = await bigGetItem(metaKeyFor(reciterId, surah));
     if (!raw) return;

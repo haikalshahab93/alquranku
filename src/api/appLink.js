@@ -11,3 +11,11 @@ export function withAppLink(text) {
   const sep = s.trim() ? '\n\n' : '';
   return `${s}${sep}${APP_PLAY_STORE_URL}`;
 }
+
+// Kontak developer — ditampilkan di kartu "Kontak Kami" pada Pengaturan.
+// GANTI nilai placeholder berikut dengan akun milik Anda sendiri.
+export const CONTACT_LINKS = {
+  instagram: 'https://www.instagram.com/USERNAME_GANTI', // akun Instagram Anda
+  website: 'https://WEBSITE_GANTI.example.com',          // situs / blog Anda
+  email: 'mailto:EMAIL_GANTI@example.com',                // email Anda
+};
