@@ -109,9 +109,6 @@ export default function DoaDetailScreen({ navigation, route }) {
           <Text style={[styles.refreshText, { color: pal.colors.primary }]}>{t('doa.refresh')}</Text>
         </TouchableOpacity>
       </View>
-      {fromCache ? (
-        <View style={styles.cacheBadge}><Text style={styles.cacheText}>{t('surah.dataDariCache')}</Text></View>
-      ) : null}
       {!!tags && <Text style={[styles.tags, { color: pal.colors.muted }]}>{tags}</Text>}
 
       {/* Kontrol ukuran font (serupa SurahDetail) */}

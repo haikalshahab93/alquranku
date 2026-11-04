@@ -121,10 +121,6 @@ export default function TafsirScreen({ route }) {
         <Text style={styles.enSource} numberOfLines={2}>{tr('surah.tafsirEnSource')}</Text>
       ) : null}
 
-      {fromCache ? (
-        <View style={styles.cacheBadge}><Text style={styles.cacheText}>{tr('surah.dataDariCache')}</Text></View>
-      ) : null}
-
       {hasList ? (
         <View>
           <View style={styles.navRow}>

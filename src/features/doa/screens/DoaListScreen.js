@@ -320,13 +320,6 @@ export default function DoaListScreen({ navigation }) {
         </View>
       </View>
 
-      {fromCacheList && (
-        <View style={styles.cacheBadge}>
-          <Text style={styles.cacheText}>
-            {t('surah.dataDariCache')}
-          </Text>
-        </View>
-      )}
 
       <TextInput
         value={query}

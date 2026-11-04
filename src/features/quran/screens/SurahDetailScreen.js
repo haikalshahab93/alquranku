@@ -1191,9 +1191,6 @@ const stylesMobile = StyleSheet.create({
         </LinearGradient>
 
         <View style={styles.header}>
-          {fromCacheDetail ? (
-            <View style={styles.cacheBadge}><Text style={styles.cacheText}>{t('surah.dataDariCache')}</Text></View>
-          ) : null}
           {/* === Toggle mode tampil: Per Ayat / Mushaf (konsisten dgn layar Halaman) === */}
           <View style={styles.modeRow}>
             <View style={[styles.modeToggle, { backgroundColor: pal.colors.primaryLight + '2e' }]}>

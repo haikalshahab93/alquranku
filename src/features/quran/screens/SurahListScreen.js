@@ -575,9 +575,6 @@ export default function SurahListScreen({ navigation, route }) {
             <Text style={styles.infoToggleText}>{isNameExpanded ? t('surah.tutupNama') : t('surah.namaArab')}</Text>
           </TouchableOpacity>
         </View>
-        {fromCacheList ? (
-          <View style={styles.cacheBadge}><Text style={styles.cacheText}>{t('surah.dataDariCache')}</Text></View>
-        ) : null}
         {isNameExpanded && (
           <View style={styles.nameBox}>
             <Text style={styles.nameLabel}>{t('surah.namaArab')}</Text>
