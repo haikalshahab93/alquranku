@@ -52,55 +52,68 @@ export async function isOnline() {
   }
 }
 
+/**
+ * Pola CACHE-FIRST (stale-while-revalidate) untuk layar Quran:
+ * - Cache ADA  → langsung dipakai (layar terbuka INSTAN, tanpa menunggu jaringan);
+ *   versi terbaru akan disegarkan dari jaringan di belakang agar cache tetap baru.
+ * - Cache KOSONG → tunggu jaringan seperti biasa.
+ * Dulu polanya NETWOK-FIRST: setiap buka layar menunggu API penuh dan cache
+ * hanya dipakai saat jaringan GAGAL — inilah penyebab utama "buka layar lain,
+ * loading datanya lama" saat koneksi pelan.
+ */
+async function cacheFirst(key, fetcher) {
+  const cached = await readCache(key, true);
+  if (cached) {
+    // Segarkan di belakang tanpa menunggu (fire-and-forget).
+    (async () => { try { await fetcher(); } catch {} })();
+    return cached;
+  }
+  return fetcher();
+}
+
 export async function getSurahList() {
   const key = cacheKey('surah_list');
-  try {
+  return cacheFirst(key, async () => {
     const { data } = await axios.get(`${EQURAN_V2_BASE}/surat`);
     const out = Array.isArray(data?.data) ? data.data : data;
-    if (out && typeof out === 'object') {
-      try { out.__fromCache = false; } catch {}
-    }
+    if (out && typeof out === 'object') { try { out.__fromCache = false; } catch {} }
     await writeCache(key, out);
     return out;
-  } catch (e) {
+  }).catch(async (e) => {
     const cached = await readCache(key, true);
     if (cached) return cached;
     throw e;
-  }
+  });
 }
 
 export async function getSurahDetail(nomor) {
   const key = cacheKey('surah_detail', String(nomor));
-  try {
+  return cacheFirst(key, async () => {
     const { data } = await axios.get(`${EQURAN_V2_BASE}/surat/${encodeURIComponent(nomor)}`);
     const out = data?.data ?? data;
-    if (out && typeof out === 'object') {
-      try { out.__fromCache = false; } catch {}
-    }
+    if (out && typeof out === 'object') { try { out.__fromCache = false; } catch {} }
     await writeCache(key, out);
     return out;
-  } catch (e) {
+  }).catch(async (e) => {
     const cached = await readCache(key, true);
     if (cached) return cached;
     throw e;
-  }
+  });
 }
 
 export async function getTafsir(nomor) {
   const key = cacheKey('tafsir', String(nomor));
-  try {
+  return cacheFirst(key, async () => {
     const { data } = await axios.get(`${EQURAN_V2_BASE}/tafsir/${encodeURIComponent(nomor)}`);
     const out = data?.data ?? data;
-    if (out && typeof out === 'object') {
-      try { out.__fromCache = false; } catch {}
-    }
+    if (out && typeof out === 'object') { try { out.__fromCache = false; } catch {} }
     await writeCache(key, out);
     return out;
-  } catch (e) {
+  }).catch(async (e) => {
     const cached = await readCache(key, true);
     if (cached) return cached;
     throw e;
-  }
+  });
 }
 
 // Kunci manifest offline: daftar surah yang sudah lengkap ter-cache (detail+tafsir)

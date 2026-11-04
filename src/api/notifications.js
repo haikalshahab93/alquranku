@@ -437,8 +437,12 @@ export async function schedulePrayerRemindersMultiDay({ days, offsetMinutes = 0,
   return { scheduled: count };
 }
 
-/* ========= PERHARAHALAN OTOMATIS: pengingat dari jadwal bulanan ========== */
-export async function refreshPrayerReminderSchedule({ lat, lon, city, country, options = {}, offsetMinutes = 0, enabled = true, soundChoice = 'default', daysAhead = 40, prompt = true }) {
+// ========= PERHARAHALAN OTOMATIS: pengingat dari jadwal bulanan =========
+
+// Interval minimum antara dua penjadwalan ulang otomatis (4 jam).
+const REFRESH_THROTTLE_MS = 4 * 60 * 60 * 1000;
+
+export async function refreshPrayerReminderSchedule({ lat, lon, city, country, options = {}, offsetMinutes = 0, enabled = true, soundChoice = 'default', daysAhead = 40, prompt = true, force = false }) {
   // Web: tidak ada notifikasi lokal API
   if (Platform.OS === 'web') return { scheduled: 0, reason: 'web' };
 
@@ -446,6 +450,22 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
   if (!enabled) {
     try { await schedulePrayerReminders({ enabled: false }); } catch {}
     return { scheduled: 0, reason: 'disabled' };
+  }
+
+  // THROTTLE jalur otomatis (Home/SholatJadwal setiap dibuka): menajadwal ulang
+  // ~40 hari × 5 notifikasi sebernanya + fetch 2 bulan jadwal setiap buka data
+  // MELETTAKKAN Home pelan + boros baterai. Skarang maksimum sekali per 4 jam;
+  // jalur dari aksi pengguna di Pengaturan memakai force:true agar tetap instan.
+  if (!force && prompt === false) {
+    try {
+      const last = parseInt((await AsyncStorage.getItem('notif:prayer:lastRefresh')) || '0', 10) || 0;
+      if (Date.now() - last < REFRESH_THROTTLE_MS) {
+        const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+        if ((scheduled || []).some((n) => String(n?.identifier || '').startsWith(ID_PREFIX))) {
+          return { scheduled: 0, reason: 'recent' }; // sudah terjadwal & segar
+        }
+      }
+    } catch {}
   }
 
   try {
