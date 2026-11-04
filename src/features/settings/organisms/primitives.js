@@ -25,14 +25,14 @@ export const GroupHeader = ({ icon, label, desc, pal }) => (
 // Dipakai agar layar Setelan ringkas: semua kelompok tertutup, isi muncul
 // hanya saat kelompoknya diklik (dibungkus kartu agar tampil sebagai satu blok).
 export const CollapsibleGroup = ({ icon, label, desc, pal, open, onToggle, children }) => (
-  <View style={{ backgroundColor: pal.colors.bg, marginBottom: 10 }}>
+  <View style={{ backgroundColor: pal.colors.bg }}>
     <TouchableOpacity
       onPress={onToggle}
       activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityState={{ expanded: !!open }}
       style={{
-        flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: open ? 2 : 12,
+        flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: open ? 2 : 6,
         paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14,
         backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: open ? pal.colors.primary : pal.colors.surfaceBorder,
       }}
