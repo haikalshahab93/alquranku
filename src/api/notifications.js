@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, Vibration } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAladhanBulananCoords, getAladhanBulananCity, readLastSholatSnapshot, getAladhanHarianCoords, getAladhanHarianCity } from './aladhan.js';
 import { tNow } from './i18n.js';
@@ -45,10 +45,13 @@ const CHANNELS = {
   // ID memakai sufiks -v2: ID channel yang sama di OS Android punya cache
   // internal; setelah rilis lama, buat-ulang dengan ID BARU memastikan konfig
   // suara terkini benar-benar berlaku (channel lama tetap dibuang).
-  default: { id: 'prayer-default-v2', legacyIds: ['prayer-default'], nameKey: 'notif.channelDefault', sound: null, vibration: [0, 250, 250, 250] },
-  adhan: { id: 'prayer-adhan-v2', legacyIds: ['prayer-adhan'], nameKey: 'notif.channelAdhan', sound: 'adhan.mp3', vibration: [0, 250, 250, 250] },
-  getar: { id: 'prayer-getar-v2', legacyIds: ['prayer-getar'], nameKey: 'notif.channelGetar', sound: null, vibration: [0, 400, 250, 400] },
-  silent: { id: 'prayer-silent-v2', legacyIds: ['prayer-silent'], nameKey: 'notif.channelSilent', sound: null, vibration: null },
+  default: { id: 'prayer-default-v2', legacyIds: ['prayer-default'], nameKey: 'notif.channelDefault', sound: null, vibration: [0, 250, 250, 250], enableVibrate: true },
+  adhan: { id: 'prayer-adhan-v2', legacyIds: ['prayer-adhan'], nameKey: 'notif.channelAdhan', sound: 'adhan.mp3', vibration: [0, 250, 250, 250], enableVibrate: true },
+  getar: { id: 'prayer-getar-v2', legacyIds: ['prayer-getar'], nameKey: 'notif.channelGetar', sound: null, vibration: [0, 400, 250, 400], enableVibrate: true },
+  // SUNYI: benar-benar hanya pop-up — tanpa suara DAN tanpa getar.
+  // Tanpa enableVibrate:false, Android memakai default channel "vibrate on",
+  // sehingga mode sunyi masih bergetar (bolak-balik di perangkat user).
+  silent: { id: 'prayer-silent-v2', legacyIds: ['prayer-silent'], nameKey: 'notif.channelSilent', sound: null, vibration: null, enableVibrate: false },
 };
 // Channel lama era sebelum per-waktu; dibuang agar tidak menumpuk
 const LEGACY_CHANNEL_ID = 'prayer-reminders';
@@ -80,6 +83,7 @@ async function ensureAndroidChannels() {
         // String sound = nama file dasar DENGAN ekstensi, sesuai konvensi res/raw
         // (dibundel plugin expo-notifications). Untuk default cukup undefined.
         sound: c.sound || undefined,
+        enableVibrate: c.enableVibrate,
         vibrationPattern: c.vibration || undefined,
         lightColor: '#8b5cf6',
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -125,7 +129,14 @@ try {
         const channelId = notification?.request?.trigger?.channelId || '';
         const entry = Object.entries(CHANNELS).find(([, c]) => c.id === channelId);
         const eff = entry ? entry[0] : null;
-        if (eff === 'silent' || eff === 'getar' || !FOREGROUND_SOUND_SOURCES[eff]) return;
+        // Mode GETAR saat app terbuka: getarkan sesuai pola sendiri (berlaku
+        // juga di iOS yang tak punya channel) — tanpa suara apa pun.
+        if (eff === 'getar') {
+          try { Vibration.vibrate([0, 400, 250, 400]); } catch {}
+          return;
+        }
+        // Mode SUNYI saat app terbuka: hanya pop-up, tanpa suara & getar.
+        if (eff === 'silent' || !FOREGROUND_SOUND_SOURCES[eff]) return;
         // Tutup pemain lama supaya tidak bunyi dobel bila dua notifikasi
         // muncul berurutan.
         if (fgSoundPlayer) {
