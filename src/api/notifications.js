@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAladhanBulananCoords, getAladhanBulananCity, readLastSholatSnapshot, getAladhanHarianCoords, getAladhanHarianCity } from './aladhan';
-import { tNow } from './i18n';
-import { formatMutiaraBaris } from './kataBijakSholat';
+import { getAladhanBulananCoords, getAladhanBulananCity, readLastSholatSnapshot, getAladhanHarianCoords, getAladhanHarianCity } from './aladhan.js';
+import { tNow } from './i18n.js';
+import { formatMutiaraBaris } from './kataBijakSholat.js';
 
 // PENTING: expo-notifications HANYA dievaluasi di native. Di web, modul itu
 // mendaftarkan listener push token saat boot dan memicu warning

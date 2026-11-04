@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
-import { bigGetItem, bigSetItem } from './bigStore';
+import { bigGetItem, bigSetItem } from './bigStore.js';
 
 // Hadits API via myQuran v2
 const MYQURAN_V2_BASE = 'https://api.myquran.com/v2';

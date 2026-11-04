@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { bigGetItem, bigSetItem } from './bigStore';
+import { bigGetItem, bigSetItem } from './bigStore.js';
 
 // Doa API from EQuran
 const DOA_BASE = 'https://equran.id/api/doa';

@@ -16,7 +16,7 @@
 
 import axios from 'axios';
 import { useEffect, useState } from 'react';
-import { bigGetItem, bigSetItem } from './bigStore';
+import { bigGetItem, bigSetItem } from './bigStore.js';
 
 const QCOM_V4 = 'https://api.quran.com/api/v4';
 // M.A.S. Abdel Haleem — "The Qur'an: A New Translation" (Oxford).

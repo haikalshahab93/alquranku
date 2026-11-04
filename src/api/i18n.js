@@ -20,8 +20,8 @@
 
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PLATFORM_LANG_VALUE, TEXTS } from './i18nTexts';
-import { emitSettingsChanged, onSettingsChanged } from './settingsEvents';
+import { PLATFORM_LANG_VALUE, TEXTS } from './i18nTexts.js';
+import { emitSettingsChanged, onSettingsChanged } from './settingsEvents.js';
 
 const KEY_LANG = 'i18n:lang'; // 'system' | 'id' | 'en'
 

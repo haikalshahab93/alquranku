@@ -5,8 +5,8 @@
 // per halaman disimpan lagi via bigStore (file) agar buka ulang instan & tetap
 // bisa dibuka offline.
 import pagesMeta from './mushafPages.json';
-import { getSuratDetail } from './quran';
-import { bigGetItem, bigSetItem } from './bigStore';
+import { getSuratDetail } from './quran.js';
+import { bigGetItem, bigSetItem } from './bigStore.js';
 
 // pagesMeta.pages: [ [[surah, ayat], ...], ... ] untuk halaman 1..604
 export const TOTAL_PAGES = pagesMeta.count || 604;

@@ -21,7 +21,7 @@
 // ============================================================
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { onSettingsChanged } from './settingsEvents';
+import { onSettingsChanged } from './settingsEvents.js';
 
 // ---------- Kredensial ----------
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';

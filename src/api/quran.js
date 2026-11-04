@@ -1,11 +1,11 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { bigGetItem, bigSetItem, bigGetAllKeys, bigRemoveItem } from './bigStore';
+import { bigGetItem, bigSetItem, bigGetAllKeys, bigRemoveItem } from './bigStore.js';
 // Tafsir EN (Ibn Kathir/Al-Jalalayn via spa5k CDN) ikut di-preload saat
 // unduhan offline, memakai cache bigStore miliknya sendiri yang key-nya
 // diawali 'cache:quran:tafsir_en:' — otomatis ikut dibersihkan kalau
 // pengguna reset cache Quran.
-import { getSurahTafsirEn } from './quranEn';
+import { getSurahTafsirEn } from './quranEn.js';
 
 // EQuran v2 - Surah & Tafsir
 const EQURAN_V2_BASE = 'https://equran.id/api/v2';

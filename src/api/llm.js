@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
-import { getSurahList, getSurahDetail, getTafsir } from './quran';
-import { getDoaList, getDoaDetail } from './doa';
-import { getHaditsArbainNomor, getHaditsBmNomor } from './hadits';
+import { getSurahList, getSurahDetail, getTafsir } from './quran.js';
+import { getDoaList, getDoaDetail } from './doa.js';
+import { getHaditsArbainNomor, getHaditsBmNomor } from './hadits.js';
 
 // Konfigurasi LLM via Expo extra (aman tanpa menyimpan key di repo)
 // Tambahkan di app.json atau app.config.js jika ingin mengaktifkan provider.

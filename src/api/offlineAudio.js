@@ -6,8 +6,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { fetchChapterAudioData } from './quranAudio';
-import { bigGetItem, bigSetItem, bigRemoveItem, bigGetAllKeys } from './bigStore';
+import { fetchChapterAudioData } from './quranAudio.js';
+import { bigGetItem, bigSetItem, bigRemoveItem, bigGetAllKeys } from './bigStore.js';
 
 // Pesan error khusus untuk web/preview: expo-file-system tidak punya
 // documentDirectory di browser, jadi unduhan MP3 ke storage tidak bisa.

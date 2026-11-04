@@ -10,8 +10,8 @@
 
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { emitSettingsChanged, onSettingsChanged } from './settingsEvents';
-import { markDirty } from './sync';
+import { emitSettingsChanged, onSettingsChanged } from './settingsEvents.js';
+import { markDirty } from './sync.js';
 
 // Kunci penyimpanan
 const KEY_DARK = 'appearance:darkMode';

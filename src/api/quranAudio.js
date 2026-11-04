@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { bigGetItem, bigSetItem } from './bigStore';
+import { bigGetItem, bigSetItem } from './bigStore.js';
 
 // Sumber audio "Karaoke" dari quran.com (qdc): satu file MP3 per surah +
 // verse_timings (mulai/akhir ayat) + segments per kata [wordPosition, fromMs, toMs].

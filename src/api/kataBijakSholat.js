@@ -7,7 +7,7 @@
 // Dipakai oleh src/api/notifications.js: setiap notifikasi adzan/pengingat
 // menyertakan satu hadits sesuai waktunya, berganti setiap hari (rotasi harian).
 
-import { getLangNow } from './i18n';
+import { getLangNow } from './i18n.js';
 
 const MUTIARA_UMUM = [
   {

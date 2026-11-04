@@ -3,7 +3,7 @@ import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Rect, Polygon } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppearance } from '../api/appearance';
+import { useAppearance } from '../api/appearance.js';
 
 export const theme = {
   colors: {

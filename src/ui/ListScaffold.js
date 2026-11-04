@@ -22,7 +22,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
-import { useTheme } from './index';
+import { useTheme } from './index.js';
 
 /* ------------------------------------------------------------------ */
 /* Hook paging: satu sumber logika halaman untuk SEMUA layar list      */

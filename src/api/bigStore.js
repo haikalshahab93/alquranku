@@ -13,7 +13,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { tNow } from './i18n';
+import { tNow } from './i18n.js';
 
 const BASE_DIR = `${FileSystem.documentDirectory}bigstore`;
 const LS_PREFIX = 'bigstore:'; // fallback web terakhir (hanya bila IndexedDB tak tersedia)

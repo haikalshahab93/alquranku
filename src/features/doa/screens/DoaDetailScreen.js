@@ -1,0 +1,184 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Share } from 'react-native';
+import { getDoaDetail } from '../../../api/doa.js';
+import { theme, getPalette } from '../../../ui';
+import { useAppearance, setTextScale as saveTextScale } from '../../../api/appearance.js';
+import { useI18n } from '../../../api/i18n.js';
+import { Ionicons } from '@expo/vector-icons';
+import { isDoaFavorite, toggleDoaFavorite, setLastReadDoa } from '../../../api/doa.js';
+
+export default function DoaDetailScreen({ navigation, route }) {
+  const { id } = route.params || {};
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState(null);
+  const [fromCache, setFromCache] = useState(false);
+  const [error, setError] = useState(null);
+  // textScale terpusat dari pengaturan tampilan (sinkron dengan semua layar bacaan)
+  const { textScale, darkMode } = useAppearance();
+  // Dwibahasa: pesan status, tombol, dan label referensi mengikuti bahasa aktif.
+  const { t } = useI18n();
+  const pal = getPalette(darkMode);
+  const increaseTextScale = () => saveTextScale(textScale + 0.1);
+  const decreaseTextScale = () => saveTextScale(textScale - 0.1);
+  const [fav, setFav] = useState(false);
+
+  // Ambil detail doa berdasarkan id (sebelumnya fungsi ini dipanggil tanpa didefinisikan → crash/blank)
+  const fetchDetail = useCallback(async () => {
+    if (id == null) {
+      setDetail(null);
+      setError(t('doa.idTidakValid'));
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await getDoaDetail(id);
+      const d = res?.data ?? null;
+      setDetail(d);
+      setFromCache(!!d?.__fromCache);
+      if (!d) setError(t('doa.detailTidakDitemukan', { n: id }));
+    } catch (e) {
+      setDetail(null);
+      setError(e?.message || t('doa.muatGagalDetail'));
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchDetail();
+  }, [fetchDetail]);
+
+  useEffect(() => {
+    let mounted = true;
+    // set terakhir dibaca
+    setLastReadDoa(id);
+    // cek favorit
+    isDoaFavorite(id).then((v) => { if (mounted) setFav(!!v); }).catch(() => {});
+    return () => { mounted = false; };
+  }, [id]);
+
+  const toggleFav = async () => {
+    const v = await toggleDoaFavorite(id);
+    setFav(!!v);
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><ActivityIndicator size="large" color={pal.colors.primary} /></View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.center, { backgroundColor: pal.colors.bg }]}>
+        <Ionicons name="cloud-offline-outline" size={40} color={pal.colors.muted} />
+        <Text style={[styles.errorText, { color: pal.colors.text }]}>{String(error)}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={fetchDetail} activeOpacity={0.8}>
+          <Ionicons name="refresh" size={14} color="#ffffff" />
+          <Text style={styles.retryText}>{t('doa.cobaLagi')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation?.goBack?.()} style={styles.backLinkBtn}>
+          <Text style={[styles.backLinkText, { color: pal.colors.primary }]}>{t('doa.kembali')}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const title = detail?.nama ?? t('doa.kontenPagar', { n: id });
+  const arab = detail?.ar ?? '';
+  const latin = detail?.tr ?? '';
+  const ind = detail?.idn ?? '';
+  const refText = detail?.tentang ?? '';
+  const tags = Array.isArray(detail?.tag) ? detail.tag.join(', ') : '';
+
+  const shareDoa = async () => {
+    try {
+      const msg = `${title}\n\n${arab}\n\n${latin}\n\n${ind}${tags ? `\n\n${t('doa.tagsShare', { n: tags })}` : ''}`;
+      await Share.share({ message: msg });
+    } catch {}
+  };
+
+  return (
+    <ScrollView style={{ backgroundColor: pal.colors.bg }} contentContainerStyle={styles.container}>
+      <View style={styles.headerRow}>
+        <Text style={[styles.title, { color: pal.colors.text }]}>{title}</Text>
+        <TouchableOpacity style={[styles.refreshBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={fetchDetail}>
+          <Text style={[styles.refreshText, { color: pal.colors.primary }]}>{t('doa.refresh')}</Text>
+        </TouchableOpacity>
+      </View>
+      {fromCache ? (
+        <View style={styles.cacheBadge}><Text style={styles.cacheText}>{t('surah.dataDariCache')}</Text></View>
+      ) : null}
+      {!!tags && <Text style={[styles.tags, { color: pal.colors.muted }]}>{tags}</Text>}
+
+      {/* Kontrol ukuran font (serupa SurahDetail) */}
+      <View style={styles.fontRow}>
+        <TouchableOpacity style={[styles.fontBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={decreaseTextScale}>
+          <Text style={[styles.fontBtnText, { color: pal.colors.primary }]}>A-</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fontBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={increaseTextScale}>
+          <Text style={[styles.fontBtnText, { color: pal.colors.primary }]}>A+</Text>
+        </TouchableOpacity>
+        <Text style={[styles.fontInfo, { color: pal.colors.muted }]}>{t('page.ukuran', { x: textScale.toFixed(1) })}</Text>
+      </View>
+
+      {/* Baris atas: nomor & aksi */}
+      <View style={styles.ayatTopRow}>
+        <View style={[styles.numberPill, { backgroundColor: pal.colors.primaryLight + '22', borderColor: pal.colors.primaryLight }]}>
+          <Text style={[styles.numberPillText, { color: pal.colors.primary }]}>{id != null ? id : '-'}</Text>
+        </View>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={toggleFav}>
+            <Ionicons name={fav ? 'heart' : 'heart-outline'} size={20} color={fav ? '#dc2626' : pal.colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.iconBtn, { marginLeft: 8, backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={shareDoa}>
+            <Ionicons name="share-social-outline" size={20} color={pal.colors.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {!!arab && <Text style={[styles.arab, { color: pal.colors.text, fontSize: 22 * textScale, lineHeight: 30 * textScale }]}>{arab}</Text>}
+      {!!latin && <Text style={[styles.latin, { color: pal.colors.text, fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{latin}</Text>}
+      {!!ind && <Text style={[styles.ind, { color: pal.colors.text, fontSize: 14 * textScale, lineHeight: 20 * textScale }]}>{ind}</Text>}
+      {!!refText && (
+        <View style={[styles.refBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+          <Text style={[styles.refLabel, { color: pal.colors.muted }]}>{t('doa.tentangRef')}</Text>
+          <Text style={[styles.refText, { color: pal.colors.text }]}>{refText}</Text>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: 16 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 20, fontWeight: '700', color: '#111', marginBottom: 8 },
+  tags: { fontSize: 12, color: '#64748b', marginBottom: 8 },
+  fontRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginBottom: 8 },
+  fontBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#f1f5f9', marginRight: 8 },
+  fontBtnText: { fontWeight: '700', color: theme.colors.primary },
+  fontInfo: { color: '#64748b' },
+  ayatTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  numberPill: { backgroundColor: '#ede9fe', borderColor: theme.colors.primaryLight, borderWidth: 1, borderRadius: 16, paddingVertical: 4, paddingHorizontal: 10, alignSelf: 'flex-start' },
+  numberPillText: { color: theme.colors.primaryDark, fontWeight: '800', textAlign: 'center' },
+  actionRow: { flexDirection: 'row', alignItems: 'center' },
+  iconBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f1f5f9' },
+  latin: { color: '#111', marginTop: 8 },
+  ind: { color: '#222', marginTop: 8 },
+  refBox: { marginTop: 12, padding: 8, borderRadius: 8, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb' },
+  refLabel: { fontSize: 12, color: '#64748b', marginBottom: 4, fontWeight: '700' },
+  refText: { color: '#334155' },
+  errorText: { color: '#334155', marginTop: 12, textAlign: 'center', paddingHorizontal: 24 },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, backgroundColor: theme.colors.primaryDark, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 },
+  retryText: { color: '#fff', fontWeight: '700' },
+  backLinkBtn: { marginTop: 10, paddingVertical: 6, paddingHorizontal: 12 },
+  backLinkText: { color: theme.colors.primary, fontWeight: '700' },
+  cacheBadge: { alignSelf: 'flex-start', backgroundColor: '#fef3c7', borderColor: '#fde68a', borderWidth: 1, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, marginTop: 4 },
+  cacheText: { color: '#92400e', fontWeight: '700' },
+  refreshBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
+  refreshText: { color: theme.colors.primary, fontWeight: '700' },
+});
