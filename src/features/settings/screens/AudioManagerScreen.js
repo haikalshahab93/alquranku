@@ -147,13 +147,9 @@ export default function AudioManagerScreen({ navigation }) {
   };
 
   // Aksi header: unduh semua surah yang DICENTANG secara berurutan
-  const downloadSelected = async () => {
-    if (batch || busySurah != null || !selectedList.length) return;
-    const targets = selectedList.filter((n) => !metaBySurah[n]);
-    if (!targets.length) {
-      Alert.alert(t('audioManager.infoJudul'), t('audioManager.sudahLengkap'));
-      return;
-    }
+  const runBatch = async (targets0) => {
+    const targets = targets0;
+    if (batch || busySurah != null || !targets.length) return;
     batchCancelRef.current = false;
     setBatch({ done: 0, total: targets.length, failed: 0, surah: targets[0] });
     let failed = 0, reason = '';
@@ -176,6 +172,16 @@ export default function AudioManagerScreen({ navigation }) {
     if (failed || batchCancelRef.current) {
       Alert.alert(t('audioManager.infoJudul'), t('audioManager.batchDone', { d: 0, s: 0, f: failed }) + (reason ? `\n${reason}` : ''));
     }
+  };
+
+  const downloadSelected = () => runBatch(selectedList.filter((n) => !metaBySurah[n]));
+
+  // Tombol "Unduh Semua 114": semua surah yang belum tersimpan untuk qari aktif.
+  // Yang sudah tersimpan dilewati. Yang sudah lengkap = tombol menampilkan "Perbarui Semua".
+  const downloadAll = () => {
+    const targets = [];
+    for (let n = 1; n <= 114; n++) if (!metaBySurah[n]) targets.push(n);
+    return runBatch(targets);
   };
 
   // Aksi header: hapus semua surah yang DICENTANG
@@ -299,6 +305,34 @@ export default function AudioManagerScreen({ navigation }) {
       <Text style={{ fontSize: 12, color: pal.colors.muted, paddingHorizontal: 12, paddingBottom: 8, textAlign: 'center' }}>
         {t('audioManager.ringkasan', { n: downloadedCount })}
       </Text>
+      {/* Tombol unduh semua (1–114, yang sudah ada dilewati) atau stop saat berjalan */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 10 }}>
+        {batch ? (
+          <TouchableOpacity
+            onPress={() => { batchCancelRef.current = true; }}
+            accessibilityRole="button"
+            style={{ backgroundColor: '#b91c1c', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800' }}>{t('settings.stop')}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={downloadAll}
+            disabled={busySurah != null}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.unduhSemua114')}
+            style={{ backgroundColor: '#7c3aed', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, opacity: busySurah != null ? 0.6 : 1 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '800' }}>
+              {downloadedCount >= 114 ? t('settings.perbaruiSemua') : t('settings.unduhSemua114')}
+            </Text>
+          </TouchableOpacity>
+        )}
+        <Text style={{ flex: 1, fontSize: 11, color: pal.colors.muted, marginLeft: 10 }} numberOfLines={1}>
+          {downloadedCount < 114 ? t('audioManager.barisInfo') : ''}
+        </Text>
+      </View>
     </View>
   );
 
