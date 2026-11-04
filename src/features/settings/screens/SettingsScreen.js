@@ -12,7 +12,7 @@ import { getPalette } from '../../../ui';
 import { getKaraokeReciters, getPreferredKaraokeReciter, setPreferredKaraokeReciter } from '../../../api/quranAudio.js';
 import { bigStats } from '../../../api/bigStore.js';
 import { fmtMB } from '../organisms/primitives.js';
-import { listOfflineAudio, downloadAllSurahAudio } from '../../../api/offlineAudio.js';
+import { listOfflineAudio } from '../../../api/offlineAudio.js';
 import { useI18n } from '../../../api/i18n.js';
 import { GroupHeader } from '../organisms/primitives.js';
 import AboutCard from '../organisms/AboutCard.js';
@@ -87,12 +87,9 @@ export default function SettingsScreen({ navigation }) {
 
   // === Unduh semua audio karaoke per surah ===
   const [audioMetaList, setAudioMetaList] = useState([]); // [{ surah, size }] yang sudah terunduh
-  const [audioBatch, setAudioBatch] = useState(null); // { done, total, failed } saat mengunduh
-  const [audioBatchResult, setAudioBatchResult] = useState(null);
-  const [audioShowList, setAudioShowList] = useState(false);
   // Jumlah surah terunduh per qari: { [reciterId]: count }
   const [audioByReciter, setAudioByReciter] = useState({});
-  const audioCancelRef = useRef(false); // batal unduh batch
+  const [audioShowList, setAudioShowList] = useState(false);
 
   // === Pratinjau jadwal (kartu "Cek") ===
   const [preview, setPreview] = useState(null);
@@ -232,27 +229,6 @@ export default function SettingsScreen({ navigation }) {
     }
   };
   useEffect(() => { refreshStorageStats(); }, []);
-
-  // === Unduh semua audio karaoke per surah ===
-  const startAudioBatchDownload = async () => {
-    if (audioBatch) return;
-    setAudioBatchResult(null);
-    setAudioBatch({ done: 0, total: 114, failed: 0 });
-    try {
-      const reciterId = await getPreferredKaraokeReciter();
-      const res = await downloadAllSurahAudio(
-        reciterId,
-        (p) => setAudioBatch({ done: p.done, total: p.total, failed: p.failed }),
-        () => audioCancelRef.current
-      );
-      setAudioBatchResult(res);
-    } catch {
-      setAudioBatchResult({ downloaded: 0, skipped: 0, failed: 114, cancelled: false });
-    } finally {
-      setAudioBatch(null);
-      refreshStorageStats();
-    }
-  };
 
   // ============================================================
   // SHOLAT — simpan / pratinjau / penjadwalan notifikasi
@@ -502,12 +478,10 @@ export default function SettingsScreen({ navigation }) {
       </TouchableOpacity>
       <AudioDownloadCard
         pal={pal}
-        storage={storage}
-        audioBatch={audioBatch} audioBatchResult={audioBatchResult}
-        audioCancelRef={audioCancelRef} startAudioBatchDownload={startAudioBatchDownload}
-        audioShowList={audioShowList} setAudioShowList={setAudioShowList}
-        audioMetaList={audioMetaList} reciterId={reciterId}
+        reciterId={reciterId}
         karaokeReciters={karaokeReciters} audioByReciter={audioByReciter}
+        audioMetaList={audioMetaList}
+        audioShowList={audioShowList} setAudioShowList={setAudioShowList}
       />
 
       {/** ==================== KELOMPOK 4: PENYIMPANAN ==================== **/}
