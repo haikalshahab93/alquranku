@@ -43,7 +43,7 @@ const DEFAULT_PREVIEW = require('../../../../assets/sounds/default_preview.mp3')
 // KELOMPOK 3: Audio & Bacaan     -> ReciterCard, AudioDownloadCard
 // KELOMPOK 4: Penyimpanan        -> StorageCard
 // ============================================================
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }) {
   const { t } = useI18n();
 
   // === Tampilan: dark mode + ukuran font (dimiliki di sini agar semua
@@ -516,7 +516,7 @@ export default function SettingsScreen() {
 
       {/** ==================== KELOMPOK 5: TENTANG ==================== **/}
       <GroupHeader pal={pal} icon="information-circle-outline" label={t('settings.about')} desc={t('settings.aboutDesc')} />
-      <AboutCard pal={pal} />
+      <AboutCard pal={pal} navigation={navigation} />
       <ContactCard pal={pal} />
 
     </ScrollView>
