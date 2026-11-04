@@ -58,10 +58,24 @@ const TOP_LEVEL = new Set(['Home', 'SurahList', 'QuranBookmarks', 'Settings', 'U
 function parseInitialStack() {
   if (Platform.OS !== 'web') return null;
   try {
-    const h = (window.location.hash || '').replace(/^#\/?/, '');
-    if (!h) return null;
-    const [name, qs] = h.split('?');
     const allowed = ['Home','SurahList','SurahDetail','PageDetail','Tafsir','DoaList','DoaDetail','HaditsMenu','HaditsList','HaditsDetail','HaditsPerawiList','SholatJadwal','HijriCalendar','UlamaList','UlamaDetail','SanadChain','Qibla','Settings','AudioManager','Privacy','QuranBookmarks','User'];
+    const h = (window.location.hash || '').replace(/^#\/?/, '');
+    let name = '', qs = '';
+    if (h) { [name, qs] = h.split('?'); }
+    // Fallback: URL path tanpa hash, mis. localhost:8081/AudioManager.
+    // Konversi ke form hash (#/AudioManager) supaya URL konsisten untuk
+    // navigasi dalam app dan reload yang berikutnya tidak mengulang fail.
+    if (!allowed.includes(name)) {
+      const path = decodeURIComponent(window.location.pathname || '');
+      const m = path.match(/\/(AudioManager|SurahDetail|PageDetail|Tafsir|DoaList|DoaDetail|HaditsMenu|HaditsList|HaditsDetail|HaditsPerawiList|HaditsPerawiEntry|HaditsBmEntry|SholatJadwal|HijriCalendar|UlamaList|UlamaDetail|SanadChain|Qibla|Settings|Privacy|QuranBookmarks|User|Home|SurahList)\/?$/);
+      if (m) {
+        name = m[1];
+        try {
+          const stripped = path.slice(0, path.lastIndexOf(m[1]) - 1).replace(/\/$/, '') || '/';
+          window.history.replaceState(null, '', `${stripped}#/${name}`);
+        } catch {}
+      }
+    }
     if (!allowed.includes(name)) return null;
     const params = {};
     if (qs) { for (const [k, v] of new URLSearchParams(qs)) params[k] = v; }
@@ -170,17 +184,13 @@ export default function App() {
 
   // Deep-link web via URL hash (untuk preview & screenshot per layar):
   // format: #/NamaLayar?key=value&k2=v2  contoh: #/SurahDetail?nomor=18&nama_latin=Al-Kahf
+  // Path tanpa hash (localhost:8081/AudioManager) juga didukung via parseInitialStack.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     try {
-      const h = (window.location.hash || '').replace(/^#\/?/, '');
-      if (!h) return;
-      const [name, qs] = h.split('?');
-      const allowed = ['Home','SurahList','SurahDetail','PageDetail','Tafsir','DoaList','DoaDetail','HaditsMenu','HaditsList','HaditsDetail','HaditsPerawiList','SholatJadwal','HijriCalendar','UlamaList','UlamaDetail','SanadChain','Qibla','Settings','AudioManager','Privacy','QuranBookmarks','User'];
-      if (!allowed.includes(name)) return;
-      const params = {};
-      if (qs) { for (const [k, v] of new URLSearchParams(qs)) params[k] = v; }
-      setStack([{ name, params }]);
+      const parsed = parseInitialStack();
+      if (!parsed) return;
+      setStack(parsed);
       AsyncStorage.setItem('onboardingDone', '1').catch(() => {});
     } catch {}
   }, []);
