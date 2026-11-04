@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Platform, Linking } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Platform, Linking, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -83,7 +83,7 @@ export default function PrivacyScreen({ navigation }) {
   return (
     <View style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <StatusBar style="light" />
-      <View style={{ backgroundColor: theme?.colors?.primary || '#7c3aed', paddingTop: 50, paddingBottom: 12, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
+      <View style={{ backgroundColor: pal.colors.primary, paddingTop: 50, paddingBottom: 12, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
         <HeaderBtn icon="arrow-back" onPress={() => navigation?.goBack?.()} />
         <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700', flex: 1 }} numberOfLines={1}>{t('privacy.title')}</Text>
       </View>
