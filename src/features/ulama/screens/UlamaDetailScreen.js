@@ -143,8 +143,11 @@ export default function UlamaDetailScreen({ navigation, route }) {
   };
 
   const renderRefText = (text, styleKey) => {
+    // Warna teks mengikuti palet aktif (dulu '#334155' permanen — gelap di
+    // atas kartu gelap saat dark mode).
+    const baseStyle = [styles[styleKey], { color: pal.colors.text }];
     const parts = renderRefParts(text);
-    if (!parts) return <Text style={styles[styleKey]}>{String(text)}</Text>;
+    if (!parts) return <Text style={baseStyle}>{String(text)}</Text>;
     return (
       <View style={styles.refInlineWrap}>
         {parts.map((p, i) =>
@@ -153,7 +156,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
               <Text style={[styles.refChipText, { color: pal.colors.primary }]} numberOfLines={1}>{p.value}</Text>
             </TouchableOpacity>
           ) : (
-            <Text key={i} style={styles[styleKey]}>{p.value}</Text>
+            <Text key={i} style={baseStyle}>{p.value}</Text>
           )
         )}
       </View>
@@ -162,16 +165,16 @@ export default function UlamaDetailScreen({ navigation, route }) {
 
   const renderValue = (val) => {
     if (val == null || val === '') {
-      return <Text style={styles.cardText}>-</Text>;
+      return <Text style={[styles.cardText, { color: pal.colors.text }]}>-</Text>;
     }
     if (Array.isArray(val)) {
-      if (val.length === 0) return <Text style={styles.cardText}>—</Text>;
+      if (val.length === 0) return <Text style={[styles.cardText, { color: pal.colors.text }]}>—</Text>;
       return (
         <View style={styles.subList}>
           {val.map((v, i) => (
             <View key={i} style={styles.subItem}>
               {typeof v === 'object'
-                ? <Text style={styles.cardText}>{JSON.stringify(v)}</Text>
+                ? <Text style={[styles.cardText, { color: pal.colors.text }]}>{JSON.stringify(v)}</Text>
                 : renderRefText(String(v), 'cardText')}
             </View>
           ))}
@@ -180,7 +183,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
     }
     if (typeof val === 'object') {
       const entries = Object.entries(val);
-      if (!entries.length) return <Text style={styles.cardText}>{'{}'}</Text>;
+      if (!entries.length) return <Text style={[styles.cardText, { color: pal.colors.text }]}>{'{}'}</Text>;
       return (
         <View style={[styles.objBox, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
           {entries.map(([k2, v2], idx) => (
@@ -197,8 +200,8 @@ export default function UlamaDetailScreen({ navigation, route }) {
   };
 
   const renderGroup = (group) => (
-    <View key={group.title} style={styles.card}>
-      <Text style={styles.cardTitle}>{group.title}</Text>
+    <View key={group.title} style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+      <Text style={[styles.cardTitle, { color: pal.colors.text }]}>{group.title}</Text>
       {group.items.map((it, idx) => (
         <View key={idx} style={styles.kvRow}>
           <Text style={styles.kvKey}>{it.key}</Text>
@@ -268,7 +271,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
               <View key="teachers">
                 <View style={styles.relationHeaderRow}>
                   <Ionicons name="arrow-up-circle-outline" size={16} color={theme.colors.primaryDark} />
-                  <Text style={styles.cardTitle}>{t('ulama.guru', { n: relations.teachers.length })}</Text>
+<Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('ulama.guru', { n: relations.teachers.length })}</Text>
                 </View>
                 <View style={styles.chipWrap}>
                   {relations.teachers.map((t) => (
@@ -284,7 +287,7 @@ export default function UlamaDetailScreen({ navigation, route }) {
               <View key="students" style={relations.teachers.length > 0 && { marginTop: 12 }}>
                 <View style={styles.relationHeaderRow}>
                   <Ionicons name="arrow-down-circle-outline" size={16} color={theme.colors.primaryDark} />
-                  <Text style={styles.cardTitle}>{t('ulama.murid', { n: relations.students.length })}</Text>
+<Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('ulama.murid', { n: relations.students.length })}</Text>
                 </View>
                 <View style={styles.chipWrap}>
                   {relations.students.map((s) => (
@@ -303,8 +306,8 @@ export default function UlamaDetailScreen({ navigation, route }) {
         {grouped.map(renderGroup)}
 
         {rawKeys.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('ulama.gRaw')}</Text>
+          <View style={[styles.card, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+            <Text style={[styles.cardTitle, { color: pal.colors.text }]}>{t('ulama.gRaw')}</Text>
             {rawKeys.map((k) => (
               <View key={k} style={styles.kvRow}>
                 <Text style={styles.kvKey}>{k}</Text>

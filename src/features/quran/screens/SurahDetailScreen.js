@@ -780,14 +780,16 @@ export default function SurahDetailScreen({ route, navigation }) {
                 style={[
                   styles.tafsirBox,
                   { maxHeight: Math.floor(Dimensions.get('window').height * 1.0), overflow: 'hidden' },
+                  // Dark mode: kotak tafsir mengikuti palet, bukan putih
+                  // permanen (dulu teks terang di atas kotak putih = sulit dibaca).
+                  pal.dark && { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder },
                 ]}
                 onLayout={(e) => {
                   const w = e?.nativeEvent?.layout?.width;
                   if (w && w > 0) setTafsirBoxWidths((prev) => ({ ...prev, [ayahNumber]: w }));
                 }}
-              >
-                {lang === 'en' && tafsirEnForAyah ? (
-                  <Text style={styles.tafsirEnSource} numberOfLines={2}>{t('surah.tafsirEnSource')}</Text>
+              >                  {lang === 'en' && tafsirEnForAyah ? (
+                  <Text style={[styles.tafsirEnSource, pal.dark && { color: pal.colors.muted }]} numberOfLines={2}>{t('surah.tafsirEnSource')}</Text>
                 ) : null}
                 <ScrollView
                   ref={(el) => { tafsirScrollRefs.current[ayahNumber] = el; }}
@@ -814,7 +816,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                 </ScrollView>
                 <View style={styles.pageNavRow}>
                   <TouchableOpacity
-                    style={styles.pageBtn}
+                    style={[styles.pageBtn, pal.dark && { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder }]}
                     onPress={() => {
                       const target = Math.max(0, currentPage - 1);
                       const w = tafsirBoxWidths[ayahNumber] || 0;
@@ -826,7 +828,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                     <Text style={[styles.pageBtnText, currentPage <= 0 && styles.pageBtnTextDisabled]}>{t('quran.prev')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.pageBtn}
+                    style={[styles.pageBtn, pal.dark && { backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: pal.colors.surfaceBorder }]}
                     onPress={() => {
                       const target = Math.min(maxPageIndex, currentPage + 1);
                       const w = tafsirBoxWidths[ayahNumber] || 0;
@@ -838,7 +840,7 @@ export default function SurahDetailScreen({ route, navigation }) {
                     <Text style={[styles.pageBtnText, currentPage >= maxPageIndex && styles.pageBtnTextDisabled]}>{t('quran.next')}</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.pageIndicator}>{t('quran.halaman', { a: Math.min(currentPage + 1, Math.max(1, tafsirChunks.length || 1)), b: Math.max(1, tafsirChunks.length || 1) })}</Text>
+                <Text style={[styles.pageIndicator, pal.dark && { color: pal.colors.muted }]}>{t('quran.halaman', { a: Math.min(currentPage + 1, Math.max(1, tafsirChunks.length || 1)), b: Math.max(1, tafsirChunks.length || 1) })}</Text>
               </View>
             )}
           </View>

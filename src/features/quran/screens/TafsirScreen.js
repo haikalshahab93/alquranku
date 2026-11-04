@@ -93,7 +93,7 @@ export default function TafsirScreen({ route }) {
   };
 
   if (loading) return <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><ActivityIndicator size="large" color={pal.colors.primary} /></View>;
-  if (error) return <View style={styles.center}><Text style={{ color: pal.colors.text }}>{error}</Text></View>;
+  if (error) return <View style={[styles.center, { backgroundColor: pal.colors.bg }]}><Text style={{ color: pal.colors.text }}>{error}</Text></View>;
   if (!data) return null;
 
   const surahLatin = data?.namaLatin ?? data?.nama_latin;
