@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // ============================================================
@@ -24,31 +24,68 @@ export const GroupHeader = ({ icon, label, desc, pal }) => (
 // === CollapsibleGroup: kelompok pengaturan gaya akordeon (tap header → buka/tutup) ===
 // Dipakai agar layar Setelan ringkas: semua kelompok tertutup, isi muncul
 // hanya saat kelompoknya diklik (dibungkus kartu agar tampil sebagai satu blok).
-export const CollapsibleGroup = ({ icon, label, desc, pal, open, onToggle, children }) => (
-  <View style={{ backgroundColor: pal.colors.bg }}>
-    <TouchableOpacity
-      onPress={onToggle}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityState={{ expanded: !!open }}
-      style={{
-        flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: open ? 2 : 6,
-        paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14,
-        backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: open ? pal.colors.primary : pal.colors.surfaceBorder,
-      }}
-    >
-      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: pal.colors.primaryLight + '2e', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-        <Ionicons name={icon} size={18} color={pal.colors.primary} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 15.5, fontWeight: '800', color: pal.colors.text }}>{label}</Text>
-        {!!desc && <Text style={{ fontSize: 11.5, color: pal.colors.muted, marginTop: 1 }} numberOfLines={1}>{desc}</Text>}
-      </View>
-      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={pal.colors.primary} style={{ marginLeft: 8 }} />
-    </TouchableOpacity>
-    {open ? <View style={{ paddingHorizontal: 2 }}>{children}</View> : null}
-  </View>
-);
+// Buka/tutup dianimasikan lembut: tinggi isi meluncur lewat animasi maxHeight
+// (tanpa pengukuran layout, jadi aman walau isi termuat datanya asinkron) +
+// ikon panah berputar halus saat status berubah.
+const PLAFON_TINGGI_ISI = 2400; // px. Plafon animasi; isi terbesar kelompok (±1255px, bahkan dengan font 1.5x masih aman) di bawahnya sehingga fase meluncurnya terlihat lebih lama
+
+export const CollapsibleGroup = ({ icon, label, desc, pal, open, onToggle, children }) => {
+  const buka = useRef(new Animated.Value(open ? 1 : 0)).current; // 0 = tertutup → 1 = terbuka
+  const target = useRef(open ? 1 : 0); // target terakhir animasi (mengantisipasi klik cepat beruntun)
+
+  useEffect(() => {
+    const want = open ? 1 : 0;
+    if (target.current === want) return; // posisi sudah/menuju nilai yang diminta
+    target.current = want;
+    Animated.timing(buka, {
+      toValue: want,
+      duration: open ? 380 : 260, // buka lebih rupawan, tutup lebih ringkes
+      easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [open, buka]);
+
+  const chevronRot = buka.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+
+  return (
+    <View style={{ backgroundColor: pal.colors.bg }}>
+      <TouchableOpacity
+        onPress={onToggle}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: !!open }}
+        style={{
+          flexDirection: 'row', alignItems: 'center', marginTop: 4, marginBottom: open ? 2 : 6,
+          paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14,
+          backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: open ? pal.colors.primary : pal.colors.surfaceBorder,
+        }}
+      >
+        <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: pal.colors.primaryLight + '2e', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+          <Ionicons name={icon} size={18} color={pal.colors.primary} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ fontSize: 15.5, fontWeight: '800', color: pal.colors.text }}>{label}</Text>
+          {!!desc && <Text style={{ fontSize: 11.5, color: pal.colors.muted, marginTop: 1 }} numberOfLines={1}>{desc}</Text>}
+        </View>
+        <Animated.View style={{ marginLeft: 8, transform: [{ rotate: chevronRot }] }}>
+          <Ionicons name="chevron-down" size={18} color={pal.colors.primary} />
+        </Animated.View>
+      </TouchableOpacity>
+      {/* Isi selalu terpasang supaya animasi buka/tutup tidak dipengaruhi timing termuat data;
+          yang mengatur perlihatkan/menyembunyikan hanyalah tinggi (maxHeight) + opacity. */}
+      <Animated.View
+        style={{
+          maxHeight: buka.interpolate({ inputRange: [0, 1], outputRange: [0, PLAFON_TINGGI_ISI] }),
+          opacity: buka.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+          overflow: 'hidden',
+          paddingHorizontal: 2,
+        }}
+      >
+        {children}
+      </Animated.View>
+    </View>
+  );
+};
 
 // Judul seksi di dalam kartu (teks besar di atas deskripsi)
 export const SectionTitle = ({ children, pal }) => (
