@@ -319,7 +319,10 @@ export default function HomeScreen({ navigation }) {
 
   const fetchHarian = async (_city, _country) => {
     try {
-      setLoadingPrayer(true);
+      // Spinner hanya saat belum ada data sama sekali. Kalau jadwal sudah
+      // tersimpan/painted dari snapshot, refresh jaringan berjalan senyap di
+      // latar — data tersimpan TIDAK disembunyikan/dihapus saat app dibuka.
+      if (!prayerData) setLoadingPrayer(true);
       setErrorPrayer(null);
       // JANGAN wipe prayerData di sini: bila internet mati, jadwal terakhir
       // dari cache harus tetap tampil (API layer otomatis mengembalikan cache).
@@ -625,9 +628,9 @@ export default function HomeScreen({ navigation }) {
             );
           })()}
         </View>
-        {loadingPrayer && (<Text style={styles.prayerLoading}>{t('home.loadingSchedule')}</Text>)}
-        {errorPrayer && (<Text style={styles.prayerError}>{String(errorPrayer)}</Text>)}
-        {!loadingPrayer && !errorPrayer && (
+        {loadingPrayer && !prayerData && (<Text style={styles.prayerLoading}>{t('home.loadingSchedule')}</Text>)}
+        {errorPrayer && (!prayerData ? (<Text style={styles.prayerError}>{String(errorPrayer)}</Text>) : null)}
+        {prayerData && (
           <>
             {(() => {
               const jadwal = prayerData?.data?.jadwal || {};
