@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions, Platform, Share, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getSuratList, getSuratDetail, preloadAllSurahData, getOfflineReadyCount, getOfflineEnTafsirReadyCount, isOnline } from '../../../api/quran.js';
+import { withAppLink } from '../../../api/appLink.js';
 import { listOfflineAudio } from '../../../api/offlineAudio.js';
 import { getPreferredKaraokeReciter } from '../../../api/quranAudio.js';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -545,7 +546,7 @@ export default function SurahListScreen({ navigation, route }) {
                  .join('')
              : '';
            const text = `${headerTitle}\n${headerMeta}\n${body}\n`;
-           await Share.share({ title: `${fileNameBase}.docx`, message: text });
+           await Share.share({ title: `${fileNameBase}.docx`, message: withAppLink(text) });
          }
       } catch (e) {
         console.warn('Gagal mengunduh/berbagi surat:', e?.message);

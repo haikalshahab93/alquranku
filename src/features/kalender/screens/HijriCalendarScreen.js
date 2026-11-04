@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, getPalette } from '../../../ui';
 import { useAppearance } from '../../../api/appearance.js';
 import { useI18n } from '../../../api/i18n.js';
+import { withAppLink } from '../../../api/appLink.js';
 import { mapMonthlyToDay } from '../../../api/kalender.js';
 
 // Konversi Gregorian -> Julian Day Number (JDN)
@@ -321,7 +322,7 @@ export default function HijriCalendarScreen() {
             <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={async () => {
               try {
                 const txt = `${selected.day} ${MONTH_NAMES_ID[viewMonth - 1]} ${viewYear} H • ${selected.gDate.day} ${gregMonths[selected.gDate.month - 1]} ${selected.gDate.year}`;
-                await Share.share({ message: txt });
+                await Share.share({ message: withAppLink(txt) });
               } catch {}
             }} disabled={saving}>
               <Text style={styles.btnGhostText}>{t('cal.bagikan')}</Text>

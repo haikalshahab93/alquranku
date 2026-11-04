@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TouchableOpacity, Share } from 'react-native';
 import { getDoaDetail } from '../../../api/doa.js';
+import { withAppLink } from '../../../api/appLink.js';
 import { theme, getPalette } from '../../../ui';
 import { useAppearance, setTextScale as saveTextScale } from '../../../api/appearance.js';
 import { useI18n } from '../../../api/i18n.js';
@@ -95,7 +96,7 @@ export default function DoaDetailScreen({ navigation, route }) {
 
   const shareDoa = async () => {
     try {
-      const msg = `${title}\n\n${arab}\n\n${latin}\n\n${ind}${tags ? `\n\n${t('doa.tagsShare', { n: tags })}` : ''}`;
+      const msg = withAppLink(`${title}\n\n${arab}\n\n${latin}\n\n${ind}${tags ? `\n\n${t('doa.tagsShare', { n: tags })}` : ''}`);
       await Share.share({ message: msg });
     } catch {}
   };

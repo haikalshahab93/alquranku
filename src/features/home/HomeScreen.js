@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientCard, PurpleButton, OutlineLightButton, FeatureTile, theme, getPalette } from '../../ui';
 import { useAppearance } from '../../api/appearance.js';
+import { withAppLink } from '../../api/appLink.js';
 import { getSurahDetail } from '../../api/quran.js';
 import { getAladhanHarianCity, getAladhanHarianCoords } from '../../api/aladhan.js';
 import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../../api/notifications.js';
@@ -72,7 +73,7 @@ export default function HomeScreen({ navigation }) {
     const indo = (lang === 'en' && Array.isArray(dailyEn)
       ? (dailyEn[dailyAyah.ayahNumber - 1] || dailyAyah.indo)
       : dailyAyah.indo);
-    const msg = `"${t('daily.shareHeader', { ref: ayLabel })}"\n\n${dailyAyah.arab}\n\n${dailyAyah.latin}\n\n${indo}\n\n${t('daily.shareTag')}`;
+    const msg = withAppLink(`"${t('daily.shareHeader', { ref: ayLabel })}"\n\n${dailyAyah.arab}\n\n${dailyAyah.latin}\n\n${indo}\n\n${t('daily.shareTag')}`);
     try {
       if (Platform.OS === 'web') {
         if (typeof navigator !== 'undefined' && navigator.share) {

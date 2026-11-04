@@ -6,6 +6,7 @@ import {
   getHaditsPerawiNomor,
 } from '../../../api/hadits.js';
 import { theme, getPalette } from '../../../ui';
+import { withAppLink } from '../../../api/appLink.js';
 import { useAppearance, setTextScale as saveTextScale } from '../../../api/appearance.js';
 import { useI18n } from '../../../api/i18n.js';
 import { Ionicons } from '@expo/vector-icons'
@@ -147,7 +148,7 @@ export default function HaditsDetailScreen({ route, navigation }) {
   const shareHadits = async () => {
     try {
       const judul = data?.judul || t('hadits.nomorHadits', { n: data?.nomor ?? '' });
-      const msg = `${judul}${data?.perawi ? `\n${t('hadits.perawiLabel', { n: data.perawi })}` : ''}\n\n${data?.arab ?? ''}\n\n${data?.latin ?? ''}\n\n${data?.indo ?? ''}`;
+      const msg = withAppLink(`${judul}${data?.perawi ? `\n${t('hadits.perawiLabel', { n: data.perawi })}` : ''}\n\n${data?.arab ?? ''}\n\n${data?.latin ?? ''}\n\n${data?.indo ?? ''}`);
       await Share.share({ message: msg });
     } catch (e) {
       // Share dibatalkan pengguna: tidak perlu ditampilkan sebagai error.

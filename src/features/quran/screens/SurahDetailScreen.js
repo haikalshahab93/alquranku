@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Share, Modal, TextInput, TouchableWithoutFeedback } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getSuratDetail, getTafsir } from '../../../api/quran.js';
+import { withAppLink } from '../../../api/appLink.js';
 import { fetchChapterAudioData, findVerseTiming, wordPosAt, splitArabicWords, getPreferredKaraokeReciter } from '../../../api/quranAudio.js';
 import { getKaraokeAudioData, isAudioSavedOffline } from '../../../api/offlineAudio.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -664,7 +665,7 @@ export default function SurahDetailScreen({ route, navigation }) {
   const shareAyah = async (ayahNumber, arabText, latinText, indoText) => {
     try {
       const title = `${detail?.namaLatin ?? detail?.nama_latin} - Ayat ${ayahNumber}`
-      const message = `${title}\n\n${arabText || ''}\n${latinText || ''}\n${indoText || ''}`
+      const message = withAppLink(`${title}\n\n${arabText || ''}\n${latinText || ''}\n${indoText || ''}`)
       await Share.share({ title, message })
     } catch (e) {
       // silent
