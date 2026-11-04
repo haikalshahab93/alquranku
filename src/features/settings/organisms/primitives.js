@@ -21,6 +21,35 @@ export const GroupHeader = ({ icon, label, desc, pal }) => (
   </View>
 );
 
+// === CollapsibleGroup: kelompok pengaturan gaya akordeon (tap header → buka/tutup) ===
+// Dipakai agar layar Setelan ringkas: semua kelompok tertutup, isi muncul
+// hanya saat kelompoknya diklik (dibungkus kartu agar tampil sebagai satu blok).
+export const CollapsibleGroup = ({ icon, label, desc, pal, open, onToggle, children }) => (
+  <View style={{ backgroundColor: pal.colors.bg, marginBottom: 10 }}>
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: !!open }}
+      style={{
+        flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: open ? 2 : 12,
+        paddingVertical: 8, paddingHorizontal: 10, borderRadius: 14,
+        backgroundColor: pal.colors.surface, borderWidth: 1, borderColor: open ? pal.colors.primary : pal.colors.surfaceBorder,
+      }}
+    >
+      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: pal.colors.primaryLight + '2e', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+        <Ionicons name={icon} size={18} color={pal.colors.primary} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 15.5, fontWeight: '800', color: pal.colors.text }}>{label}</Text>
+        {!!desc && <Text style={{ fontSize: 11.5, color: pal.colors.muted, marginTop: 1 }} numberOfLines={1}>{desc}</Text>}
+      </View>
+      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={pal.colors.primary} style={{ marginLeft: 8 }} />
+    </TouchableOpacity>
+    {open ? <View style={{ paddingHorizontal: 2 }}>{children}</View> : null}
+  </View>
+);
+
 // Judul seksi di dalam kartu (teks besar di atas deskripsi)
 export const SectionTitle = ({ children, pal }) => (
   <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 2, color: pal.colors.text }}>{children}</Text>

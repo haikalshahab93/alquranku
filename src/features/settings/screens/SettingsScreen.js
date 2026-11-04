@@ -14,7 +14,7 @@ import { bigStats } from '../../../api/bigStore.js';
 import { fmtMB } from '../organisms/primitives.js';
 import { listOfflineAudio } from '../../../api/offlineAudio.js';
 import { useI18n } from '../../../api/i18n.js';
-import { GroupHeader } from '../organisms/primitives.js';
+import { GroupHeader, CollapsibleGroup } from '../organisms/primitives.js';
 import AboutCard from '../organisms/AboutCard.js';
 import LanguageCard from '../organisms/LanguageCard.js';
 import AppearanceCard from '../organisms/AppearanceCard.js';
@@ -69,6 +69,11 @@ export default function SettingsScreen({ navigation }) {
   const [shafaq, setShafaq] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
+
+  // === Akordeon kelompok pengaturan: tap header → buka/tutup isi kelompok ===
+  // (Kelompok Tentang dibiarkan selalu terbuka, tidak ikut akordeon.)
+  const [openSections, setOpenSections] = useState({});
+  const toggleSection = (key) => setOpenSections((s) => ({ ...s, [key]: !s[key] }));
 
   // === Notifikasi pengingat waktu sholat ===
   const [notifEnabled, setNotifEnabled] = useState(true);
@@ -435,35 +440,37 @@ export default function SettingsScreen({ navigation }) {
   return (
     <ScrollView contentContainerStyle={{ padding: 16, backgroundColor: pal.colors.bg }}>
 
-      {/** ==================== KELOMPOK 1: TAMPILAN & BAHASA ==================== **/}
-      <GroupHeader pal={pal} icon="settings-outline" label={t('settings.grupTampilan')} desc={t('settings.grupTampilanDesc')} />
-      <LanguageCard pal={pal} />
-      <AppearanceCard pal={pal} darkMode={darkMode} setDarkModeState={setDarkModeState} textScale={textScale} setTextScaleState={setTextScaleState} />
+      {/** ==================== KELOMPOK 1: TAMPILAN & BAHASA (akordeon) ==================== **/}
+      <CollapsibleGroup pal={pal} icon="settings-outline" label={t('settings.grupTampilan')} desc={t('settings.grupTampilanDesc')} open={openSections.tampilan} onToggle={() => toggleSection('tampilan')}>
+        <LanguageCard pal={pal} />
+        <AppearanceCard pal={pal} darkMode={darkMode} setDarkModeState={setDarkModeState} textScale={textScale} setTextScaleState={setTextScaleState} />
+      </CollapsibleGroup>
 
-      {/** ==================== KELOMPOK 2: SHOLAT & PENGINGAT ==================== **/}
-      <GroupHeader pal={pal} icon="notifications-outline" label={t('settings.grupSholat')} desc={t('settings.grupSholatDesc')} />
-      <NotifCard
-        pal={pal}
-        notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled}
-        notifOffset={notifOffset} setNotifOffset={setNotifOffset}
-        notifSound={notifSound} setNotifSound={setNotifSound}
-        onApply={applyNotificationSettings}
-        previewPlaying={previewPlaying} togglePreview={togglePreview}
-      />
-      {Platform.OS === 'android' && <AndroidBatteryCard pal={pal} />}
-      <PrayerMethodCard pal={pal} method={method} setMethod={setMethod} school={school} setSchool={setSchool} saveMsg={saveMsg} saveAll={saveAll} />
-      <PreviewCard pal={pal} preview={preview} previewLoading={previewLoading} previewError={previewError} doPreview={doPreview} />
-      <AdvancedCard
-        pal={pal}
-        showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
-        adv={{ timezonestring, tune, midnightMode, latitudeAdjustmentMethod, shafaq, calendarMethod }}
-        setAdv={{ timezonestring: setTimezonestring, tune: setTune, midnightMode: setMidnightMode, latitudeAdjustmentMethod: setLatitudeAdjustmentMethod, shafaq: setShafaq, calendarMethod: setCalendarMethod }}
-        detectTimezone={detectTimezone} resetDefaults={resetDefaults} saveAll={saveAll}
-      />
+      {/** ==================== KELOMPOK 2: SHOLAT & PENGINGAT (akordeon) ==================== **/}
+      <CollapsibleGroup pal={pal} icon="notifications-outline" label={t('settings.grupSholat')} desc={t('settings.grupSholatDesc')} open={openSections.sholat} onToggle={() => toggleSection('sholat')}>
+        <NotifCard
+          pal={pal}
+          notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled}
+          notifOffset={notifOffset} setNotifOffset={setNotifOffset}
+          notifSound={notifSound} setNotifSound={setNotifSound}
+          onApply={applyNotificationSettings}
+          previewPlaying={previewPlaying} togglePreview={togglePreview}
+        />
+        {Platform.OS === 'android' && <AndroidBatteryCard pal={pal} />}
+        <PrayerMethodCard pal={pal} method={method} setMethod={setMethod} school={school} setSchool={setSchool} saveMsg={saveMsg} saveAll={saveAll} />
+        <PreviewCard pal={pal} preview={preview} previewLoading={previewLoading} previewError={previewError} doPreview={doPreview} />
+        <AdvancedCard
+          pal={pal}
+          showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
+          adv={{ timezonestring, tune, midnightMode, latitudeAdjustmentMethod, shafaq, calendarMethod }}
+          setAdv={{ timezonestring: setTimezonestring, tune: setTune, midnightMode: setMidnightMode, latitudeAdjustmentMethod: setLatitudeAdjustmentMethod, shafaq: setShafaq, calendarMethod: setCalendarMethod }}
+          detectTimezone={detectTimezone} resetDefaults={resetDefaults} saveAll={saveAll}
+        />
+      </CollapsibleGroup>
 
-      {/** ==================== KELOMPOK 3: AUDIO & BACAAN ==================== **/}
-      <GroupHeader pal={pal} icon="musical-notes-outline" label={t('settings.grupAudio')} desc={t('settings.grupAudioDesc')} />
-      <ReciterCard pal={pal} karaokeReciters={karaokeReciters} reciterId={reciterId} reciterLoaded={reciterLoaded} reciterError={reciterError} audioByReciter={audioByReciter} pickReciter={pickReciter} />
+      {/** ==================== KELOMPOK 3: AUDIO & BACAAN (akordeon) ==================== **/}
+      <CollapsibleGroup pal={pal} icon="musical-notes-outline" label={t('settings.grupAudio')} desc={t('settings.grupAudioDesc')} open={openSections.audio} onToggle={() => toggleSection('audio')}>
+        <ReciterCard pal={pal} karaokeReciters={karaokeReciters} reciterId={reciterId} reciterLoaded={reciterLoaded} reciterError={reciterError} audioByReciter={audioByReciter} pickReciter={pickReciter} />
       <TouchableOpacity
         onPress={() => { try { navigation?.navigate?.('AudioManager'); } catch (e) {} }}
         activeOpacity={0.7}
@@ -483,10 +490,12 @@ export default function SettingsScreen({ navigation }) {
         audioMetaList={audioMetaList}
         audioShowList={audioShowList} setAudioShowList={setAudioShowList}
       />
+      </CollapsibleGroup>
 
-      {/** ==================== KELOMPOK 4: PENYIMPANAN ==================== **/}
-      <GroupHeader pal={pal} icon="server-outline" label={t('settings.storage')} desc={t('settings.penyimpananDesc')} />
-      <StorageCard pal={pal} storage={storage} onRefresh={refreshStorageStats} />
+      {/** ==================== KELOMPOK 4: PENYIMPANAN (akordeon) ==================== **/}
+      <CollapsibleGroup pal={pal} icon="server-outline" label={t('settings.storage')} desc={t('settings.penyimpananDesc')} open={openSections.penyimpanan} onToggle={() => toggleSection('penyimpanan')}>
+        <StorageCard pal={pal} storage={storage} onRefresh={refreshStorageStats} />
+      </CollapsibleGroup>
 
       {/** ==================== KELOMPOK 5: TENTANG ==================== **/}
       <GroupHeader pal={pal} icon="information-circle-outline" label={t('settings.about')} desc={t('settings.aboutDesc')} />
