@@ -162,7 +162,6 @@ export default function AudioManagerScreen({ navigation }) {
       } catch (e) {
         failed++;
         if (!reason) reason = String(e?.message || e || '');
-        if (Platform.OS === 'web') break; // penyebab struktural (web) — tidak ada gunanya lanjut
       }
       setBatch({ done: i + 1, total: targets.length, failed, surah: n });
     }
