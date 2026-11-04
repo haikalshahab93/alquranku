@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, View, TouchableOpacity, Linking, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../../../api/i18n.js';
+import { CONTACT_LINKS } from '../../../api/appLink.js';
 
 // ============================================================
 // KARTU — Kontak Kami: ikon Instagram, Email, Website ala kartu
