@@ -35,8 +35,15 @@ async function webTx(mode, fn) {
     try {
       const tx = db.transaction('audio', mode);
       const req = fn(tx.objectStore('audio'));
-      const wantResult = req && typeof req.result !== 'undefined';
-      tx.oncomplete = () => resolve(wantResult ? req.result : undefined);
+      if (req) {
+        // Untuk get/put/delete: resolve di request itu sendiri.
+        // (tx.oncomplete kadang terjadi sebelum/selaras pembacaan result;
+        //  resolvemas lewat req menjamin nilai Blob benar-benar terbaca.)
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      } else {
+        tx.oncomplete = () => resolve();
+      }
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error || new Error('indexedDB dibatalkan'));
     } catch (e) { reject(e); }
