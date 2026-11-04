@@ -99,6 +99,7 @@
   "sholat.muteSound": { "id": "Matikan Suara", "en": "Mute" },
   "sholat.playAdhan": { "id": "Putar Adzan", "en": "Play Adhan" },
   "sholat.outdatedSchedule": { "id": "Menampilkan jadwal terakhir (perangkat offline / internet belum aktif)", "en": "Showing the last schedule (device offline / internet not active)" },
+  "sholat.outdatedSnapshot": { "id": "Jadwal lama per tanggal {date} (dari data tersimpan)", "en": "Old schedule as of {date} (from stored data)" },
 
   "settings.title": { "id": "Pengaturan", "en": "Settings" },
   "settings.language": { "id": "Bahasa aplikasi", "en": "App language" },

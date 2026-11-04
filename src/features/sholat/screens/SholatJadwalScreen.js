@@ -74,7 +74,7 @@ const getWebPosition = () => new Promise((resolve) => {
 
 export default function SholatJadwalScreen() {
   const { darkMode } = useAppearance();
-  const { t: tt } = useI18n();
+  const { t: tt, lang } = useI18n();
   const pal = getPalette(darkMode);
 
   const [city, setCity] = useState('');
@@ -485,6 +485,30 @@ export default function SholatJadwalScreen() {
     return `${monthName} ${hday}${year ? ', ' + year : ''}`;
   }, [data]);
 
+  // Tanda "jadwal lama per tanggal X": tanggal dari data tersimpan (snapshot).
+  // Dipaint lebih dulu (instant paint) sehingga user tahu ini bukan jadwal hari
+  // ini — bila tanggalnya memang bukan hari ini.
+  const snapshotDateLabel = (() => {
+    const s = data?.date;
+    if (!data?.__fromCache || typeof s !== 'string') return '';
+    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    const dmy = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s);
+    const dObj = iso ? new Date(+iso[1], +iso[2] - 1, +iso[3]) : dmy ? new Date(+dmy[3], +dmy[2] - 1, +dmy[1]) : null;
+    if (!dObj || Number.isNaN(dObj.getTime())) return s;
+    try { return dObj.toLocaleDateString(lang === 'en' ? 'en-GB' : 'id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return s; }
+  })();
+  const snapshotDateIsToday = (() => {
+    const s = data?.date;
+    if (!data?.__fromCache || typeof s !== 'string') return false;
+    const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    const dmy = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s);
+    if (!iso && !dmy) return false;
+    const dObj = iso ? new Date(+iso[1], +iso[2] - 1, +iso[3]) : new Date(+dmy[3], +dmy[2] - 1, +dmy[1]);
+    if (Number.isNaN(dObj.getTime())) return false;
+    const n = new Date();
+    return dObj.getFullYear() === n.getFullYear() && dObj.getMonth() === n.getMonth() && dObj.getDate() === n.getDate();
+  })();
+
   // Meta & method info from API
   const meta = data?.meta || {};
   const methodId = meta?.method;
@@ -547,7 +571,7 @@ export default function SholatJadwalScreen() {
           <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4 }}>{hijri}</Text>
           {data?.__fromCache ? (
             <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 11, fontStyle: 'italic' }}>
-              {tt('sholat.outdatedSchedule')}
+              {snapshotDateLabel && !snapshotDateIsToday ? tt('sholat.outdatedSnapshot', { date: snapshotDateLabel }) : tt('sholat.outdatedSchedule')}
             </Text>
           ) : null}
           {tzNow ? <Text style={{ textAlign: 'center', color: pal.colors.muted, marginTop: 4, fontSize: 12 }}>{tt('sholat.timezoneNow')}: {tzNow}</Text> : null}
