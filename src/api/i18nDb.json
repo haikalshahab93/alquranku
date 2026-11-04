@@ -103,6 +103,7 @@
   "audioManager.title": { "id": "Audio Manager", "en": "Audio Manager" },
   "audioManager.desc": { "id": "Unduh dan hapus multi select audio murattal", "en": "Download and delete murattal audio with multi-select" },
   "audioManager.qariLabel": { "id": "Qari Murattal", "en": "Murattal Reciter" },
+  "audioManager.pilihQari": { "id": "Pilih Qari", "en": "Choose Reciter" },
   "audioManager.ringkasan": { "id": "{n} dari 114 surah sudah tersimpan", "en": "{n} of 114 surahs are saved" },
   "audioManager.belumTerunduh": { "id": "Belum terunduh", "en": "Not downloaded" },
   "audioManager.terunduh": { "id": "Tersimpan", "en": "Saved" },

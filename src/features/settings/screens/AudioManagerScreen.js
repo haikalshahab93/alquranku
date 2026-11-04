@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppearance } from '../../../api/appearance.js';
@@ -24,6 +24,8 @@ export default function AudioManagerScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [reciterId, setReciterId] = useState(7);
   const [reciterName, setReciterName] = useState('');
+  const [reciters, setReciters] = useState([]);         // pilihan qari (dari quran.com, cache 7 hari)
+  const [showPicker, setShowPicker] = useState(false);
   const [surahs, setSurahs] = useState([]);          // [{ nomor, namaLatin }]
   const [metaBySurah, setMetaBySurah] = useState({}); // { [surah]: { size, bytes, ... } }
   const [selected, setSelected] = useState({});       // { [surah]: true }
@@ -56,12 +58,13 @@ export default function AudioManagerScreen({ navigation }) {
         const rid = await getPreferredKaraokeReciter();
         if (!alive) return;
         setReciterId(rid);
-        const [reciters, list, surahList] = await Promise.all([
-          getKaraokeReciters(true).catch(() => []),
+        const staleReciters = await getKaraokeReciters(true).catch(() => []);
+        const [list, surahList] = await Promise.all([
           listOfflineAudio(),
           getSuratList().catch(() => null),
         ]);
         if (!alive) return;
+        setReciters(staleReciters);
         const r = (reciters || []).find((x) => String(x.id) === String(rid));
         setReciterName(r?.name || '');
         const map = {};
@@ -89,6 +92,17 @@ export default function AudioManagerScreen({ navigation }) {
     const m = metaBySurah[n];
     const b = m?.size || m?.bytes || 0;
     return b > 0 ? fmtMB(b) : '';
+  };
+
+  // Pilih qari aktif; daftar audio yang ditampilkan (terunduh/belum)
+  // di-refresh untuk reciter yang baru.
+  const pickReciter = async (r) => {
+    setShowPicker(false);
+    if (!r || String(r.id) === String(reciterId)) return;
+    setSelected({});
+    setReciterId(r.id);
+    setReciterName(r.name || '');
+    await refreshMeta(r.id);
   };
 
   const toggleRow = (n) => {
@@ -259,10 +273,19 @@ export default function AudioManagerScreen({ navigation }) {
       <TouchableOpacity onPress={toggleAll} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12 }}>
         <View style={{ width: 26 }} />
         <View style={{ flex: 1, marginHorizontal: 8 }}>
-          <Text style={{ textAlign: 'center', fontWeight: '700', color: pal.colors.primary }}>{t('audioManager.qariLabel')}</Text>
-          <Text style={{ textAlign: 'center', fontSize: 14, color: pal.colors.muted }}>{reciterName || `#${reciterId}`}</Text>
+          <Text style={{ textAlign: 'center', fontSize: 11, color: pal.colors.muted, textTransform: 'uppercase', letterSpacing: 1 }}>{t('audioManager.qariLabel')}</Text>
+          <TouchableOpacity onPress={() => (reciters.length ? setShowPicker(true) : null)} accessibilityRole="button" accessibilityLabel={`${t('audioManager.pilihQari')}: ${reciterName}`}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ textAlign: 'center', fontSize: 14, color: reciters.length ? pal.colors.text : pal.colors.muted, fontWeight: '600' }} numberOfLines={1}>
+                {reciterName || `#${reciterId}`}
+              </Text>
+              {reciters.length ? (
+                <Ionicons name="chevron-down" size={14} color={pal.colors.primary} style={{ marginLeft: 4 }} />
+              ) : null}
+            </View>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={toggleAll} style={{ padding: 10 }} accessibilityRole="checkbox">
+        <TouchableOpacity onPress={() => toggleAll()} style={{ padding: 10 }} accessibilityRole="checkbox">
           <View style={{
             width: 22, height: 22, borderRadius: 5, borderWidth: 2,
             borderColor: selectedList.length === 114 ? pal.colors.primary : pal.colors.surfaceBorder,
@@ -283,7 +306,7 @@ export default function AudioManagerScreen({ navigation }) {
     <View style={{ flex: 1, backgroundColor: pal.colors.bg }}>
       <StatusBar style="light" />
       {/* Header bar: kembali + judul + aksi unduh/hapus multi-select */}
-      <View style={{ backgroundColor: theme?.colors?.primary || '#7c3aed', paddingTop: 50, paddingBottom: 12, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
+      <View style={{ backgroundColor: pal.colors.primary, paddingTop: 50, paddingBottom: 12, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', borderBottomLeftRadius: 14, borderBottomRightRadius: 14 }}>
         <HeaderBtn icon="arrow-back" onPress={() => navigation?.goBack?.()} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }} numberOfLines={1}>{t('audioManager.title')}</Text>
@@ -317,6 +340,40 @@ export default function AudioManagerScreen({ navigation }) {
           windowSize={7}
         />
       )}
+
+      {/** Modal pemilih qari: tap nama qari di header daftar untuk membuka. */}
+      <Modal visible={showPicker} transparent animationType="slide" onRequestClose={() => setShowPicker(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: pal.colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: '70%', paddingBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
+              <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', color: pal.colors.text }}>{t('audioManager.pilihQari')}</Text>
+              <TouchableOpacity onPress={() => setShowPicker(false)} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+                <Ionicons name="close" size={22} color={pal.colors.muted} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={reciters}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => {
+                const active = String(item.id) === String(reciterId);
+                return (
+                  <TouchableOpacity
+                    onPress={() => pickReciter(item)}
+                    accessibilityRole="button"
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: active ? pal.colors.primarySoft || 'rgba(124,58,237,0.10)' : 'transparent' }}
+                  >
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 15, fontWeight: active ? '800' : '500', color: active ? pal.colors.primary : pal.colors.text }} numberOfLines={1}>{item.name}</Text>
+                      {item.style ? <Text style={{ fontSize: 12, color: pal.colors.muted }} numberOfLines={1}>{item.style}</Text> : null}
+                    </View>
+                    {active ? <Ionicons name="checkmark-circle" size={20} color={pal.colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
