@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Share, Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
-import { APP_PLAY_STORE_URL } from '../../../api/appLink.js';
+import { APP_PLAY_STORE_URL, openPlayStoreRating, PRIVACY_POLICY_URL } from '../../../api/appLink.js';
 import { useI18n } from '../../../api/i18n.js';
 
 // ============================================================
@@ -11,7 +11,7 @@ import { useI18n } from '../../../api/i18n.js';
 // fitur share di layar lain), agar orang yang belum memasang app
 // ikut bisa mengunduhnya.
 // ============================================================
-export default function AboutCard({ pal }) {
+export default function AboutCard({ pal, navigation }) {
   const { t } = useI18n();
   const version = Constants?.expoConfig?.version ? `v${Constants.expoConfig.version}` : '';
 
@@ -70,6 +70,20 @@ export default function AboutCard({ pal }) {
         <View style={{ gap: 8, marginTop: 10 }}>
           <RowButton icon="share-social-outline" label={t('settings.shareApp')} onPress={shareAppLink} />
           <RowButton icon="logo-google-playstore" label={t('settings.bukaPlayStore')} onPress={openInPlayStore} />
+          <RowButton icon="star" label={t('settings.beriRating')} onPress={() => { try { openPlayStoreRating(); } catch {} }} />
+          <RowButton
+            icon="information-circle"
+            label={t('settings.infoPrivasi')}
+            onPress={() => {
+              if (PRIVACY_POLICY_URL) {
+                // Kebijakan sudah di-hosting: buka langsung di browser
+                try { Linking.openURL(PRIVACY_POLICY_URL); } catch {}
+                return;
+              }
+              // Belum di-hosting: buka salinan kebijakan yang dibundel di app
+              try { navigation?.navigate?.('Privacy'); } catch {}
+            }}
+          />
         </View>
       </View>
     </View>

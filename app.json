@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.alfarisy.infoalquran",      "versionCode": 12,
+      "package": "com.alfarisy.infoalquran",
+      "versionCode": 12,
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM"
       ]
@@ -28,7 +29,21 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "packagerOpts": {
+      "assetExts": [
+        "html"
+      ]
+    },
     "plugins": [
+      "expo-asset",
       [
         "expo-build-properties",
         {
@@ -56,8 +71,7 @@
             "assets/sounds/default_preview.mp3"
           ]
         }
-      ],
-      "expo-asset"
+      ]
     ],
     "extra": {
       "eas": {
