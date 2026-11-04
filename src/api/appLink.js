@@ -12,12 +12,11 @@ export function withAppLink(text) {
   return `${s}${sep}${APP_PLAY_STORE_URL}`;
 }
 
-// Kontak untuk kartu "Kontak Kami" di Pengaturan — masih logo default:
-// ganti nilai placeholder ini saat akun kontaknya sudah tersedia.
+// Kontak untuk kartu "Kontak Kami" di Pengaturan.
+// Saat ini hanya email; ikon Instagram/Website ditambahkan kembali
+// di sini (dengan kunci 'instagram'/'website') saat akunnya sudah ada.
 export const CONTACT_LINKS = {
-  instagram: 'https://www.instagram.com/USERNAME_GANTI',   // ganti saat akun sudah ada
-  website: 'https://WEBSITE_GANTI.example.com',            // ganti saat sudah ada
-  email: 'mailto:EMAIL_GANTI@example.com',                 // ganti saat sudah ada
+  email: 'mailto:shahabmuhammadhaikal@gmail.com',
 };
 
 // ID paket app, diambil dari tautan Play Store (com.alfarisy.infoalquran)

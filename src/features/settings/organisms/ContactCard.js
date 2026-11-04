@@ -25,11 +25,14 @@ export default function ContactCard({ pal }) {
     Linking.openURL(url).catch(() => {});
   };
 
+  // Hanya ikon yang tautannya benar-benar terisi yang tampil
+  // (sekarang: email). Ikon lain muncul otomatis setelah CONTACT_LINKS
+  // diisi di appLink.js.
   const items = [
-    { icon: 'logo-instagram', label: t('settings.kontakInstagram'), url: CONTACT_LINKS.instagram },
-    { icon: 'mail-outline', label: t('settings.kontakEmail'), url: CONTACT_LINKS.email },
-    { icon: 'globe-outline', label: t('settings.kontakWebsite'), url: CONTACT_LINKS.website },
-  ];
+    CONTACT_LINKS.email ? { icon: 'mail-outline', label: t('settings.kontakEmail'), url: CONTACT_LINKS.email } : null,
+    CONTACT_LINKS.instagram ? { icon: 'logo-instagram', label: t('settings.kontakInstagram'), url: CONTACT_LINKS.instagram } : null,
+    CONTACT_LINKS.website ? { icon: 'globe-outline', label: t('settings.kontakWebsite'), url: CONTACT_LINKS.website } : null,
+  ].filter(Boolean);
 
   return (
     <View style={{ alignItems: 'center', marginTop: 4, marginBottom: 26 }}>
