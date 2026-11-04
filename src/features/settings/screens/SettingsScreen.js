@@ -13,6 +13,7 @@ import { bigStats } from '../../../api/bigStore.js';
 import { listOfflineAudio, downloadAllSurahAudio } from '../../../api/offlineAudio.js';
 import { useI18n } from '../../../api/i18n.js';
 import { GroupHeader } from '../organisms/primitives.js';
+import AboutCard from '../organisms/AboutCard.js';
 import LanguageCard from '../organisms/LanguageCard.js';
 import AppearanceCard from '../organisms/AppearanceCard.js';
 import NotifCard from '../organisms/NotifCard.js';
@@ -497,6 +498,10 @@ export default function SettingsScreen() {
       {/** ==================== KELOMPOK 4: PENYIMPANAN ==================== **/}
       <GroupHeader pal={pal} icon="server-outline" label={t('settings.storage')} desc={t('settings.penyimpananDesc')} />
       <StorageCard pal={pal} storage={storage} onRefresh={refreshStorageStats} />
+
+      {/** ==================== KELOMPOK 5: TENTANG ==================== **/}
+      <GroupHeader pal={pal} icon="information-circle-outline" label={t('settings.about')} desc={t('settings.aboutDesc')} />
+      <AboutCard pal={pal} />
 
     </ScrollView>
   );
