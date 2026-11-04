@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../../../api/i18n.js';
+import { clearQuranCache } from '../../../api/quran.js';
 import { fmtMB } from './primitives.js';
 
 // ============================================================
@@ -13,12 +14,9 @@ export default function StorageCard({ pal, storage, onRefresh }) {
   const { t } = useI18n();
   const [confirmClear, setConfirmClear] = React.useState(null); // 'cache' | 'audio' | null
 
+  // Bersihkan cache Quran (dipakai dari api/quran.js) lalu segarkan ringkasan.
   const clearQuranCacheOnly = async () => {
-    try {
-      const { bigGetAllKeys, bigRemoveItem } = require('../../../api/bigStore.js');
-      const keys = await bigGetAllKeys('cache:quran:');
-      for (const k of keys) await bigRemoveItem(k);
-    } catch {}
+    await clearQuranCache();
     onRefresh();
   };
 

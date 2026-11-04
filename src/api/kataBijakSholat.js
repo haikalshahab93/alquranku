@@ -125,7 +125,7 @@ const KEY_ALIASES = {
 // Ambil satu hadits untuk waktu sholat tertentu pada tanggal tertentu.
 // key : 'subuh'/'dzuhur'/'ashar'/'maghrib'/'isya' (atau alias seperti 'fajr')
 // lang: 'id' | 'en' (default: ikut getLangNow())
-export function getMutiaraSholat(key, date = new Date(), lang = null) {
+function getMutiaraSholat(key, date = new Date(), lang = null) {
   let lng = lang;
   if (!lng) {
     try { lng = getLangNow(); } catch { lng = 'id'; }

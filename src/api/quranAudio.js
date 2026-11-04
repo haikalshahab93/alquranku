@@ -64,7 +64,7 @@ export async function getKaraokeReciters(allowStale = false) {
 }
 
 /** Setel reciter aktif untuk karaoke; tersimpan di AsyncStorage. */
-export const KARAOKE_RECITER_KEY = 'karaoke_reciter_id';
+const KARAOKE_RECITER_KEY= 'karaoke_reciter_id';
 
 export async function getPreferredKaraokeReciter() {
   try {

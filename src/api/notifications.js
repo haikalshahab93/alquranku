@@ -59,7 +59,7 @@ const LEGACY_CHANNEL_ID = 'prayer-reminders';
 // bersuara walau kode sudah mengaturnya. Solusinya: HAPUS lalu BUAT ULANG
 // setiap kali penjadwalan berjalan, sehingga channel di perangkat selalu
 // sesuai konfigurasi terkini.
-export async function ensureAndroidChannels() {
+async function ensureAndroidChannels() {
   if (Platform.OS !== 'android') return;
   // Buang channel legacy pra-per-waktu + SEMUA channel lama ber-ID v1.
   const legacyIds = [LEGACY_CHANNEL_ID, ...Object.values(CHANNELS).flatMap((c) => c.legacyIds || [])];
@@ -89,8 +89,8 @@ export async function ensureAndroidChannels() {
 }
 
 // Waktu sholat yang mendapat pengingat (Terbit & Imsak tidak termasuk)
-export const PRAYER_KEYS = ['subuh', 'dzuhur', 'ashar', 'maghrib', 'isya'];
-export const PRAYER_LABELS = {
+const PRAYER_KEYS= ['subuh', 'dzuhur', 'ashar', 'maghrib', 'isya'];
+const PRAYER_LABELS= {
   subuh: () => tNow('prayer.subuh'),
   dzuhur: () => tNow('prayer.dzuhur'),
   ashar: () => tNow('prayer.ashar'),
@@ -145,45 +145,24 @@ try {
 
 // Pilihan mod notifikasi: 'default' (bunyi sistem), 'adhan' (suara adzan custom,
 // dibundel via plugin), 'getar' (hanya bergetar), 'silent' (sunyi — visual saja)
-export const VALID_SOUND_CHOICES = ['default', 'adhan', 'getar', 'silent'];
-export const SOUND_CHOICES = {
+const VALID_SOUND_CHOICES= ['default', 'adhan', 'getar', 'silent'];
+const SOUND_CHOICES= {
   default: { labelKey: 'notif.lblDefault', channelSound: null, contentSound: null },
   adhan: { labelKey: 'notif.lblAdhan', channelSound: 'adhan.mp3', contentSound: 'adhan.mp3' },
   getar: { labelKey: 'notif.lblGetar', channelSound: null, contentSound: null },
   silent: { labelKey: 'notif.lblSunyi', channelSound: null, contentSound: null },
 };
 
-// Nilai suara valid untuk normalisasi input (dipakai semua layar)
-export const isKnownSound = (v) => VALID_SOUND_CHOICES.includes(v);
-
 // Konversi nilai suara (global atau per-waktu) ke channel Android tujuan.
 // 'off' artinya tanpa notifikasi sama sekali → dipakai untuk skip scheduling.
-export function resolveEffectiveSound(key, globalSound, perKeySounds) {
+function resolveEffectiveSound(key, globalSound, perKeySounds) {
   const v = perKeySounds?.[key];
   if (v === 'adhan' || v === 'getar' || v === 'silent' || v === 'off') return v;
   return VALID_SOUND_CHOICES.slice(1).includes(globalSound) ? globalSound : 'default';
 }
 
-// Pembaca reusable (dipakai Home, Pengaturan, dan layar Jadwal Sholat supaya
-// logika baca setelan tidak berulang-ulang di tiap layar).
-// Return: { enabled, offsetMinutes, sound, perKeySounds }
-export async function readNotifPrefs() {
-  try {
-    const [eRaw, oRaw, sRaw] = await Promise.all([
-      AsyncStorage.getItem('notif_prayer_enabled'),
-      AsyncStorage.getItem('notif_prayer_offset'),
-      AsyncStorage.getItem('notif_prayer_sound'),
-    ]);
-    const offset = Number.isFinite(parseInt(oRaw, 10)) ? parseInt(oRaw, 10) : 0;
-    const sound = VALID_SOUND_CHOICES.includes(sRaw) ? sRaw : 'default';
-    return { enabled: eRaw !== '0', offsetMinutes: offset, sound, perKeySounds: await readPerKeySounds() };
-  } catch {
-    return { enabled: true, offsetMinutes: 0, sound: 'default', perKeySounds: {} };
-  }
-}
-
 // Salin pengaturan suara per-waktu dari AsyncStorage: { subuh: 'adhan', ... }
-export async function readPerKeySounds() {
+async function readPerKeySounds() {
   try {
     const raw = await AsyncStorage.getItem('notif_prayer_perkey');
     const obj = raw ? JSON.parse(raw) : null;
@@ -197,7 +176,7 @@ export async function readPerKeySounds() {
 // (toggle pengingat di Pengaturan) — bukan sejak aplikasi dibuka. Karena itu
 // jalur otomatis tidak pernah memunculkan dialog: bila izin belum granted,
 // cukup return false (penjadwalan dilewati diam-diam) tanpa dialog.
-export async function ensureNotificationPermission({ prompt = true } = {}) {
+async function ensureNotificationPermission({ prompt = true } = {}) {
   try {
     const current = await Notifications.getPermissionsAsync();
     if (current?.granted) return true;
@@ -249,7 +228,7 @@ export async function canUseExactAlarms() {
 }
 
 // Batalkan semua notifikasi pengingat yang pernah dijadwalkan
-export async function cancelAllPrayerReminders() {
+async function cancelAllPrayerReminders() {
   try {
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     for (const n of scheduled || []) {
@@ -278,7 +257,7 @@ export async function cancelAllPrayerReminders() {
 // Langkah dasar jadwal: bersihkan jadwal lama, siapkan izin + channel Android.
 // prompt dioper dari pemanggil: jalur otomatis = false (tidak pernah memunculkan
 // dialog izin), jalur dari aksi pengguna di Pengaturan = true.
-export async function prepareScheduling({ prompt = true } = {}) {
+async function prepareScheduling({ prompt = true } = {}) {
   await cancelAllPrayerReminders();
   try { await ensureAndroidChannels(); } catch {}
   const granted = await ensureNotificationPermission({ prompt });
@@ -286,7 +265,7 @@ export async function prepareScheduling({ prompt = true } = {}) {
 }
 
 // "HH:MM", "HH:MM (+03)", "H:MM AM/PM" → { h, m } | null
-export function parsePrayerTime(t) {
+function parsePrayerTime(t) {
   const s = String(t || '').replace(/\s*\(.*?\)\s*/g, '').trim();
   let m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (m) {
@@ -302,7 +281,7 @@ export function parsePrayerTime(t) {
 // Satukan isi notifikasi untuk satu waktu sholat (dipakai semua penjadwal).
 // offsetMinutes > 0 berarti pengingat "menjelang" (mis. 5 menit sebelum).
 // Tambah kata bijak hadits sesuai waktu sholat (rotasi harian dari kataBijakSholat).
-export function buildReminderContent({ key, timeStr, offsetMinutes = 0, date = null }) {
+function buildReminderContent({ key, timeStr, offsetMinutes = 0, date = null }) {
   const label = (typeof PRAYER_LABELS[key] === 'function' ? PRAYER_LABELS[key]() : PRAYER_LABELS[key]) || key;
   const isEarly = (offsetMinutes || 0) > 0;
   const cleanTime = String(timeStr || '').replace(/\s*\(.*?\)\s*/g, '').trim();
@@ -328,7 +307,7 @@ export function buildReminderContent({ key, timeStr, offsetMinutes = 0, date = n
 //   - exact : { when: Date }                → eksak pada satu momen
 // Suara efektif ditentukan di luar (resolveEffectiveSound) lalu notifikasi
 // masuk channel Android yang cocok. 'off' → dilewati (return false).
-export async function schedulePrayerNotification({ identifier, key, timeStr, eff, offsetMinutes = 0, daily = false, hour, minute, when, }) {
+async function schedulePrayerNotification({ identifier, key, timeStr, eff, offsetMinutes = 0, daily = false, hour, minute, when, }) {
   if (!daily && !(when instanceof Date)) return false;    const content = buildReminderContent({ key, timeStr, offsetMinutes, date: when instanceof Date ? when : null });
     // Android 8+: SUARA/notification channel yang berlaku — sound di content justru
     // bisa mengunci jalur "suara default" internal dan membisukan channel custom
@@ -395,13 +374,13 @@ export async function schedulePrayerReminders({ jadwal, offsetMinutes = 0, enabl
  * ================================ */
 
 // ISO lokal "YYYY-MM-DD" dari Date (zona waktu perangkat)
-export function localIso(d) {
+function localIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Jadwalkan notifikasi EKSAK per hari (trigger "date"). days: [{ iso, jadwal }]
 // di mana jadwal sudah berformat kolom harian API (subuh/dzuhur/ashar/maghrib/isya).
-export async function schedulePrayerRemindersMultiDay({ days, offsetMinutes = 0, enabled = true, soundChoice = 'default', perKeySounds = {}, prompt = true }) {
+async function schedulePrayerRemindersMultiDay({ days, offsetMinutes = 0, enabled = true, soundChoice = 'default', perKeySounds = {}, prompt = true }) {
   if (Platform.OS === 'web') return { scheduled: 0, reason: 'web' };
   if (!enabled) { await cancelAllPrayerReminders(); return { scheduled: 0, reason: 'disabled' }; }
 

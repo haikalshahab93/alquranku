@@ -54,7 +54,7 @@ function getSupabase() {
 //   localKey  : kunci AsyncStorage tempat data asli disimpan
 //   keys      : (alternatif) beberapa kunci yang digabung jadi satu JSON
 //   merge     : saat ini 'lww' (whole-value last-write-wins)
-export const DATASETS = {
+const DATASETS= {
   bookmarks: {
     localKey: 'quran_bookmarks',
     jsonParse: true,

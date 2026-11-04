@@ -23,17 +23,9 @@ export function teachersOf(scholar) {
     .filter(Boolean);
 }
 
-// Semua murid ter-resolve (dipakai untuk konteks tambahan bila perlu)
-export function studentsOf(scholar) {
-  if (!scholar || !scholar.raw) return [];
-  return parseInds(scholar.raw.students_inds)
-    .map((id) => ULAMA_BY_ID.get(id))
-    .filter(Boolean);
-}
-
 const YEAR_RE = /-?\d{1,3}/;
 // Tahun wafat Hijriah sebagai angka (null bila tidak tersedia)
-export function deathYearOf(scholar) {
+function deathYearOf(scholar) {
   const s = String((scholar && scholar.death_hijri) ?? '');
   const m = s.match(YEAR_RE);
   return m ? parseInt(m[0], 10) : null;

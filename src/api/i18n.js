@@ -36,7 +36,7 @@ function detectDeviceLanguage() {
   }
 }
 
-export async function getLanguageSetting() {
+async function getLanguageSetting() {
   try {
     const v = await AsyncStorage.getItem(KEY_LANG);
     return PLATFORM_LANG_VALUE.includes(v) ? v : 'system';
@@ -46,7 +46,7 @@ export async function getLanguageSetting() {
 }
 
 // Bahasa efektif yang dipakai untuk render ('id' | 'en')
-export async function getEffectiveLanguage() {
+async function getEffectiveLanguage() {
   const setting = await getLanguageSetting();
   if (setting === 'id' || setting === 'en') return setting;
   return detectDeviceLanguage();
@@ -62,7 +62,7 @@ export async function setLanguageSetting(value) {
 }
 
 // Terjemahan satu kunci. Opsi vars untuk {nama} dsb.
-export function translate(lang, key, vars) {
+function translate(lang, key, vars) {
   // Simpan bahasa terakhir yang dipakai render agar modul non-hook
   // (penyimpanan, notifikasi, dll) bisa memakai bahasa aktif via getLangNow().
   if (lang === 'id' || lang === 'en') currentLang = lang;

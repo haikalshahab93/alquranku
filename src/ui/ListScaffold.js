@@ -158,27 +158,6 @@ export function ListScreen({ children, style }) {
   const pal = useTheme();
   return <SafeAreaView style={[{ flex: 1, backgroundColor: pal.colors.bg }, style]}>{children}</SafeAreaView>;
 }
-
-/* FlatList pembungkus lazim: container padding + kosong otomatis */
-export function ListFlatList({ data, renderItem, keyExtractor, numColumns, columnWrapperStyle, contentContainerStyle, emptyText }) {
-  return (
-    <FlatList
-      data={data}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      numColumns={numColumns}
-      columnWrapperStyle={columnWrapperStyle}
-      key={numColumns || 1}
-      ListEmptyComponent={
-        <View style={listStyles.center}>
-          <Text style={listStyles.statusText}>{emptyText || 'Tidak ada hasil.'}</Text>
-        </View>
-      }
-      contentContainerStyle={[listStyles.list, contentContainerStyle]}
-    />
-  );
-}
-
 const listStyles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12 },
   title: { fontSize: 20, fontWeight: '800' },

@@ -81,7 +81,7 @@ export function useTheme() {
   return { ...getPalette(darkMode), dark: darkMode, textScale };
 }
 
-export function BookIcon({ size = 72, style }) {
+function BookIcon({ size = 72, style }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 72 72" style={style}>
       {/* Spine */}
@@ -135,11 +135,6 @@ export function OutlineLightButton({ label, onPress, style }) {
 export function SectionTitle({ children, style }) {
   return <Text style={[styles.sectionTitle, style]}>{children}</Text>;
 }
-
-export function SecondaryText({ children, style }) {
-  return <Text style={[styles.secondaryText, style]}>{children}</Text>;
-}
-
 // Ubin menu dengan ikon berwarna untuk grid fitur
 export function FeatureTile({ title, icon, iconColor, onPress, style }) {
   const t = useTheme();

@@ -201,17 +201,6 @@ export async function preloadAllSurahData(onProgress) {
   }
 }
 
-/** Periksa apakah data surah tertentu sudah tersedia di cache lokal (bisa dibuka tanpa internet). */
-export async function isSurahDataAvailableOffline(nomor) {
-  const detailKey = cacheKey('surah_detail', String(nomor));
-  const tafsirKey = cacheKey('tafsir', String(nomor));
-  const [detail, tafsir] = await Promise.all([
-    readCache(detailKey, true),
-    readCache(tafsirKey, true),
-  ]);
-  return !!(detail && tafsir);
-}
-
 /** Hapus seluruh cache Quran (untuk reset / fresh download). */
 export async function clearQuranCache() {
   try {

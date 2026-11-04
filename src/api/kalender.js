@@ -115,41 +115,6 @@ function normalizeArray(payload) {
   return Array.isArray(arr) ? arr : [];
 }
 
-export async function getHijriMonthly(year, month) {
-  const ym = `${year}-${month}`;
-  const key = cacheKey('hijri_month', ym);
-  try {
-    const data = await getJSON(`${MYQURAN_V2_BASE}/kalender/hijriah/${encodeURIComponent(year)}/${encodeURIComponent(month)}`);
-    if (data && typeof data === 'object') {
-      try { data.__fromCache = false; } catch {}
-    }
-    await writeCache(key, data);
-    return data;
-  } catch (e) {
-    const cached = await readCache(key, true);
-    if (cached) return cached;
-    throw e;
-  }
-}
-
-// Opsional: Konversi tanggal Masehi -> Hijriah (jika tersedia di API)
-export async function masehiToHijri(year, month, day) {
-  const ymd = `${year}-${month}-${day}`;
-  const key = cacheKey('masehi2hijri', ymd);
-  try {
-    const data = await getJSON(`${MYQURAN_V2_BASE}/kalender/masehi2hijriah/${encodeURIComponent(year)}/${encodeURIComponent(month)}/${encodeURIComponent(day)}`);
-    if (data && typeof data === 'object') {
-      try { data.__fromCache = false; } catch {}
-    }
-    await writeCache(key, data);
-    return data;
-  } catch (e) {
-    const cached = await readCache(key, true);
-    if (cached) return cached;
-    throw e;
-  }
-}
-
 // Helper untuk memetakan array bulan ke indeks hari (1-based)
 export function mapMonthlyToDay(items, expectedLength) {
   const arr = normalizeArray(items);

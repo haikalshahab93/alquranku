@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /* berhasil dimuat — tanpa laid kosong/loading. */
 const SHOLAT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 hari
 // Snapshot terakhir (apa pun kuncinya) untuk "instant paint" saat layar dibuka
-export const SHOLAT_LAST_SNAPSHOT_KEY = 'sholat:harian:last';
+const SHOLAT_LAST_SNAPSHOT_KEY= 'sholat:harian:last';
 const sholatCacheKey = (kind, params = '') => `cache:sholat:${kind}${params ? ':' + params : ''}`;
 
 async function readSholatCache(key, allowStale = false) {
@@ -42,7 +42,7 @@ export async function readLastSholatSnapshot() {
   }
 }
 
-export async function writeLastSholatSnapshot(dataObj) {
+async function writeLastSholatSnapshot(dataObj) {
   try {
     await AsyncStorage.setItem(SHOLAT_LAST_SNAPSHOT_KEY, JSON.stringify({ ts: Date.now(), payload: dataObj }));
   } catch {}

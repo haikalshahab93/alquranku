@@ -42,7 +42,7 @@ export async function isAudioSavedOffline(surah, reciterId) {
  * Unduh MP3 surah + simpan timing kata. onProgress dipanggil dengan angka 0..1.
  * Mengembalikan metadata yang tersimpan.
  */
-export async function downloadSurahAudio(surah, reciterId, onProgress) {
+async function downloadSurahAudio(surah, reciterId, onProgress) {
   if (Platform.OS === 'web' || !FileSystem.documentDirectory) {
     throw new Error(WEB_UNSUPPORTED);
   }
@@ -76,7 +76,7 @@ export async function downloadSurahAudio(surah, reciterId, onProgress) {
 }
 
 /** Hapus audio offline satu surah. */
-export async function deleteSurahAudio(surah, reciterId) {
+async function deleteSurahAudio(surah, reciterId) {
   try {
     const raw = await bigGetItem(metaKeyFor(reciterId, surah));
     if (!raw) return;
@@ -106,12 +106,11 @@ export async function listOfflineAudio() {
   }
 }
 
-/** Hapus semua audio offline. */
+/** Hapus semua audio offline (reuse deleteSurahAudio per entri). */
 export async function deleteAllOfflineAudio() {
   const list = await listOfflineAudio();
   for (const m of list) {
-    try { await FileSystem.deleteAsync(m.uri, { idempotent: true }); } catch {}
-    try { await bigRemoveItem(metaKeyFor(m.reciterId, m.surah)); } catch {}
+    await deleteSurahAudio(m.surah, m.reciterId);
   }
   return list.length;
 }

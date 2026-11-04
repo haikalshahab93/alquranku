@@ -33,7 +33,7 @@ export const requestIgnoreBatteryDialog = async () => {
 
 // Buka pengaturan "hemat baterai" supaya aplikasi boleh dikecualikan.
 // Dilakukan export: dialog panduan izin di SettingsScreen memakai tombol yang sama.
-export const openBatteryOptimization = async () => {
+const openBatteryOptimization= async () => {
   try {
     await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
   } catch (e) {
