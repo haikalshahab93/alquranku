@@ -499,6 +499,14 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
       } catch (e2) { /* bulan gagal, lanjut bulan lain */ }
     }
 
+    // Alarm eksak butuh izin SCHEDULE_EXACT_ALARM (Android 12+; di Android 14
+    // DITOLAK secara default untuk instalasi baru). Bila belum diizinkan, kita
+    // TIDAK meninggalkan pengguna tanpa pengingat: jadwal di bawah jatuh ke
+    // repeat harian dari jadwal hari ini (masih berbunyi, hanya bisa meleset
+    // beberapa menit karena OS menunda alarm non-eksak). Jalur dari aksi
+    // pengguna (prompt) tetap dilaporkan 'not-exact' agar dipandu ke kartu
+    // "Alarm Tepat", meski pengingatnya sudah terpasang dalam mode harian.
+    let exactBlocked = false;
     if (Platform.OS === 'android') {
       const days = [];
       for (let i = 0; i <= daysAhead; i++) {
@@ -507,15 +515,11 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
         if (byIso[iso]) days.push(byIso[iso]);
       }
       if (days.length > 1) {
-        // Alarm eksak butuh izin SCHEDULE_EXACT_ALARM (Android 12+). Bila belum
-        // diaktifkan: jalur otomatis jatuh ke schedule harian (masih berjalan,
-        // cukup toleransi menit tertentu), jalur dari pengguna (prompt) dilaporkan
-        // lewat reason 'not-exact' agar dipandu ke kartu "Alarm Tepat" di Pengaturan.
         if (await canUseExactAlarms()) {
           const r = await schedulePrayerRemindersMultiDay({ days, offsetMinutes, enabled, soundChoice, perKeySounds: perKey, prompt });
           if (r?.scheduled > 0) return r;
-        } else if (prompt) {
-          return { scheduled: 0, reason: 'not-exact' };
+        } else {
+          exactBlocked = true;
         }
       }
     }
@@ -533,6 +537,12 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
     }
     if (!todayJadwal) return { scheduled: 0, reason: 'no-data' };
     const day = await schedulePrayerReminders({ jadwal: todayJadwal, offsetMinutes, enabled, soundChoice, perKeySounds: perKey, prompt });
+    // Mode harian sudah terpasang walau alarm eksak diblokir. Izin notifikasi
+    // yang ditolak lebih mendesak untuk dilaporkan (tanpa itu tak ada yang bisa
+    // tampil), jadi hanya alasan lain yang ditandai 'not-exact'.
+    if (exactBlocked && prompt && day?.reason !== 'permission') {
+      return { scheduled: day?.scheduled ?? 0, reason: 'not-exact' };
+    }
     return day;
   } catch (e) {
     // Fallback: pakai snapshot terakhir yang tersimpan

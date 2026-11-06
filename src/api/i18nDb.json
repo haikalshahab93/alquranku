@@ -198,7 +198,7 @@
   "settings.izinNotifTolakBody": { "id": "Pengingat waktu sholat butuh izin Notifikasi. Buka Pengaturan sistem \u2192 Alquranku \u2192 izinkan Notifikasi, lalu coba lagi.", "en": "Prayer reminders need the Notification permission. Open system Settings \u2192 Alquranku \u2192 allow Notifications, then try again." },
   "settings.bukaPengaturan": { "id": "Buka Pengaturan", "en": "Open Settings" },
   "settings.alarmTepatOffTitle": { "id": "Alarm Tepat belum diaktifkan", "en": "Exact alarms not enabled" },
-  "settings.alarmTepatOffBody": { "id": "Supaya pengingat muncul tepat waktu, aktifkan izin \"Alarm & pengingat\" untuk Alquranku.", "en": "For on-time reminders, allow \"Alarms & reminders\" for Alquranku." },
+  "settings.alarmTepatOffBody": { "id": "Pengingat tetap aktif dalam mode harian, tapi bisa meleset beberapa menit. Supaya bunyi tepat waktu, aktifkan izin \"Alarm & pengingat\" untuk Alquranku.", "en": "Reminders stay active in daily mode but may be a few minutes late. For on-time reminders, allow \"Alarms & reminders\" for Alquranku." },
   "settings.qariJudul": { "id": "Qari Al-Qur'an", "en": "Qur'an Reciters" },
   "settings.qariDesc": { "id": "Suara bacaan untuk Mode Karaoke di layar surat. Tanda di bawah tiap qari menunjukkan audio yang sudah tersimpan di HP (siap dipakai tanpa internet).", "en": "Recitation audio for Karaoke Mode on surah screens. The badges under each reciter show audio already saved on the device (usable without internet)." },
   "settings.qariErr": { "id": "Daftar qari perlu internet. Sambungkan internet lalu buka lagi.", "en": "The reciter list needs internet. Connect to the internet and open again." },
