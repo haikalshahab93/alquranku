@@ -432,7 +432,7 @@ async function schedulePrayerRemindersMultiDay({ days, offsetMinutes = 0, enable
 // Interval minimum antara dua penjadwalan ulang otomatis (4 jam).
 const REFRESH_THROTTLE_MS = 4 * 60 * 60 * 1000;
 
-export async function refreshPrayerReminderSchedule({ lat, lon, city, country, options = {}, offsetMinutes = 0, enabled = true, soundChoice = 'default', daysAhead = 40, prompt = true, force = false }) {
+export async function refreshPrayerReminderSchedule({ lat, lon, city, country, options = {}, offsetMinutes = 0, enabled = true, soundChoice = 'default', perKeySounds = null, daysAhead = 40, prompt = true, force = false }) {
   // Web: tidak ada notifikasi lokal API
   if (Platform.OS === 'web') return { scheduled: 0, reason: 'web' };
 
@@ -441,6 +441,13 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
     try { await schedulePrayerReminders({ enabled: false }); } catch {}
     return { scheduled: 0, reason: 'disabled' };
   }
+
+  // Setelan suara per-waktu WAJIB terdefinisi di sini: dulu nama variabel ini
+  // dipakai di badan fungsi tanpa pernah dideklarasikan, sehingga setiap
+  // penjadwalan melempar ReferenceError dan tertelan catch → 0 notifikasi
+  // (pengingat adzan tidak pernah muncul). Pemanggil boleh mengirimnya;
+  // kalau tidak, baca dari penyimpanan.
+  const perKey = perKeySounds || (await readPerKeySounds());
 
   // THROTTLE jalur otomatis (Home/SholatJadwal setiap dibuka): menajadwal ulang
   // ~40 hari × 5 notifikasi sebernanya + fetch 2 bulan jadwal setiap buka data
@@ -505,7 +512,7 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
         // cukup toleransi menit tertentu), jalur dari pengguna (prompt) dilaporkan
         // lewat reason 'not-exact' agar dipandu ke kartu "Alarm Tepat" di Pengaturan.
         if (await canUseExactAlarms()) {
-          const r = await schedulePrayerRemindersMultiDay({ days, offsetMinutes, enabled, soundChoice, perKeySounds, prompt });
+          const r = await schedulePrayerRemindersMultiDay({ days, offsetMinutes, enabled, soundChoice, perKeySounds: perKey, prompt });
           if (r?.scheduled > 0) return r;
         } else if (prompt) {
           return { scheduled: 0, reason: 'not-exact' };
@@ -525,13 +532,13 @@ export async function refreshPrayerReminderSchedule({ lat, lon, city, country, o
       try { todayJadwal = (await readLastSholatSnapshot())?.jadwal || null; } catch {}
     }
     if (!todayJadwal) return { scheduled: 0, reason: 'no-data' };
-    const day = await schedulePrayerReminders({ jadwal: todayJadwal, offsetMinutes, enabled, soundChoice, perKeySounds, prompt });
+    const day = await schedulePrayerReminders({ jadwal: todayJadwal, offsetMinutes, enabled, soundChoice, perKeySounds: perKey, prompt });
     return day;
   } catch (e) {
     // Fallback: pakai snapshot terakhir yang tersimpan
     try {
       const snap = await readLastSholatSnapshot();
-      return await schedulePrayerReminders({ jadwal: snap?.jadwal, offsetMinutes, enabled, soundChoice, perKeySounds });
+      return await schedulePrayerReminders({ jadwal: snap?.jadwal, offsetMinutes, enabled, soundChoice, perKeySounds: perKey });
     } catch { return { scheduled: 0, reason: 'no-data' }; }
   }
 }
