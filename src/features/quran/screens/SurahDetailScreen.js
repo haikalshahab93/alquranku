@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Share, Modal, TextInput, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Share, Modal, TextInput, TouchableWithoutFeedback, Alert } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getSuratDetail, getTafsir } from '../../../api/quran.js';
 import { withAppLink } from '../../../api/appLink.js';
-import { fetchChapterAudioData, findVerseTiming, wordPosAt, splitArabicWords, getPreferredKaraokeReciter } from '../../../api/quranAudio.js';
-import { getKaraokeAudioData, isAudioSavedOffline } from '../../../api/offlineAudio.js';
+import { findVerseTiming, wordPosAt, splitArabicWords, getPreferredKaraokeReciter } from '../../../api/quranAudio.js';
+import { getKaraokeAudioData, getOfflineKaraokeAudioData, isAudioSavedOffline } from '../../../api/offlineAudio.js';
+import { getSurahWords } from '../../../api/quranWords.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, getPalette } from '../../../ui';
 import { useAppearance, setTextScale as saveTextScale } from '../../../api/appearance.js';
@@ -21,6 +22,25 @@ const toArabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧�
 // Label nama qari (sebelumnya dipakai tapi belum didefinisikan -> ReferenceError).
 // Kalau sudah punya map sendiri di api/quran, hapus ini dan import dari sana.
 const QARI_LABELS = {};
+
+// Nomor ayat dari index daftar ayat (index array tidak selalu = nomor ayat).
+const ayahNumberAtIndex = (ayat, index) => {
+  const a = Array.isArray(ayat) ? ayat[index] : null;
+  return (a?.nomorAyat != null ? a.nomorAyat : (a?.nomor != null ? a.nomor : index + 1));
+};
+
+// Timing satu ayat pada data karaoke. Sengaja TIDAK memakai index array:
+// verse_timings bisa tidak lengkap atau tidak mulai dari ayat 1 (mis. salinan
+// offline lama), sehingga index ayat != index timing dan karaoke melompat ke
+// ayat yang salah. Bila ayat persisnya tidak ada, pakai timing berikutnya.
+function findTimingForAyah(data, surah, ayahNumber) {
+  const vts = Array.isArray(data?.verseTimings) ? data.verseTimings : [];
+  if (!vts.length) return null;
+  const exact = vts.find((v) => v?.verse_key === `${surah}:${ayahNumber}`);
+  if (exact) return exact;
+  const numOf = (v) => parseInt(String(v?.verse_key || '').split(':')[1], 10);
+  return vts.find((v) => numOf(v) >= ayahNumber) || vts[vts.length - 1];
+}
 
 export default function SurahDetailScreen({ route, navigation }) {
   // Definisi fetchDetail ditempatkan di atas return agar bisa dipanggil dari effect & tombol
@@ -63,10 +83,30 @@ export default function SurahDetailScreen({ route, navigation }) {
   const lastAutoScrollAtRef = useRef(0);
   // Penanda: event "selesai" untuk pemutaran saat ini sudah ditangani (cegah dobel)
   const finishHandledRef = useRef(false);
+  // Sesi karaoke: dinaikkan setiap mulai/berhenti/berganti surah, supaya hasil
+  // fetch yang telat (user menutup karaoke saat masih memuat) tidak ikut diputar.
+  const karaokeSessionRef = useRef(0);
+  // Baru true setelah audio sesi ini benar-benar berbunyi. Tanpa ini, status
+  // "selesai" sisa pemutaran sebelumnya bisa mematikan karaoke yang baru mulai.
+  const playbackStartedRef = useRef(false);
+  // Rentang potongan ayat (detik) saat memutar dari MP3 surah offline: audio
+  // dimulai di awal ayat dan berhenti tepat di akhirnya, seperti file per-ayat.
+  const ayahStartRef = useRef(null);
+  const ayahEndRef = useRef(null);
+  // Salinan offline untuk mode per-ayat: { key: 'surah:reciter', data }.
+  // data null = sudah dicek dan memang tidak ada (jangan baca ulang terus).
+  const offlineAyahDataRef = useRef(null);
+  // Pengawas: audio online yang tak kunjung termuat dialihkan ke salinan offline.
+  const ayahFallbackTimerRef = useRef(null);
+  // Status pemutar terbaru, untuk dibaca dari dalam setTimeout.
+  const playerStatusRef = useRef(null);
   // updateInterval 250ms: event status mengalir berkala (native & web) supaya
   // marking karaoke bergerak halus mengikuti bacaan.
   const player = useAudioPlayer(null, { updateInterval: 250 });
   const playerStatus = useAudioPlayerStatus(player);
+  // Pemutar terpisah untuk audio satu kata di Mode Belajar, supaya tidak
+  // mengganggu pemutaran ayat/karaoke yang sedang berjalan.
+  const wordPlayer = useAudioPlayer(null);
   const [bookmarksMap, setBookmarksMap] = useState({});
   const [activeCollection, setActiveCollection] = useState('My Favorite');
   // Progres baca (0..1) untuk wash-highlight ayat aktif + penanda ayat awal juz
@@ -78,6 +118,9 @@ export default function SurahDetailScreen({ route, navigation }) {
   const [karaokeLoading, setKaraokeLoading] = useState(false);
   const [karaokeData, setKaraokeData] = useState(null);
   const [karaokeErr, setKaraokeErr] = useState(null);
+  // Sumber sesi karaoke berjalan: 'online' (streaming quran.com) atau
+  // 'offline' (salinan tersimpan, dipakai saat koneksi/kuota tidak ada).
+  const [karaokeSource, setKaraokeSource] = useState(null);
   const [activeVerseKey, setActiveVerseKey] = useState(null); // 'surah:ayat'
   const [activeWordPos, setActiveWordPos] = useState(-1); // posisi kata 1-based
   // === Mode tampil teks: 'ayat' (per ayat) / 'mushaf' (Arab mengalir + tanda akhir ayat) ===
@@ -88,6 +131,16 @@ export default function SurahDetailScreen({ route, navigation }) {
 
   // === Audio offline: status unduhan per surah ===
   const [audioOffline, setAudioOffline] = useState(null); // meta tersimpan
+  // Sumber audio ayat yang sedang diputar: 'online' (API) atau 'offline'
+  // (potongan dari MP3 surah yang tersimpan).
+  const [ayahSource, setAyahSource] = useState(null);
+  // === Mode Belajar: kata per kata (arti, transliterasi, audio) ===
+  const [belajarMode, setBelajarMode] = useState(false);
+  const [studyLoading, setStudyLoading] = useState(false);
+  const [studyErr, setStudyErr] = useState(null);
+  const [studyMap, setStudyMap] = useState(null); // { '1:1': [ { position, arabic, ... } ] }
+  const [studyFromCache, setStudyFromCache] = useState(false);
+  const [studyWord, setStudyWord] = useState(null); // kata yang sedang dibuka { ayah, position }
 
 
   useEffect(() => {
@@ -97,6 +150,7 @@ export default function SurahDetailScreen({ route, navigation }) {
   // Cek status audio offline saat mount / reciter berubah
   useEffect(() => {
     let alive = true;
+    offlineAyahDataRef.current = null;
     isAudioSavedOffline(Number(nomor), selectedKaraokeReciterId).then((m) => { if (alive) setAudioOffline(m); }).catch(() => {});
     return () => { alive = false; };
   }, [nomor, selectedKaraokeReciterId]);
@@ -379,6 +433,45 @@ export default function SurahDetailScreen({ route, navigation }) {
     return () => clearInterval(id);
   }, [karaokeMode, karaokeData, activeVerseKey, detail, displayMode, nomor]);
 
+  // Tandai sesi pemutaran sudah benar-benar berbunyi (lihat playbackStartedRef).
+  useEffect(() => {
+    if (playerStatus.playing) playbackStartedRef.current = true;
+  }, [playerStatus.playing]);
+
+  // Salin status pemutar ke ref agar bisa dibaca dari dalam setTimeout.
+  useEffect(() => {
+    playerStatusRef.current = playerStatus;
+  }, [playerStatus]);
+
+  // Per-ayat: progres wash-highlight (dari posisi audio) dan henti tepat di
+  // akhir potongan offline. Dipisah dari efek "selesai" karena butuh
+  // currentTime yang berubah tiap ~250 ms.
+  useEffect(() => {
+    if (karaokeMode || playingAyahIndex == null) return;
+    const pos = playerStatus.currentTime;
+    if (typeof pos !== 'number') return;
+    const start = ayahStartRef.current;
+    const end = ayahEndRef.current;
+    if (start != null && end != null && end > start) {
+      const p = Math.min(1, Math.max(0, (pos - start) / (end - start)));
+      setPlayProgress((prev) => (Math.abs(prev - p) >= 0.01 ? Math.round(p * 100) / 100 : prev));
+      if (playerStatus.playing && pos >= end - 0.05) {
+        ayahStartRef.current = null;
+        ayahEndRef.current = null;
+        try { player.pause(); } catch (e) {}
+        setPlayingAyahId(null);
+        setPlayingAyahIndex(null);
+        setIsPlaying(false);
+        setPlayProgress(0);
+      }
+      return;
+    }
+    if (typeof playerStatus.duration === 'number' && playerStatus.duration > 0) {
+      const p = Math.min(1, Math.max(0, pos / playerStatus.duration));
+      setPlayProgress((prev) => (Math.abs(prev - p) >= 0.01 ? Math.round(p * 100) / 100 : prev));
+    }
+  }, [playerStatus.currentTime, playerStatus.playing, playerStatus.duration, playingAyahIndex, karaokeMode]);
+
   // Sinkron flag isPlaying + akhir pemutaran.
   // Mode per-ayat: setelah ayat yang diputar selesai, audio BERHENTI (tidak lanjut ke ayat berikutnya).
   // Mode karaoke: bersihkan state saat audio satu surah selesai.
@@ -386,20 +479,11 @@ export default function SurahDetailScreen({ route, navigation }) {
     if ('playing' in playerStatus) {
       setIsPlaying(!!playerStatus.playing);
     }
-    // Progres wash-highlight ayat aktif mengikuti posisi audio
-    if (
-      playerStatus.playing &&
-      playingAyahIndex != null &&
-      typeof playerStatus.duration === 'number' && playerStatus.duration > 0 &&
-      typeof playerStatus.currentTime === 'number'
-    ) {
-      const p = Math.min(1, Math.max(0, playerStatus.currentTime / playerStatus.duration));
-      setPlayProgress((prev) => (Math.abs(prev - p) >= 0.01 ? Math.round(p * 100) / 100 : prev));
-    }
-
     // Hanya relevan kalau memang ada pemutaran aktif (per-ayat atau karaoke).
     // Tanpa guard ini, sisa status audio lama bisa terbaca sebagai "selesai".
     if (playingAyahIndex == null && !karaokeMode) return;
+    // Abaikan status sebelum audio sesi ini berbunyi (lihat playbackStartedRef).
+    if (!playbackStartedRef.current) return;
 
     // Audio selesai (unit detik; toleransi 0.5s)
     const finished =
@@ -419,12 +503,15 @@ export default function SurahDetailScreen({ route, navigation }) {
     finishHandledRef.current = true;
 
     // BERHENTI total: tidak ada auto-lanjut ke ayat berikutnya
+    ayahStartRef.current = null;
+    ayahEndRef.current = null;
     setPlayingAyahId(null);
     setPlayingAyahIndex(null);
     setIsPlaying(false);
     setPlayProgress(0);
     if (karaokeMode) {
       setKaraokeMode(false);
+      setKaraokeSource(null);
       setActiveVerseKey(null);
       setActiveWordPos(-1);
     }
@@ -461,6 +548,45 @@ export default function SurahDetailScreen({ route, navigation }) {
       }
     })();
   }, [selectedQari]);
+
+  // Muat kata per kata saat Mode Belajar aktif (atau bahasa efektif berganti).
+  useEffect(() => {
+    if (!belajarMode) return;
+    let alive = true;
+    setStudyLoading(true);
+    setStudyErr(null);
+    getSurahWords(Number(nomor), lang)
+      .then((res) => {
+        if (!alive) return;
+        setStudyMap(res?.verses || {});
+        setStudyFromCache(!!res?.fromCache);
+      })
+      .catch(() => { if (alive) setStudyErr(t('quran.belajarErr')); })
+      .finally(() => { if (alive) setStudyLoading(false); });
+    return () => { alive = false; };
+  }, [belajarMode, nomor, lang]);
+
+  // Pindah surah: sesi karaoke lama tidak relevan lagi — hentikan supaya audio
+  // surah sebelumnya tidak terus berbunyi sambil teks surah baru tampil.
+  useEffect(() => {
+    karaokeSessionRef.current += 1;
+    setKaraokeMode(false);
+    setKaraokeLoading(false);
+    setKaraokeSource(null);
+    setKaraokeData(null);
+    setActiveVerseKey(null);
+    setActiveWordPos(-1);
+    setAyahSource(null);
+    setStudyMap(null);
+    setStudyWord(null);
+    ayahStartRef.current = null;
+    ayahEndRef.current = null;
+    if (ayahFallbackTimerRef.current) {
+      clearTimeout(ayahFallbackTimerRef.current);
+      ayahFallbackTimerRef.current = null;
+    }
+    try { player.pause(); } catch (e) {}
+  }, [nomor]);
 
   // === Reciter karaoke dimuat dari preferensi (dipilih di layar Pengaturan) ===
   // (Efek penyimpanan balik dihapus: setPreferredKaraokeReciter tidak di-import,
@@ -521,46 +647,109 @@ export default function SurahDetailScreen({ route, navigation }) {
   // === Mode Karaoke: satu MP3 per surah dari quran.com + timing per kata ===
   // reciterId: id reciter quran.com (default 7 = Mishary Al-`Afasy). Suara berubah saat reciter berubah.
   const startKaraoke = async (fromAyahIndex = 0, reciterId = selectedKaraokeReciterId) => {
+    const session = ++karaokeSessionRef.current;
     try {
       setKaraokeLoading(true);
       setKaraokeErr(null);
       finishHandledRef.current = false;
-      // Gunakan cache yang ada; jika tidak ada atau reciter berbeda, fetch ulang
-      const cached = karaokeData && karaokeData.reciterId === reciterId ? karaokeData : null;
-      const data = cached || (await getKaraokeAudioData(Number(nomor), reciterId)); // offline dulu, baru online
+      playbackStartedRef.current = false;
+      if (ayahFallbackTimerRef.current) {
+        clearTimeout(ayahFallbackTimerRef.current);
+        ayahFallbackTimerRef.current = null;
+      }
+      ayahStartRef.current = null;
+      ayahEndRef.current = null;
+      setAyahSource(null);
+      setBelajarMode(false);
+      setStudyWord(null);
+      try { wordPlayer.pause(); } catch (e) {}
+      // Hentikan pemutaran per-ayat lebih dulu, supaya status "selesai" milik
+      // audio lama tidak terbaca sebagai akhir sesi karaoke yang baru.
+      await stopCurrent();
+      // Data selalu diambil dari API quran.com (streaming langsung), tanpa
+      // menunggu unduhan. Salinan offline hanya dipakai bila permintaan gagal
+      // karena tidak ada koneksi/kuota.
+      const cached = karaokeData
+        && karaokeData.reciterId === reciterId
+        && karaokeData.surah === Number(nomor)
+        ? karaokeData
+        : null;
+      const data = cached || (await getKaraokeAudioData(Number(nomor), reciterId));
+      if (session !== karaokeSessionRef.current) return; // dibatalkan saat memuat
       setKaraokeData(data);
       setKaraokeMode(true);
+      setKaraokeSource(data.__offline ? 'offline' : 'online');
       // Karaoke tetap di mode tampil aktif — di mode Mushaf pun marking tetap jalan
-      const startIdx = Math.max(0, Math.min(fromAyahIndex, data.verseTimings.length - 1));
-      const timing = data.verseTimings[startIdx];
+      const ayahNumber = ayahNumberAtIndex(detail?.ayat, fromAyahIndex);
+      const timing = findTimingForAyah(data, Number(nomor), ayahNumber);
+      if (!timing) throw new Error('Timing karaoke tidak tersedia');
       setActiveVerseKey(timing.verse_key);
       setActiveWordPos(-1);
       setPlayingAyahIndex(null);
       setPlayingAyahId(null);
       setPlayProgress(0);
-      await stopCurrent();
       player.replace({ uri: data.audioUrl });
-      try { await player.seekTo(Math.max(0, timing.timestamp_from / 1000)); } catch (e) {}
+      try { await player.seekTo(Math.max(0, (timing.timestamp_from || 0) / 1000)); } catch (e) {}
+      if (session !== karaokeSessionRef.current) return; // dibatalkan saat seek
       player.play();
-      const ayNumber = parseInt(String(timing.verse_key).split(':')[1], 10);
-      const idx = detail?.ayat?.findIndex((it) => (it?.nomorAyat != null ? it.nomorAyat : it?.nomor) === ayNumber);
       // Di mode Mushaf seluruh surah satu kartu — tidak perlu scroll
-      if (typeof idx === 'number' && idx >= 0 && displayMode !== 'mushaf') {
-        flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+      if (displayMode !== 'mushaf') {
+        const idx = detail?.ayat?.findIndex((it) => (it?.nomorAyat != null ? it.nomorAyat : it?.nomor) === ayahNumber);
+        if (typeof idx === 'number' && idx >= 0) {
+          flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+        }
       }
     } catch (e) {
       setKaraokeMode(false);
+      setKaraokeSource(null);
       setKaraokeErr(t('quran.karaokeErr'));
     } finally {
-      setKaraokeLoading(false);
+      if (session === karaokeSessionRef.current) setKaraokeLoading(false);
     }
   };
 
   const stopKaraoke = async () => {
+    karaokeSessionRef.current += 1; // batalkan pemuatan yang masih berjalan
     setKaraokeMode(false);
+    setKaraokeLoading(false);
+    setKaraokeSource(null);
     setActiveVerseKey(null);
     setActiveWordPos(-1);
     try { player.pause(); } catch (e) {}
+  };
+
+  // === Mode Belajar: kata per kata ===
+  const closeStudy = () => {
+    setStudyWord(null);
+    try { wordPlayer.pause(); } catch (e) {}
+  };
+
+  const playWordAudio = (word) => {
+    if (!word?.audioUrl) return;
+    try {
+      wordPlayer.replace({ uri: word.audioUrl });
+      wordPlayer.play();
+    } catch (e) {}
+  };
+
+  // Ketuk satu kata: sorot + buka rincian ayat + dengarkan pengucapannya.
+  const openStudyWord = (ayahNumber, word) => {
+    setStudyWord({ ayah: ayahNumber, position: word.position });
+    playWordAudio(word);
+  };
+
+  // Belajar dan Karaoke sama-sama merender teks Arab per kata: pilih satu.
+  const toggleBelajar = () => {
+    const next = !belajarMode;
+    setBelajarMode(next);
+    setStudyWord(null);
+    if (next) {
+      // Kata per kata hanya dirender di mode Per Ayat.
+      if (displayMode === 'mushaf') setDisplayMode('ayat');
+      if (karaokeMode) stopKaraoke();
+    } else {
+      try { wordPlayer.pause(); } catch (e) {}
+    }
   };
 
   // Play/pause dari tombol melayang saat karaoke aktif (kedua mode tampil)
@@ -576,19 +765,89 @@ export default function SurahDetailScreen({ route, navigation }) {
     setDisplayMode(m);
   };
 
+  // Per-ayat dari salinan offline: potong MP3 surah pada rentang ayat itu.
+  // Hanya dipakai bila audio online tidak tersedia (tanpa kuota/koneksi).
+  const playAyahOffline = async (index, ayahNumber, silent = false) => {
+    try {
+      const key = `${Number(nomor)}:${selectedKaraokeReciterId}`;
+      let offline = offlineAyahDataRef.current?.key === key
+        ? offlineAyahDataRef.current.data
+        : null;
+      if (offline === null) {
+        offline = await getOfflineKaraokeAudioData(Number(nomor), selectedKaraokeReciterId)
+          .catch(() => null);
+        offlineAyahDataRef.current = { key, data: offline };
+      }
+      const timing = offline ? findTimingForAyah(offline, Number(nomor), ayahNumber) : null;
+      if (!offline || !timing) {
+        if (!silent) Alert.alert(t('quran.ayahAudioOfflineTidakAda'));
+        return false;
+      }
+      const from = (timing.timestamp_from || 0) / 1000;
+      const to = (timing.timestamp_to || 0) / 1000;
+      finishHandledRef.current = false;
+      playbackStartedRef.current = false;
+      await stopCurrent();
+      player.replace({ uri: offline.audioUrl });
+      ayahStartRef.current = from;
+      ayahEndRef.current = to > from ? to : null;
+      setPlayingAyahIndex(index);
+      setPlayingAyahId(detail?.ayat?.[index]?.id ?? null);
+      setPlayProgress(0);
+      setAyahSource('offline');
+      // Di mode Mushaf hanya ada satu kartu (tanpa per-ayat untuk digulirkan).
+      if (displayMode !== 'mushaf') {
+        flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      }
+      try { await player.seekTo(Math.max(0, from)); } catch (e) {}
+      player.play();
+      return true;
+    } catch (e) {
+      if (!silent) Alert.alert(t('quran.ayahAudioOfflineTidakAda'));
+      return false;
+    }
+  };
+
+  // Audio online kadang gagal termuat tanpa pesan (mis. kuota habis). Setelah
+  // beberapa detik tanpa tanda bunyi/termuat, alihkan ke salinan offline.
+  const startAyahFallback = (index, ayahNumber) => {
+    if (ayahFallbackTimerRef.current) clearTimeout(ayahFallbackTimerRef.current);
+    ayahFallbackTimerRef.current = setTimeout(() => {
+      ayahFallbackTimerRef.current = null;
+      const st = playerStatusRef.current || {};
+      const started = !!st.isLoaded || !!st.playing
+        || (st.currentTime || 0) > 0.1 || (st.duration || 0) > 0;
+      if (started) return;
+      playAyahOffline(index, ayahNumber, true);
+    }, 3500);
+  };
+
   const playAyah = async (index) => {
+    const ayahNumber = ayahNumberAtIndex(detail?.ayat, index);
     try {
       const url = getAyahAudioUrl(index);
-      if (!url) return;
+      if (!url) {
+        // Tidak ada URL dari API (mis. data cache lama) -> langsung offline.
+        await playAyahOffline(index, ayahNumber);
+        return;
+      }
       finishHandledRef.current = false;
+      playbackStartedRef.current = false;
       await stopCurrent();
       player.replace({ uri: url });
       setPlayingAyahIndex(index);
-      setPlayingAyahId(detail.ayat[index].id);
+      setPlayingAyahId(detail?.ayat?.[index]?.id ?? null);
       setPlayProgress(0);
-      flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      setAyahSource('online');
+      ayahStartRef.current = null;
+      ayahEndRef.current = null;
+      if (displayMode !== 'mushaf') {
+        flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+      }
       player.seekTo(0);
       player.play();
+      // Pengawas hanya perlu bila ada salinan offline untuk dialihkan.
+      if (audioOffline) startAyahFallback(index, ayahNumber);
 
       // Simpan progress "terakhir dibaca" setiap kali memutar ayat
       try {
@@ -657,10 +916,12 @@ export default function SurahDetailScreen({ route, navigation }) {
 
   useEffect(() => {
     return () => {
+      if (ayahFallbackTimerRef.current) clearTimeout(ayahFallbackTimerRef.current);
       try { player.pause(); } catch {}
       try { player.seekTo(0); } catch {}
+      try { wordPlayer.pause(); } catch {}
     };
-  }, [player]);
+  }, [player, wordPlayer]);
 
   const shareAyah = async (ayahNumber, arabText, latinText, indoText) => {
     try {
@@ -689,6 +950,8 @@ export default function SurahDetailScreen({ route, navigation }) {
     const hasAudio = !!getAyahAudioUrl(index);
     const ayahNumber = (item?.nomorAyat != null ? item.nomorAyat : (item?.nomor != null ? item.nomor : index + 1));
     const arabText = item?.teksArab ?? item?.teks_arab;
+    // Kata per kata quran.com (hanya saat Mode Belajar dan data sudah siap).
+    const studyWords = belajarMode ? studyMap?.[`${nomor}:${ayahNumber}`] : null;
     const latinText = item?.teksLatin ?? item?.teks_latin;
     const indoId = item?.teksIndonesia ?? item?.teks_terjemahan;
     // Bila bahasa efektif = English, pakai terjemahan EN (api.quran.com)
@@ -865,9 +1128,35 @@ export default function SurahDetailScreen({ route, navigation }) {
                 <Ionicons name={isActive && isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={22} color={pal.colors.primary} />
               </TouchableOpacity>
             ) : null}
+            {isActive && ayahSource === 'offline' ? (
+              <View style={[styles.offlineTag, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+                <Ionicons name="cloud-offline-outline" size={12} color={pal.colors.muted} />
+                <Text style={[styles.offlineTagText, { color: pal.colors.muted }]}>{t('quran.ayatOffline')}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
-        {arabText ? (
+        {belajarMode && studyWords && studyWords.length ? (
+          <View style={styles.studyWords}>
+            {studyWords.map((w) => {
+              const studyActive = !!studyWord
+                && studyWord.ayah === ayahNumber
+                && studyWord.position === w.position;
+              return (
+                <TouchableOpacity
+                  key={`study-${ayahNumber}-${w.position}`}
+                  activeOpacity={0.75}
+                  onPress={() => openStudyWord(ayahNumber, w)}
+                  style={[styles.studyWordBtn, studyActive && styles.studyWordBtnActive]}
+                >
+                  <Text style={[styles.arab, { fontSize: 22 * textScale, lineHeight: 34 * textScale }, pal.dark && { color: pal.colors.text }, studyActive && styles.studyWordTextActive]}>
+                    {w.arabic}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : arabText ? (
           karaokeMode && activeVerseKey === `${nomor}:${ayahNumber}` && karaokeData ? (
             (() => {
               const timing = findVerseTiming(karaokeData, Number(nomor), ayahNumber);
@@ -947,6 +1236,23 @@ const styles = StyleSheet.create({
   karaokeBtn: { backgroundColor: '#6d28d9' },
   karaokeBtnActive: { backgroundColor: '#059669' },
   karaokeErr: { color: '#b91c1c', marginTop: 6, fontWeight: '600' },
+  karaokeSource: { marginTop: 6, fontSize: 12, fontWeight: '600', color: '#6b7280' },
+  studyBtn: { backgroundColor: '#0d9488' },
+  // Kata Arab yang bisa diketuk (RTL: kata pertama di kanan)
+  studyWords: { flexDirection: 'row-reverse', flexWrap: 'wrap' },
+  studyWordBtn: { borderRadius: 6, paddingHorizontal: 2 },
+  studyWordBtnActive: { backgroundColor: '#ccfbf1' },
+  studyWordTextActive: { color: '#0f766e', fontWeight: '700' },
+  studyCard: { maxWidth: 460 },
+  studyList: { maxHeight: 340 },
+  studyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1 },
+  studyRowActive: { backgroundColor: '#f0fdfa' },
+  studyArabic: { fontFamily: 'NotoNaskhArabic', fontSize: 22, textAlign: 'right', lineHeight: 32 },
+  studyTranslit: { fontSize: 12, fontWeight: '700', marginTop: 2 },
+  studyMeaning: { fontSize: 13, marginTop: 2 },
+  studyHint: { fontSize: 11, marginTop: 10 },
+  offlineTag: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  offlineTagText: { fontSize: 10, fontWeight: '700' },
   offlineAudioRow: { paddingHorizontal: 16, marginTop: 8 },
   offlineAudioBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1219,7 +1525,30 @@ const stylesMobile = StyleSheet.create({
             >
               <Text style={styles.ctrlText}>{karaokeLoading ? t('quran.karaokeMemuat') : karaokeMode ? t('quran.karaokeAktif') : t('quran.karaokeMode')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.ctrlBtn, styles.studyBtn, belajarMode && styles.karaokeBtnActive]}
+              onPress={toggleBelajar}
+              disabled={studyLoading}
+            >
+              <Text style={styles.ctrlText}>{belajarMode ? t('quran.modeBelajarAktif') : t('quran.modeBelajar')}</Text>
+            </TouchableOpacity>
           </View>
+          {/* Dari mana audio karaoke diambil: streaming API atau salinan offline */}
+          {karaokeMode && karaokeSource ? (
+            <Text style={[styles.karaokeSource, pal.dark && { color: pal.colors.muted }]}>
+              {karaokeSource === 'offline' ? t('quran.karaokeOffline') : t('quran.karaokeOnline')}
+            </Text>
+          ) : null}
+          {belajarMode ? (
+            <Text style={[styles.karaokeSource, pal.dark && { color: pal.colors.muted }]}>
+              {studyLoading
+                ? t('quran.belajarMemuat')
+                : (studyFromCache ? t('quran.belajarOffline') : t('quran.belajarHint'))}
+            </Text>
+          ) : null}
+          {!!studyErr && (
+            <Text style={styles.karaokeErr}>{studyErr}</Text>
+          )}
           {/* Status audio offline (unduhan dikelola dari Pengaturan → Unduh Semua Audio) */}
           {audioOffline ? (
             <View style={styles.offlineAudioRow}>
@@ -1317,6 +1646,48 @@ const stylesMobile = StyleSheet.create({
                     <Text style={[styles.bmActionText, { color: '#FFFFFF' }]}>{t('quran.simpan')}</Text>
                   </TouchableOpacity>
                 </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Mode Belajar: rincian kata satu ayat + audio pengucapan */}
+      <Modal visible={!!studyWord} transparent animationType="fade" onRequestClose={closeStudy}>
+        <TouchableWithoutFeedback onPress={closeStudy}>
+          <View style={styles.bmBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.bmCard, styles.studyCard, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
+                <Text style={[styles.bmTitle, { color: pal.colors.text }]}>
+                  {t('quran.belajarJudul', { s: Number(nomor), a: studyWord?.ayah ?? '' })}
+                </Text>
+                <ScrollView style={styles.studyList} nestedScrollEnabled>
+                  {(studyMap?.[`${nomor}:${studyWord?.ayah}`] || []).map((w) => {
+                    const active = studyWord?.position === w.position;
+                    return (
+                      <TouchableOpacity
+                        key={`study-row-${w.position}`}
+                        style={[styles.studyRow, { borderBottomColor: pal.colors.surfaceBorder }, active && styles.studyRowActive]}
+                        onPress={() => {
+                          setStudyWord({ ayah: studyWord?.ayah, position: w.position });
+                          playWordAudio(w);
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.studyArabic, { color: pal.colors.text }]}>{w.arabic}</Text>
+                          {w.transliteration ? (
+                            <Text style={[styles.studyTranslit, { color: pal.colors.primary }]}>{w.transliteration}</Text>
+                          ) : null}
+                          {w.meaning ? (
+                            <Text style={[styles.studyMeaning, { color: pal.colors.muted }]}>{w.meaning}</Text>
+                          ) : null}
+                        </View>
+                        <Ionicons name="volume-medium-outline" size={18} color={pal.colors.primary} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <Text style={[styles.studyHint, { color: pal.colors.muted }]}>{t('quran.belajarDengar')}</Text>
               </View>
             </TouchableWithoutFeedback>
           </View>

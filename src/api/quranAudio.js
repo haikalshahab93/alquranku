@@ -6,6 +6,34 @@ import { bigGetItem, bigSetItem } from './bigStore.js';
 // Dipakai untuk highlight kata aktif yang akurat mengikuti bacaan.
 const QDC_BASE = 'https://api.quran.com/api/qdc';
 
+// Batas tunggu permintaan ke quran.com. Tanpa ini, permintaan tanpa jaringan
+// bisa menggantung puluhan detik sehingga karaoke terlihat "mati" (tidak pernah
+// mulai, tidak pernah error) sebelum akhirnya jatuh ke audio offline.
+const FETCH_TIMEOUT_MS = 12000;
+
+// fetch + batas waktu (AbortController). Dilempar sebagai Error biasa supaya
+// pemanggil bisa langsung memakai jalur cadangan (audio offline).
+async function fetchWithTimeout(url, timeoutMs = FETCH_TIMEOUT_MS) {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch {} }, timeoutMs) : null;
+  try {
+    return await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error('Koneksi ke quran.com timeout');
+    throw e;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+// quran.com kadang mengirim URL protokol-relatif ("//host/path") — pemutar
+// audio butuh URL absolut.
+function absoluteAudioUrl(u) {
+  const s = typeof u === 'string' ? u.trim() : '';
+  if (!s) return null;
+  return s.startsWith('//') ? `https:${s}` : s;
+}
+
 // Cache memori per (reciter:chapter) agar tidak fetch ulang saat bolak-balik surah
 const audioDataCache = new Map();
 
@@ -14,7 +42,7 @@ const RECITERS_CACHE_KEY = 'cache:quran:karaoke_reciters';
 const RECITERS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function fetchRecitersList() {
-  const res = await fetch(`${QDC_BASE}/audio/reciters`);
+  const res = await fetchWithTimeout(`${QDC_BASE}/audio/reciters`);
   if (!res.ok) throw new Error(`Gagal memuat daftar reciter (${res.status})`);
   const json = await res.json();
   const list = Array.isArray(json?.reciters) ? json.reciters : [];
@@ -66,7 +94,7 @@ export async function getKaraokeReciters(allowStale = false) {
 }
 
 /** Setel reciter aktif untuk karaoke; tersimpan di AsyncStorage. */
-const KARAOKE_RECITER_KEY= 'karaoke_reciter_id';
+const KARAOKE_RECITER_KEY = 'karaoke_reciter_id';
 
 export async function getPreferredKaraokeReciter() {
   try {
@@ -85,14 +113,15 @@ export async function setPreferredKaraokeReciter(id) {
 export async function fetchChapterAudioData(chapterNumber, reciterId = 7) {
   const key = `${reciterId}:${chapterNumber}`;
   if (audioDataCache.has(key)) return audioDataCache.get(key);
-  const res = await fetch(`${QDC_BASE}/audio/reciters/${reciterId}/audio_files?chapter=${chapterNumber}&segments=true`);
+  const res = await fetchWithTimeout(`${QDC_BASE}/audio/reciters/${reciterId}/audio_files?chapter=${chapterNumber}&segments=true`);
   if (!res.ok) throw new Error(`Gagal memuat audio quran.com (${res.status})`);
   const json = await res.json();
   // audio_files bisa berupa array 1 elemen atau objek langsung
   const af = Array.isArray(json?.audio_files) ? json.audio_files[0] : json?.audio_files;
   const data = {
+    surah: Number(chapterNumber),
     reciterId,
-    audioUrl: af?.audio_url || null,
+    audioUrl: absoluteAudioUrl(af?.audio_url),
     duration: af?.duration || 0,
     // verse_timings: [{ verse_key: '2:255', timestamp_from, timestamp_to, segments: [[pos,from,to],...] }]
     verseTimings: af?.verse_timings || [],

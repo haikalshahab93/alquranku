@@ -8,7 +8,7 @@ import { useAppearance } from '../../api/appearance.js';
 import { withAppLink } from '../../api/appLink.js';
 import { getSurahDetail } from '../../api/quran.js';
 import { getAladhanHarianCity, getAladhanHarianCoords } from '../../api/aladhan.js';
-import { schedulePrayerReminders, refreshPrayerReminderSchedule } from '../../api/notifications.js';
+import { schedulePrayerReminders, refreshPrayerReminderSchedule, readReminderSettings } from '../../api/notifications.js';
 import { readLastSholatSnapshot } from '../../api/aladhan.js';
 import { onSettingsChanged } from '../../api/settingsEvents.js';
 import { useI18n } from '../../api/i18n.js';
@@ -355,21 +355,18 @@ export default function HomeScreen({ navigation }) {
       // Di Android memakai jadwal bulanan multi-hari eksak (auto-refresh tiap
       // app dibuka); di iOS pakai repeat harian.
       try {
-        const enabledRaw = await AsyncStorage.getItem('notif_prayer_enabled');
-        const offsetRaw = await AsyncStorage.getItem('notif_prayer_offset');
-        const soundRaw = await AsyncStorage.getItem('notif_prayer_sound');
+        // Setelan pengingat dibaca di satu tempat (notifications.js); jalur
+        // otomatis: TIDAK memunculkan dialog izin (Android 13+ menuntut
+        // permintaan izin dari aksi pengguna di Pengaturan, bukan saat app dibuka).
+        const reminderSettings = await readReminderSettings();
         await refreshPrayerReminderSchedule({
+          ...reminderSettings,
           lat: (lat != null ? lat : null),
           lon: (lon != null ? lon : null),
           city: cityParam,
           country: countryParam,
           options,
-          offsetMinutes: Number.isFinite(parseInt(offsetRaw, 10)) ? parseInt(offsetRaw, 10) : 0,
-          enabled: enabledRaw !== '0', // default aktif
-          // Jalur otomatis: TIDAK memunculkan dialog izin (Android 13+ menuntut
-          // permintaan izin dari aksi pengguna di Pengaturan, bukan saat app dibuka).
           prompt: false,
-          soundChoice: ['adhan', 'getar', 'silent'].includes(soundRaw) ? soundRaw : 'default',
         });
       } catch (e) {}
     } catch (e) {

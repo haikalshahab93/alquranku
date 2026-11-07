@@ -275,29 +275,50 @@ async function webBlobUrlFor(reciterId, surah) {
 }
 
 /**
- * Data audio untuk karaoke: offline dulu (meta tersimpan), baru online.
+ * Data audio yang SUDAH tersimpan di perangkat (tanpa menyentuh jaringan).
+ * Dipakai sebagai jalur cadangan karaoke maupun per-ayat saat tidak ada
+ * koneksi/kuota. Return null bila memang tidak ada salinan yang bisa diputar.
+ */
+export async function getOfflineKaraokeAudioData(surah, reciterId) {
+  const offline = await isAudioSavedOffline(surah, reciterId);
+  if (!offline) return null;
+  let audioUri = offline.uri || null; // file:// di native
+  if (isWeb()) {
+    audioUri = await webBlobUrlFor(reciterId, surah);
+    if (!audioUri) {
+      // Meta ada tapi Blob hilang (mis. storage browser dibersihkan):
+      // buang sisa meta agar tidak dianggap tersimpan selamanya.
+      try { await deleteSurahAudio(surah, reciterId); } catch {}
+    }
+  }
+  if (!audioUri) return null;
+  return {
+    surah: Number(surah),
+    reciterId,
+    audioUrl: audioUri, // file:// di native, blob: URL di web
+    duration: offline.duration || 0,
+    verseTimings: offline.verseTimings || [],
+    __offline: true,
+  };
+}
+
+/**
+ * Data audio untuk karaoke.
+ * Urutan sumber: API quran.com DULU (streaming langsung, tidak menunggu
+ * unduhan), lalu salinan offline hanya bila permintaan gagal karena tidak ada
+ * koneksi/kuota. Audio offline tidak pernah "menang" atas API saat online
+ * tersedia, supaya bacaan selalu segar dan tidak diam-diam memakai file lama.
  * Return: { ...data, __offline: boolean }
  */
 export async function getKaraokeAudioData(surah, reciterId) {
-  const offline = await isAudioSavedOffline(surah, reciterId);
-  if (offline) {
-    let audioUri = offline.uri || null;
-    if (isWeb()) {
-      audioUri = await webBlobUrlFor(reciterId, surah);
-      if (!audioUri) {
-        // Meta ada tapi Blob hilang (mis. storage browser dibersihkan) -> unduh ulang
-        try { await deleteSurahAudio(surah, reciterId); } catch {}
-        return { ...(await fetchChapterAudioData(surah, reciterId)), __offline: false };
-      }
-    }
-    return {
-      reciterId,
-      audioUrl: audioUri, // file:// di native, blob: URL di web
-      duration: offline.duration || 0,
-      verseTimings: offline.verseTimings || [],
-      __offline: true,
-    };
+  let onlineError = null;
+  try {
+    const online = await fetchChapterAudioData(surah, reciterId);
+    return { ...online, __offline: false };
+  } catch (e) {
+    onlineError = e; // tanpa kuota / tanpa jaringan / server bermasalah
   }
-  const online = await fetchChapterAudioData(surah, reciterId);
-  return { ...online, __offline: false };
+  const offline = await getOfflineKaraokeAudioData(surah, reciterId);
+  if (offline) return offline;
+  throw onlineError || new Error('Audio karaoke tidak tersedia');
 }

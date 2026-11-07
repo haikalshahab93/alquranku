@@ -6,7 +6,7 @@ import { useI18n } from '../../../api/i18n.js';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAladhanHarianCity, getAladhanHarianCoords, readLastSholatSnapshot } from '../../../api/aladhan.js';
-import { refreshPrayerReminderSchedule } from '../../../api/notifications.js';
+import { refreshPrayerReminderSchedule, readReminderSettings } from '../../../api/notifications.js';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { onSettingsChanged } from '../../../api/settingsEvents.js';
 import * as Location from 'expo-location';
@@ -350,13 +350,16 @@ export default function SholatJadwalScreen() {
       try {
         const jadwal = data?.jadwal;
         if (!jadwal || !(jadwal.subuh || jadwal.dzuhur)) return;
-        const [enabledRaw, offsetRaw, soundRaw] = await Promise.all([
-          AsyncStorage.getItem('notif_prayer_enabled'),
-          AsyncStorage.getItem('notif_prayer_offset'),
-          AsyncStorage.getItem('notif_prayer_sound'),
-        ]);
+        // Setelan pengingat dibaca di satu tempat (notifications.js); nilai dari
+        // state layar ini menimpa bila ada perubahan yang belum tersimpan.
+        const reminderSettings = await readReminderSettings();
         const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : undefined; };
         await refreshPrayerReminderSchedule({
+          ...reminderSettings,
+          enabled: notifEnabled && reminderSettings.enabled,
+          soundChoice: reminderSettings.soundChoice !== 'default'
+            ? reminderSettings.soundChoice
+            : (['adhan', 'getar', 'silent'].includes(notifSound) ? notifSound : 'default'),
           lat,
           lon,
           city,
@@ -371,11 +374,6 @@ export default function SholatJadwalScreen() {
             calendarMethod: toNum(calendarMethod),
             shafaq: (shafaq || '').trim() || undefined,
           },
-          offsetMinutes: Number.isFinite(parseInt(offsetRaw, 10)) ? parseInt(offsetRaw, 10) : 0,
-          enabled: notifEnabled && enabledRaw !== '0',
-          soundChoice: (['adhan', 'getar', 'silent'].includes(soundRaw)
-            ? soundRaw
-            : (['adhan', 'getar', 'silent'].includes(notifSound) ? notifSound : 'default')),
           // Jalur otomatis: tanpa dialog izin — permintaan izin Android 13+ hanya
           // dari toggle pengingat di Pengaturan (dengan konteks).
           prompt: false,

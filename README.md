@@ -8,6 +8,7 @@ Aplikasi Al-Qur'an Islami berbasis **Expo (React Native)** — lintas platform A
 - Daftar 114 surat dengan pencarian + bookmark koleksi (My Favorite, Daily, dll.) — ketuk bookmark untuk langsung membuka ayatnya.
 - Detail surat: teks **Arab, Latin, Terjemahan Indonesia**, plus terjemahan Inggris (Abdel Haleem via api.quran.com, cache offline).
 - **Mode Karaoke**: audio per ayat, ayat aktif tersorot mengikuti bacaan; kontrol Putar Surat / Sebelumnya / Berikutnya / Hentikan.
+- **Mode Belajar**: teks Arab dipecah per kata — ketuk kata untuk melihat arti, transliterasi, dan mendengar pengucapannya; data kata per kata (quran.com) disimpan agar tetap bisa dipakai tanpa internet.
 - Pilihan qari lewat dropdown ringkas: baris ringkasan (nama + status unduhan) → ketuk untuk membuka daftar penuh → pilih → daftar auto-tutup.
 - Tafsir per ayat: dipaginasi per halaman, navigasi antar ayat ("Sebelumnya/Berikutnya").
 
