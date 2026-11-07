@@ -372,7 +372,7 @@
   "quran.karaokeOnline": { "id": "Memutar langsung dari quran.com (streaming)", "en": "Streaming directly from quran.com" },
   "quran.karaokeOffline": { "id": "Tanpa koneksi/kuota — memakai audio yang sudah tersimpan", "en": "No connection or data — using audio already saved on the device" },
   "quran.ayatOffline": { "id": "Offline", "en": "Offline" },
-  "quran.ayahAudioOfflineTidakAda": { "id": "Audio ayat ini tidak tersedia tanpa internet. Unduh audio surah di Pengaturan agar bisa diputar offline.", "en": "This verse's audio is unavailable without internet. Download the surah audio in Settings to play it offline." },
+  "quran.ayahAudioOfflineTidakAda": { "id": "Audio ayat gagal diputar. Periksa koneksi internet, atau unduh audio surah di Pengaturan agar bisa diputar offline.", "en": "Could not play this verse's audio. Check your internet connection, or download the surah audio in Settings to play it offline." },
   "quran.modeBelajar": { "id": "Mode Belajar", "en": "Study mode" },
   "quran.modeBelajarAktif": { "id": "Belajar Aktif ✓", "en": "Study active ✓" },
   "quran.belajarMemuat": { "id": "Memuat kata per kata…", "en": "Loading word by word…" },

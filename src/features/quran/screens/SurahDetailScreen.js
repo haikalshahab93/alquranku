@@ -4,7 +4,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getSuratDetail, getTafsir } from '../../../api/quran.js';
 import { withAppLink } from '../../../api/appLink.js';
 import { findVerseTiming, wordPosAt, splitArabicWords, getPreferredKaraokeReciter } from '../../../api/quranAudio.js';
-import { getKaraokeAudioData, getOfflineKaraokeAudioData, isAudioSavedOffline } from '../../../api/offlineAudio.js';
+import { getKaraokeAudioData, isAudioSavedOffline } from '../../../api/offlineAudio.js';
 import { getSurahWords } from '../../../api/quranWords.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme, getPalette } from '../../../ui';
@@ -18,10 +18,6 @@ import { Ionicons } from '@expo/vector-icons'
 
 // Nomor ayat dalam angka Arab-Indic untuk tanda akhir ayat mode mushaf (۝١)
 const toArabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
-
-// Label nama qari (sebelumnya dipakai tapi belum didefinisikan -> ReferenceError).
-// Kalau sudah punya map sendiri di api/quran, hapus ini dan import dari sana.
-const QARI_LABELS = {};
 
 // Nomor ayat dari index daftar ayat (index array tidak selalu = nomor ayat).
 const ayahNumberAtIndex = (ayat, index) => {
@@ -53,9 +49,8 @@ export default function SurahDetailScreen({ route, navigation }) {
   const [playingAyahId, setPlayingAyahId] = useState(null);
   const [playingAyahIndex, setPlayingAyahIndex] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [availableQaris, setAvailableQaris] = useState([]);
-  const [selectedQari, setSelectedQari] = useState(null);
-  const [qariLabelsMap, setQariLabelsMap] = useState({});
+  // Ayat yang audionya sedang disiapkan: data timing qari terpilih dimuat dulu.
+  const [ayahLoadingIndex, setAyahLoadingIndex] = useState(null);
   const [tafsirMap, setTafsirMap] = useState({});
   const [expandedTafsirAyahs, setExpandedTafsirAyahs] = useState({});
   const [tafsirPageIndexByAyah, setTafsirPageIndexByAyah] = useState({});
@@ -93,13 +88,9 @@ export default function SurahDetailScreen({ route, navigation }) {
   // dimulai di awal ayat dan berhenti tepat di akhirnya, seperti file per-ayat.
   const ayahStartRef = useRef(null);
   const ayahEndRef = useRef(null);
-  // Salinan offline untuk mode per-ayat: { key: 'surah:reciter', data }.
-  // data null = sudah dicek dan memang tidak ada (jangan baca ulang terus).
-  const offlineAyahDataRef = useRef(null);
-  // Pengawas: audio online yang tak kunjung termuat dialihkan ke salinan offline.
-  const ayahFallbackTimerRef = useRef(null);
-  // Status pemutar terbaru, untuk dibaca dari dalam setTimeout.
-  const playerStatusRef = useRef(null);
+  // Sesi pemutaran per-ayat: hasil permintaan data yang telat (user pindah
+  // ayat atau menyalakan karaoke) tidak boleh ikut memutar audio.
+  const ayahPlaySessionRef = useRef(0);
   // updateInterval 250ms: event status mengalir berkala (native & web) supaya
   // marking karaoke bergerak halus mengikuti bacaan.
   const player = useAudioPlayer(null, { updateInterval: 250 });
@@ -150,7 +141,6 @@ export default function SurahDetailScreen({ route, navigation }) {
   // Cek status audio offline saat mount / reciter berubah
   useEffect(() => {
     let alive = true;
-    offlineAyahDataRef.current = null;
     isAudioSavedOffline(Number(nomor), selectedKaraokeReciterId).then((m) => { if (alive) setAudioOffline(m); }).catch(() => {});
     return () => { alive = false; };
   }, [nomor, selectedKaraokeReciterId]);
@@ -339,25 +329,6 @@ export default function SurahDetailScreen({ route, navigation }) {
       const data = await getSuratDetail(nomor);
       setDetail(data);
       setFromCacheDetail(!!data?.__fromCache);
-      const ayah0 = data?.ayat?.[0];
-      const audioObj0 = ayah0?.audio || {};
-      const keys = Object.keys(audioObj0);
-      const qariKeys = Array.from(new Set(keys.filter(Boolean)));
-      setAvailableQaris(qariKeys);
-      const labelMap = {};
-      qariKeys.forEach((k) => {
-        const url = audioObj0[k];
-        let label = QARI_LABELS[k];
-        if (!label && typeof url === 'string') {
-          try {
-            const m = url.match(/audio-partial\/(.+?)\//);
-            if (m && m[1]) label = decodeURIComponent(m[1]).replace(/-/g, ' ');
-          } catch {}
-        }
-        labelMap[k] = label || k;
-      });
-      setQariLabelsMap(labelMap);
-      setSelectedQari(qariKeys.includes('alafasy') ? 'alafasy' : (qariKeys[0] || null));
     } catch (e) {
       setError(t('surah.loadDetailError'));
     } finally {
@@ -437,11 +408,6 @@ export default function SurahDetailScreen({ route, navigation }) {
   useEffect(() => {
     if (playerStatus.playing) playbackStartedRef.current = true;
   }, [playerStatus.playing]);
-
-  // Salin status pemutar ke ref agar bisa dibaca dari dalam setTimeout.
-  useEffect(() => {
-    playerStatusRef.current = playerStatus;
-  }, [playerStatus]);
 
   // Per-ayat: progres wash-highlight (dari posisi audio) dan henti tepat di
   // akhir potongan offline. Dipisah dari efek "selesai" karena butuh
@@ -524,31 +490,6 @@ export default function SurahDetailScreen({ route, navigation }) {
     if (!karaokeMode || typeof playerStatus.currentTime !== 'number') return;
     updateKaraokeAt(playerStatus.currentTime);
   }, [playerStatus.currentTime, playerStatus.playing, karaokeMode]);
-  useEffect(() => {
-    (async () => {
-      try {
-        const saved = await AsyncStorage.getItem('preferred_qari');
-        if (saved) {
-          setSelectedQari(saved);
-        }
-      } catch (e) {
-        console.warn('Failed to load preferred qari', e);
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      if (selectedQari) {
-        try {
-          await AsyncStorage.setItem('preferred_qari', selectedQari);
-        } catch (e) {
-          console.warn('Failed to save preferred qari', e);
-        }
-      }
-    })();
-  }, [selectedQari]);
-
   // Muat kata per kata saat Mode Belajar aktif (atau bahasa efektif berganti).
   useEffect(() => {
     if (!belajarMode) return;
@@ -579,12 +520,9 @@ export default function SurahDetailScreen({ route, navigation }) {
     setAyahSource(null);
     setStudyMap(null);
     setStudyWord(null);
+    ++ayahPlaySessionRef.current;
     ayahStartRef.current = null;
     ayahEndRef.current = null;
-    if (ayahFallbackTimerRef.current) {
-      clearTimeout(ayahFallbackTimerRef.current);
-      ayahFallbackTimerRef.current = null;
-    }
     try { player.pause(); } catch (e) {}
   }, [nomor]);
 
@@ -592,10 +530,17 @@ export default function SurahDetailScreen({ route, navigation }) {
   // (Efek penyimpanan balik dihapus: setPreferredKaraokeReciter tidak di-import,
   //  dan reciter memang hanya diubah dari layar Pengaturan.)
   useEffect(() => {
-    getPreferredKaraokeReciter()
-      .then((id) => { if (id != null) setSelectedKaraokeReciterId(id); })
-      .catch(() => {});
-  }, []);
+    const loadReciter = () => {
+      getPreferredKaraokeReciter()
+        .then((id) => { if (id != null) setSelectedKaraokeReciterId(id); })
+        .catch(() => {});
+    };
+    loadReciter();
+    // Qari bisa diganti di Pengaturan; muat ulang saat layar ini dibuka lagi
+    // supaya suara play & karaoke selalu mengikuti pilihan terbaru.
+    const unsub = navigation?.addListener?.('focus', loadReciter);
+    return () => { if (typeof unsub === 'function') unsub(); };
+  }, [navigation]);
 
   // textScale tidak lagi disimpan di sini: modul appearance yang jadi satu sumber kebenaran
   // (skala tersimpan di AsyncStorage 'text_scale' — kunci yang sama dengan sebelumnya).
@@ -617,28 +562,6 @@ export default function SurahDetailScreen({ route, navigation }) {
     saveTextScale(textScale - 0.1);
   };
 
-  useEffect(() => {
-    if (selectedQari && playingAyahIndex != null) {
-      playAyah(playingAyahIndex);
-    }
-  }, [selectedQari]);
-
-  const getAyahAudioUrl = (index) => {
-    const ayah = detail?.ayat?.[index];
-    if (!ayah || !ayah.audio) return null;
-    const audioObj = ayah.audio;
-    if (selectedQari && typeof audioObj[selectedQari] === 'string' && audioObj[selectedQari]) {
-      return audioObj[selectedQari];
-    }
-    for (const k of availableQaris) {
-      if (typeof audioObj[k] === 'string' && audioObj[k]) return audioObj[k];
-    }
-    for (const val of Object.values(audioObj)) {
-      if (typeof val === 'string' && val) return val;
-    }
-    return null;
-  };
-
   const stopCurrent = async () => {
     try { player.pause(); } catch {}
     try { player.seekTo(0); } catch {}
@@ -653,10 +576,7 @@ export default function SurahDetailScreen({ route, navigation }) {
       setKaraokeErr(null);
       finishHandledRef.current = false;
       playbackStartedRef.current = false;
-      if (ayahFallbackTimerRef.current) {
-        clearTimeout(ayahFallbackTimerRef.current);
-        ayahFallbackTimerRef.current = null;
-      }
+      ++ayahPlaySessionRef.current;
       ayahStartRef.current = null;
       ayahEndRef.current = null;
       setAyahSource(null);
@@ -765,89 +685,39 @@ export default function SurahDetailScreen({ route, navigation }) {
     setDisplayMode(m);
   };
 
-  // Per-ayat dari salinan offline: potong MP3 surah pada rentang ayat itu.
-  // Hanya dipakai bila audio online tidak tersedia (tanpa kuota/koneksi).
-  const playAyahOffline = async (index, ayahNumber, silent = false) => {
+  // === Audio per ayat ===
+  // Suara play harus SAMA dengan Mode Karaoke: keduanya memakai rekaman qari
+  // yang dipilih di Pengaturan (quran.com). MP3-nya satu berkas per surah, jadi
+  // ayat dipotong memakai timing ayat itu: mulai di awal ayat dan berhenti
+  // tepat di akhirnya. Tanpa koneksi/kuota, salinan offline qari yang sama
+  // dipakai otomatis (getKaraokeAudioData mencoba API lalu salinan tersimpan).
+  const playAyah = async (index) => {
+    const ayahNumber = ayahNumberAtIndex(detail?.ayat, index);
+    const session = ++ayahPlaySessionRef.current;
+    setAyahLoadingIndex(index);
     try {
-      const key = `${Number(nomor)}:${selectedKaraokeReciterId}`;
-      let offline = offlineAyahDataRef.current?.key === key
-        ? offlineAyahDataRef.current.data
-        : null;
-      if (offline === null) {
-        offline = await getOfflineKaraokeAudioData(Number(nomor), selectedKaraokeReciterId)
-          .catch(() => null);
-        offlineAyahDataRef.current = { key, data: offline };
-      }
-      const timing = offline ? findTimingForAyah(offline, Number(nomor), ayahNumber) : null;
-      if (!offline || !timing) {
-        if (!silent) Alert.alert(t('quran.ayahAudioOfflineTidakAda'));
-        return false;
-      }
+      const data = await getKaraokeAudioData(Number(nomor), selectedKaraokeReciterId);
+      if (session !== ayahPlaySessionRef.current) return;
+      const timing = findTimingForAyah(data, Number(nomor), ayahNumber);
+      if (!timing) throw new Error('Timing ayat tidak tersedia');
       const from = (timing.timestamp_from || 0) / 1000;
       const to = (timing.timestamp_to || 0) / 1000;
       finishHandledRef.current = false;
       playbackStartedRef.current = false;
       await stopCurrent();
-      player.replace({ uri: offline.audioUrl });
+      player.replace({ uri: data.audioUrl });
       ayahStartRef.current = from;
       ayahEndRef.current = to > from ? to : null;
       setPlayingAyahIndex(index);
       setPlayingAyahId(detail?.ayat?.[index]?.id ?? null);
       setPlayProgress(0);
-      setAyahSource('offline');
+      setAyahSource(data.__offline ? 'offline' : 'online');
       // Di mode Mushaf hanya ada satu kartu (tanpa per-ayat untuk digulirkan).
       if (displayMode !== 'mushaf') {
         flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
       }
       try { await player.seekTo(Math.max(0, from)); } catch (e) {}
       player.play();
-      return true;
-    } catch (e) {
-      if (!silent) Alert.alert(t('quran.ayahAudioOfflineTidakAda'));
-      return false;
-    }
-  };
-
-  // Audio online kadang gagal termuat tanpa pesan (mis. kuota habis). Setelah
-  // beberapa detik tanpa tanda bunyi/termuat, alihkan ke salinan offline.
-  const startAyahFallback = (index, ayahNumber) => {
-    if (ayahFallbackTimerRef.current) clearTimeout(ayahFallbackTimerRef.current);
-    ayahFallbackTimerRef.current = setTimeout(() => {
-      ayahFallbackTimerRef.current = null;
-      const st = playerStatusRef.current || {};
-      const started = !!st.isLoaded || !!st.playing
-        || (st.currentTime || 0) > 0.1 || (st.duration || 0) > 0;
-      if (started) return;
-      playAyahOffline(index, ayahNumber, true);
-    }, 3500);
-  };
-
-  const playAyah = async (index) => {
-    const ayahNumber = ayahNumberAtIndex(detail?.ayat, index);
-    try {
-      const url = getAyahAudioUrl(index);
-      if (!url) {
-        // Tidak ada URL dari API (mis. data cache lama) -> langsung offline.
-        await playAyahOffline(index, ayahNumber);
-        return;
-      }
-      finishHandledRef.current = false;
-      playbackStartedRef.current = false;
-      await stopCurrent();
-      player.replace({ uri: url });
-      setPlayingAyahIndex(index);
-      setPlayingAyahId(detail?.ayat?.[index]?.id ?? null);
-      setPlayProgress(0);
-      setAyahSource('online');
-      ayahStartRef.current = null;
-      ayahEndRef.current = null;
-      if (displayMode !== 'mushaf') {
-        flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
-      }
-      player.seekTo(0);
-      player.play();
-      // Pengawas hanya perlu bila ada salinan offline untuk dialihkan.
-      if (audioOffline) startAyahFallback(index, ayahNumber);
 
       // Simpan progress "terakhir dibaca" setiap kali memutar ayat
       try {
@@ -858,11 +728,11 @@ export default function SurahDetailScreen({ route, navigation }) {
           lastAyah: (detail?.ayat?.[index]?.nomorAyat || detail?.ayat?.[index]?.nomor_ayat || index + 1),
         }));
         markDirty('last_read');
-      } catch (e) {
-        console.log('Audio error', e);
-      }
+      } catch (e) {}
     } catch (e) {
-      // silent
+      Alert.alert(t('quran.ayahAudioOfflineTidakAda'));
+    } finally {
+      if (session === ayahPlaySessionRef.current) setAyahLoadingIndex(null);
     }
   };
     const togglePlayPause = async () => {
@@ -916,7 +786,7 @@ export default function SurahDetailScreen({ route, navigation }) {
 
   useEffect(() => {
     return () => {
-      if (ayahFallbackTimerRef.current) clearTimeout(ayahFallbackTimerRef.current);
+      ++ayahPlaySessionRef.current;
       try { player.pause(); } catch {}
       try { player.seekTo(0); } catch {}
       try { wordPlayer.pause(); } catch {}
@@ -947,7 +817,7 @@ export default function SurahDetailScreen({ route, navigation }) {
 
   const renderItem = ({ item, index }) => {
     const isActive = index === playingAyahIndex;
-    const hasAudio = !!getAyahAudioUrl(index);
+    const ayahLoading = ayahLoadingIndex === index;
     const ayahNumber = (item?.nomorAyat != null ? item.nomorAyat : (item?.nomor != null ? item.nomor : index + 1));
     const arabText = item?.teksArab ?? item?.teks_arab;
     // Kata per kata quran.com (hanya saat Mode Belajar dan data sudah siap).
@@ -1123,11 +993,15 @@ export default function SurahDetailScreen({ route, navigation }) {
             <TouchableOpacity style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => shareAyah(ayahNumber, arabText, latinText, indoText)}>
               <Ionicons name="share-social-outline" size={20} color={pal.colors.primary} />
             </TouchableOpacity>
-            {hasAudio ? (
-              <TouchableOpacity style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]} onPress={() => (karaokeMode ? startKaraoke(index) : (isActive ? togglePlayPause() : playAyah(index)))}>
-                <Ionicons name={isActive && isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={22} color={pal.colors.primary} />
-              </TouchableOpacity>
-            ) : null}
+            <TouchableOpacity
+              style={[styles.iconBtn, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}
+              onPress={() => (karaokeMode ? startKaraoke(index) : (isActive ? togglePlayPause() : playAyah(index)))}
+              disabled={ayahLoading}
+            >
+              {ayahLoading
+                ? <ActivityIndicator size="small" color={pal.colors.primary} />
+                : <Ionicons name={isActive && isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={22} color={pal.colors.primary} />}
+            </TouchableOpacity>
             {isActive && ayahSource === 'offline' ? (
               <View style={[styles.offlineTag, { backgroundColor: pal.colors.surface, borderColor: pal.colors.surfaceBorder }]}>
                 <Ionicons name="cloud-offline-outline" size={12} color={pal.colors.muted} />
@@ -1198,7 +1072,6 @@ const styles = StyleSheet.create({
   header: { paddingBottom: 12, borderBottomWidth: 1, borderColor: '#eee', marginBottom: 12 },
   title: { fontSize: 20, fontWeight: '700' },
   meta: { color: '#666', marginTop: 4 },
-  selectedQari: { marginTop: 4, color: '#0f766e', fontWeight: '600' },
   ayat: { marginBottom: 16, backgroundColor: '#fff', borderRadius: 12, padding: 12, elevation: 1 },
   qariSection: { marginTop: 8 },
   qariDropdownToggle: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', alignSelf: 'flex-start', backgroundColor: '#f1f5f9', flexDirection: 'row', alignItems: 'center', gap: 4 },
